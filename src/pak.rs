@@ -69,3 +69,10 @@ impl PakIndex {
 		Ok(result)
 	}
 }
+
+pub fn read_whole_file<R: BufRead + Seek>(file_entry: &PakIndexFileEntry, reader: &mut R) -> std::io::Result<Vec<u8>> {
+	let mut buf = vec![0u8; (file_entry.data_end - file_entry.data_start) as usize];
+	reader.seek(SeekFrom::Start(file_entry.data_start))?;
+	reader.read_exact(&mut buf)?;
+	Ok(buf)
+}
