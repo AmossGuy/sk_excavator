@@ -15,6 +15,15 @@ struct PakHeader {
 	name_table_offset: U64LE,
 }
 
+#[derive(Copy, Clone, Debug, Zeroable, Pod)]
+#[repr(C)]
+struct PakFileHeader {
+	file_size: U64LE,
+	idk1: U64LE,
+	idk2: U64LE,
+	idk3: U64LE,
+}
+
 #[derive(Clone, Debug)]
 pub struct PakIndex {
 	pub files: HashMap<CString, PakIndexFileEntry>,
@@ -71,8 +80,13 @@ impl PakIndex {
 }
 
 pub fn read_whole_file<R: BufRead + Seek>(file_entry: &PakIndexFileEntry, reader: &mut R) -> std::io::Result<Vec<u8>> {
-	let mut buf = vec![0u8; (file_entry.data_end - file_entry.data_start) as usize];
 	reader.seek(SeekFrom::Start(file_entry.data_start))?;
-	reader.read_exact(&mut buf)?;
-	Ok(buf)
+	
+	let mut header_buf = [0u8; size_of::<PakFileHeader>()];
+	reader.read_exact(&mut header_buf);
+	let header: PakFileHeader = bytemuck::cast(header_buf);
+	
+	let mut data_buf = vec![0u8; header.file_size.get() as usize];
+	reader.read_exact(&mut data_buf)?;
+	Ok(data_buf)
 }
