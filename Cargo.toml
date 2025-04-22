@@ -1,0 +1,9 @@
+[package]
+name = "shovel-knight-ripper"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+bytemuck = { version = "1.22.0", features = ["derive"] }
+clap = { version = "4.5.37", features = ["derive"] }
+pack1 = { version = "1.0.0", features = ["bytemuck"] }
