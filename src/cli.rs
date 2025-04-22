@@ -56,7 +56,7 @@ pub fn cli_main() -> std::io::Result<()> {
 				let looksee = pak::read_whole_file(&entry.1, &mut reader)?;
 				let save_location = dest_path.join(name.to_string());
 				if let Some(save_dir) = save_location.parent() {
-					std::fs::create_dir_all(save_dir);
+					std::fs::create_dir_all(save_dir)?;
 				}
 				let mut output_file = File::create(save_location)?;
 				output_file.write_all(&looksee)?;

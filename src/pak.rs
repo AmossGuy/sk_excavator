@@ -83,7 +83,7 @@ pub fn read_whole_file<R: BufRead + Seek>(file_entry: &PakIndexFileEntry, reader
 	reader.seek(SeekFrom::Start(file_entry.data_start))?;
 	
 	let mut header_buf = [0u8; size_of::<PakFileHeader>()];
-	reader.read_exact(&mut header_buf);
+	reader.read_exact(&mut header_buf)?;
 	let header: PakFileHeader = bytemuck::cast(header_buf);
 	
 	let mut data_buf = vec![0u8; header.file_size.get() as usize];
