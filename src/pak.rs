@@ -34,7 +34,7 @@ pub struct PakIndexFileEntry {
 	pub data_length: u64,
 }
 
-fn read_pile_o_pointers<R: Read>(reader: &mut R, count: usize) -> std::io::Result<Vec<u64>> {
+pub fn read_pile_o_pointers<R: Read>(reader: &mut R, count: usize) -> std::io::Result<Vec<u64>> {
 	const SIZE: usize = size_of::<u64>();
 	let mut buf = vec![0u8; SIZE * count];
 	reader.read_exact(&mut buf)?;

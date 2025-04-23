@@ -27,6 +27,13 @@ enum Commands {
 		#[arg(value_name = "DEST", help = "Directory to extract files to - omit to use working directory")]
 		dest_path: Option<String>,
 	},
+	#[command(arg_required_else_help = true, about = "Extract text from a .stl file")]
+	DumpLoctext {
+		#[arg(value_name = "STL", help = "Path to the .stl file")]
+		stl_path: String,
+		#[arg(value_name = "DEST", help = "File to save the text to")]
+		dest_path: String,
+	},
 }
 
 pub fn cli_main() -> std::io::Result<()> {
@@ -61,6 +68,15 @@ pub fn cli_main() -> std::io::Result<()> {
 				output_file.write_all(&looksee)?;
 			}
 			println!("Done.");
+		},
+		Commands::DumpLoctext { stl_path, dest_path } => {
+			let mut reader = BufReader::new(File::open(stl_path)?);
+			let strings = crate::loctext::read_stl(&mut reader)?;
+			
+			let mut writer = File::create(dest_path)?;
+			for string in strings {
+				writeln!(writer, "{}", string)?;
+			}
 		},
 	}
 	
