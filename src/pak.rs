@@ -1,9 +1,11 @@
 use std::ffi::CString;
-use std::io::{BufRead, Read, Seek, SeekFrom};
+use std::io::{BufRead, Seek, SeekFrom};
 use std::mem::size_of;
 
 use bytemuck::{Pod, Zeroable};
 use pack1::{U32LE, U64LE};
+
+use crate::util_binary::*;
 
 #[derive(Copy, Clone, Debug, Zeroable, Pod)]
 #[repr(C)]
@@ -34,18 +36,6 @@ pub struct PakIndexFileEntry {
 	pub data_length: u64,
 }
 
-pub fn read_pile_o_pointers<R: Read>(reader: &mut R, count: usize) -> std::io::Result<Vec<u64>> {
-	const SIZE: usize = size_of::<u64>();
-	let mut buf = vec![0u8; SIZE * count];
-	reader.read_exact(&mut buf)?;
-	let mut result = Vec::with_capacity(count);
-	for i in 0..count {
-		let slice: [u8; SIZE] = buf[i*SIZE..(i+1)*SIZE].try_into().unwrap();
-		result.push(u64::from_le_bytes(slice));
-	}
-	Ok(result)
-}
-
 impl PakIndex {
 	pub fn create_index<R: BufRead + Seek>(reader: &mut R) -> std::io::Result<Self> {
 		reader.rewind()?;
@@ -61,7 +51,7 @@ impl PakIndex {
 		
 		let mut file_names = Vec::<CString>::with_capacity(file_count_usize);
 		for i in 0..file_count_usize {
-			reader.seek(SeekFrom::Start(name_pointers[i]))?;
+			seek_absolute(reader, name_pointers[i])?;
 			let mut name_buf = Vec::<u8>::new();
 			reader.read_until(0, &mut name_buf)?;
 			file_names.push(CString::from_vec_with_nul(name_buf).unwrap());
@@ -69,7 +59,7 @@ impl PakIndex {
 		
 		let mut entries = Vec::<PakIndexFileEntry>::with_capacity(file_count_usize);
 		for i in 0..file_count_usize {
-			reader.seek(SeekFrom::Start(data_pointers[i]))?;
+			seek_absolute(reader, data_pointers[i])?;
 			let mut file_header_buf = [0u8; size_of::<PakFileHeader>()];
 			reader.read_exact(&mut file_header_buf)?;
 			let file_header: PakFileHeader = bytemuck::cast(file_header_buf);
