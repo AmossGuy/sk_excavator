@@ -38,8 +38,7 @@ pub fn cli_main() -> std::io::Result<()> {
 			let index = PakIndex::create_index(&mut reader)?;
 			for entry in index.files {
 				let name = String::from_utf8_lossy(entry.0.to_bytes());
-				let size = entry.1.data_end - entry.1.data_start;
-				println!("{} ({} bytes)", name, size);
+				println!("{} ({} bytes)", name, entry.1.data_length);
 			}
 		},
 		Commands::Extract { pak_path, dest_path } => {

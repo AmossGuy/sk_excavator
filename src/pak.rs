@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::ffi::CString;
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::mem::size_of;
@@ -26,13 +25,13 @@ struct PakFileHeader {
 
 #[derive(Clone, Debug)]
 pub struct PakIndex {
-	pub files: HashMap<CString, PakIndexFileEntry>,
+	pub files: Vec<(CString, PakIndexFileEntry)>,
 }
 
 #[derive(Clone, Debug)]
 pub struct PakIndexFileEntry {
 	pub data_start: u64,
-	pub data_end: u64,
+	pub data_length: u64,
 }
 
 fn read_pile_o_pointers<R: Read>(reader: &mut R, count: usize) -> std::io::Result<Vec<u64>> {
@@ -60,33 +59,35 @@ impl PakIndex {
 		reader.seek(SeekFrom::Start(header.name_table_offset.get()))?;
 		let name_pointers = read_pile_o_pointers(reader, file_count_usize)?;
 		
-		let mut result = Self {
-			files: HashMap::new(),
-		};
-		
+		let mut file_names = Vec::<CString>::with_capacity(file_count_usize);
 		for i in 0..file_count_usize {
-			let mut name_buf = vec![0u8; 0];
 			reader.seek(SeekFrom::Start(name_pointers[i]))?;
+			let mut name_buf = Vec::<u8>::new();
 			reader.read_until(0, &mut name_buf)?;
-			
-			let name = CString::from_vec_with_nul(name_buf).unwrap();
-			let data_start = data_pointers[i];
-			let data_end = if i != data_pointers.len() - 1 { data_pointers[i+1] } else { name_pointers[0] };
-			result.files.insert(name, PakIndexFileEntry { data_start, data_end });
+			file_names.push(CString::from_vec_with_nul(name_buf).unwrap());
 		}
 		
-		Ok(result)
+		let mut entries = Vec::<PakIndexFileEntry>::with_capacity(file_count_usize);
+		for i in 0..file_count_usize {
+			reader.seek(SeekFrom::Start(data_pointers[i]))?;
+			let mut file_header_buf = [0u8; size_of::<PakFileHeader>()];
+			reader.read_exact(&mut file_header_buf)?;
+			let file_header: PakFileHeader = bytemuck::cast(file_header_buf);
+			
+			let data_start = reader.stream_position()?;
+			let data_length = file_header.file_size.get();
+			entries.push(PakIndexFileEntry { data_start, data_length });
+		}
+		
+		Ok(Self {
+			files: file_names.into_iter().zip(entries).collect(),
+		})
 	}
 }
 
 pub fn read_whole_file<R: BufRead + Seek>(file_entry: &PakIndexFileEntry, reader: &mut R) -> std::io::Result<Vec<u8>> {
 	reader.seek(SeekFrom::Start(file_entry.data_start))?;
-	
-	let mut header_buf = [0u8; size_of::<PakFileHeader>()];
-	reader.read_exact(&mut header_buf)?;
-	let header: PakFileHeader = bytemuck::cast(header_buf);
-	
-	let mut data_buf = vec![0u8; header.file_size.get() as usize];
+	let mut data_buf = vec![0u8; file_entry.data_length as usize];
 	reader.read_exact(&mut data_buf)?;
 	Ok(data_buf)
 }
