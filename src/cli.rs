@@ -36,7 +36,7 @@ enum Commands {
 	},
 }
 
-pub fn cli_main() -> std::io::Result<()> {
+pub fn cli_main() -> anyhow::Result<()> {
 	let args = Cli::parse();
 	
 	match args.command {

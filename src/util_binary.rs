@@ -1,5 +1,7 @@
 //! General functions used for parsing binary formats.
 
+use std::error::Error;
+use std::fmt::{Display, Formatter};
 use std::io::{BufRead, Read, Seek};
 
 /// Struct parser thingy. Takes a function that must read the exact number of bytes passed in.
@@ -25,6 +27,19 @@ pub enum StructParserError {
 	LeftoverData,
 	/// A field had a value that did not match expectations
 	UnexpectedValue,
+}
+
+impl Display for StructParserError {
+	fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+		match self {
+			Self::UnexpectedEnd => write!(f, "unexpected end of data"),
+			Self::LeftoverData => write!(f, "data was not consumed entirely"),
+			Self::UnexpectedValue => write!(f, "a field had an unexpected value"),
+		}
+	}
+}
+
+impl Error for StructParserError {
 }
 
 macro_rules! read_number_impl {

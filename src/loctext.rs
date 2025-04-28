@@ -1,35 +1,32 @@
 use std::ffi::CString;
 use std::io::{BufRead, Seek, SeekFrom};
 
-use bytemuck::{Pod, Zeroable};
-use pack1::U32LE;
+use crate::util_binary::{parse_struct, read_pile_o_pointers, seek_absolute};
 
-use crate::util_binary::*;
-
-#[derive(Copy, Clone, Debug, Zeroable, Pod)]
-#[repr(C)]
+#[derive(Copy, Clone, Debug)]
 struct StlHeader {
-	idk: [u8; 8],
-	string_count: U32LE,
-	why_is_it_1: [u8; 4],
-	table_offset: U32LE,
-	who_knows: [u8; 4],
+	string_count: u32,
+	string_table_offset: u64,
 }
 
-pub fn read_stl<R: BufRead + Seek>(reader: &mut R) -> std::io::Result<Vec<String>> {
+pub fn read_stl<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<Vec<String>> {
 	reader.rewind()?;
-	let mut header_buf = [0u8; size_of::<StlHeader>()];
+	let mut header_buf = [0u8; 24];
 	reader.read_exact(&mut header_buf)?;
-	let header: StlHeader = bytemuck::cast(header_buf);
+	let header: StlHeader = parse_struct(&header_buf, |parser| {
+		parser.expect_u32(0)?;
+		parser.expect_u32(0)?;
+		let string_count = parser.read_u32()?;
+		parser.expect_u32(1)?;
+		let string_table_offset = parser.read_u64()?;
+		Ok(StlHeader { string_count, string_table_offset })
+	})?;
 	
-	#[allow(non_snake_case)] // EMOTIONS (i'm up too late)
-	let string_count_AAAAA = header.string_count.get() as usize;
+	reader.seek(SeekFrom::Start(header.string_table_offset as u64))?;
+	let text_pointers = read_pile_o_pointers(reader, header.string_count as usize)?; // code smell much?
 	
-	reader.seek(SeekFrom::Start(header.table_offset.get() as u64))?;
-	let text_pointers = read_pile_o_pointers(reader, string_count_AAAAA)?; // code smell much?
-	
-	let mut strings = Vec::<String>::with_capacity(string_count_AAAAA);
-	for i in 0..string_count_AAAAA as usize {
+	let mut strings = Vec::<String>::with_capacity(header.string_count as usize);
+	for i in 0..header.string_count as usize {
 		seek_absolute(reader, text_pointers[i])?;
 		let mut string_buf = Vec::<u8>::new();
 		reader.read_until(0, &mut string_buf)?;

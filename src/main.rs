@@ -3,6 +3,6 @@ mod loctext;
 mod pak;
 mod util_binary;
 
-fn main() -> std::io::Result<()> {
+fn main() -> anyhow::Result<()> {
 	cli::cli_main()
 }
