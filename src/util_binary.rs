@@ -23,6 +23,8 @@ pub enum StructParserError {
 	UnexpectedEnd,
 	/// There was still some data left when `finish` was called.
 	LeftoverData,
+	/// A field had a value that did not match expectations
+	UnexpectedValue,
 }
 
 macro_rules! read_number_impl {
@@ -61,6 +63,15 @@ impl<'a> StructParser<'a> {
 	
 	read_number_impl!(read_u32, u32);
 	read_number_impl!(read_u64, u64);
+	
+	pub fn expect_u32(&mut self, expected: u32) -> Result<(), StructParserError> {
+		let value = self.read_u32()?;
+		if value == expected {
+			Ok(())
+		} else {
+			Err(StructParserError::UnexpectedValue)
+		}
+	}
 }
 
 // this is just an experiment of the error type conversion
@@ -145,5 +156,27 @@ mod tests {
 			Ok((n, m))
 		});
 		assert_eq!(result, Err(StructParserError::LeftoverData));
+	}
+	
+	#[test]
+	fn parse_expect_success() {
+		let data: Vec<u8> = vec![0x44, 0x33, 0x22, 0x11, 0xDD, 0xCC, 0xBB, 0xAA];
+		let result = parse_struct(&data, |parser| {
+			parser.expect_u32(0x11223344)?;
+			parser.expect_u32(0xAABBCCDD)?;
+			Ok(())
+		});
+		assert_eq!(result, Ok(()));
+	}
+	
+	#[test]
+	fn parse_expect_failure() {
+		let data: Vec<u8> = vec![0x4C, 0x0A, 0xEB, 0x74, 0x16, 0x8C, 0xFF, 0x84];
+		let result = parse_struct(&data, |parser| {
+			parser.expect_u32(0x11223344)?;
+			parser.expect_u32(0xAABBCCDD)?;
+			Ok(())
+		});
+		assert_eq!(result, Err(StructParserError::UnexpectedValue));
 	}
 }
