@@ -3,6 +3,6 @@ mod loctext;
 mod pak;
 mod util_binary;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> binrw::BinResult<()> {
 	cli::cli_main()
 }

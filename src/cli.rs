@@ -34,9 +34,12 @@ enum Commands {
 		#[arg(value_name = "DEST", help = "File to save the text to")]
 		dest_path: String,
 	},
+	Ffffj {
+		paths: Vec<String>,
+	},
 }
 
-pub fn cli_main() -> anyhow::Result<()> {
+pub fn cli_main() -> binrw::BinResult<()> {
 	let args = Cli::parse();
 	
 	match args.command {
@@ -86,6 +89,13 @@ pub fn cli_main() -> anyhow::Result<()> {
 				writeln!(writer, "{}", string)?;
 			}
 		},
+		Commands::Ffffj {paths} => {
+			for path in paths {
+				println!("FILE: {}", path);
+				let mut reader = BufReader::new(File::open(path)?);
+				crate::loctext::ffffj(&mut reader)?;
+			}
+		}
 	}
 	
 	Ok(())
