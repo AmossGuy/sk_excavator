@@ -1,28 +1,30 @@
 use std::ffi::CString;
 use std::io::{BufRead, Seek, SeekFrom};
-use std::mem::size_of;
 
-use bytemuck::{Pod, Zeroable};
-use pack1::{U32LE, U64LE};
+use binrw::{BinRead, BinResult, BinWrite};
 
 use crate::util_binary::*;
 
-#[derive(Copy, Clone, Debug, Zeroable, Pod)]
-#[repr(C)]
+/// The header at the beginning of a `.bin` archive.
+#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[brw(little, magic = b"\0\0\0\0")]
 struct PakHeader {
-	idk: U32LE,
-	file_count: U32LE,
-	data_table_offset: U64LE,
-	name_table_offset: U64LE,
+	/// The number of files in the archive.
+	file_count: u32,
+	/// Pointer to a table of pointers to each files' header.
+	data_table_offset: u64,
+	/// Pointer to a table of pointers to the null-terminated filenames.
+	name_table_offset: u64,
 }
 
-#[derive(Copy, Clone, Debug, Zeroable, Pod)]
-#[repr(C)]
+/// The header for a single file. Immediately precedes the contents of the file.
+#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[brw(little)]
 struct PakFileHeader {
-	file_size: U64LE,
-	idk1: U64LE,
-	idk2: U64LE,
-	idk3: U64LE,
+	file_size: u64,
+	idk1: u64,
+	idk2: u64,
+	idk3: u64,
 }
 
 #[derive(Clone, Debug)]
@@ -37,16 +39,14 @@ pub struct PakIndexFileEntry {
 }
 
 impl PakIndex {
-	pub fn create_index<R: BufRead + Seek>(reader: &mut R) -> std::io::Result<Self> {
+	pub fn create_index<R: BufRead + Seek>(reader: &mut R) -> BinResult<Self> {
 		reader.rewind()?;
-		let mut header_buf = [0u8; size_of::<PakHeader>()];
-		reader.read_exact(&mut header_buf)?;
-		let header: PakHeader = bytemuck::cast(header_buf);
+		let header = PakHeader::read(reader)?;
 		
-		let file_count_usize = header.file_count.get() as usize;
-		reader.seek(SeekFrom::Start(header.data_table_offset.get()))?;
+		let file_count_usize = header.file_count as usize;
+		reader.seek(SeekFrom::Start(header.data_table_offset))?;
 		let data_pointers = read_pile_o_pointers(reader, file_count_usize)?;
-		reader.seek(SeekFrom::Start(header.name_table_offset.get()))?;
+		reader.seek(SeekFrom::Start(header.name_table_offset))?;
 		let name_pointers = read_pile_o_pointers(reader, file_count_usize)?;
 		
 		let mut file_names = Vec::<CString>::with_capacity(file_count_usize);
@@ -60,12 +60,10 @@ impl PakIndex {
 		let mut entries = Vec::<PakIndexFileEntry>::with_capacity(file_count_usize);
 		for i in 0..file_count_usize {
 			seek_absolute(reader, data_pointers[i])?;
-			let mut file_header_buf = [0u8; size_of::<PakFileHeader>()];
-			reader.read_exact(&mut file_header_buf)?;
-			let file_header: PakFileHeader = bytemuck::cast(file_header_buf);
+			let file_header = PakFileHeader::read(reader)?;
 			
 			let data_start = reader.stream_position()?;
-			let data_length = file_header.file_size.get();
+			let data_length = file_header.file_size;
 			entries.push(PakIndexFileEntry { data_start, data_length });
 		}
 		
