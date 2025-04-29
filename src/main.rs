@@ -1,8 +1,6 @@
-mod cli;
-mod loctext;
-mod pak;
-mod util_binary;
+pub mod formats;
+pub mod interface;
 
 fn main() -> binrw::BinResult<()> {
-	cli::cli_main()
+	crate::interface::cli::cli_main()
 }

@@ -3,7 +3,7 @@ use std::io::{BufRead, Seek, SeekFrom};
 
 use binrw::{BinRead, BinResult, BinWrite};
 
-use crate::util_binary::{read_pile_o_pointers, seek_absolute};
+use super::util_binary::{read_pile_o_pointers, seek_absolute};
 
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]

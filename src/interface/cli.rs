@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::pak::{self, PakIndex};
+use crate::formats::{loctext, pak};
 
 #[derive(Debug, Parser)]
 #[command(about = "Performs various operations on Shovel Knight's data files")]
@@ -48,7 +48,7 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				println!("FILE: {}", pak_path);
 				
 				let mut reader = BufReader::new(File::open(pak_path)?);
-				let index = PakIndex::create_index(&mut reader)?;
+				let index = pak::PakIndex::create_index(&mut reader)?;
 				for entry in index.files {
 					let name = String::from_utf8_lossy(entry.0.to_bytes());
 					println!("{} ({} bytes)", name, entry.1.data_length);
@@ -65,7 +65,7 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				};
 				
 				let mut reader = BufReader::new(File::open(pak_path)?);
-				let index = PakIndex::create_index(&mut reader)?;
+				let index = pak::PakIndex::create_index(&mut reader)?;
 				for entry in index.files {
 					let name = String::from_utf8_lossy(entry.0.to_bytes());
 					println!("Extracting {}...", name);
@@ -82,7 +82,7 @@ pub fn cli_main() -> binrw::BinResult<()> {
 		},
 		Commands::DumpLoctext { stl_path, dest_path } => {
 			let mut reader = BufReader::new(File::open(stl_path)?);
-			let strings = crate::loctext::read_stl(&mut reader)?;
+			let strings = loctext::read_stl(&mut reader)?;
 			
 			let mut writer = File::create(dest_path)?;
 			for string in strings {
@@ -93,7 +93,7 @@ pub fn cli_main() -> binrw::BinResult<()> {
 			for path in paths {
 				println!("FILE: {}", path);
 				let mut reader = BufReader::new(File::open(path)?);
-				crate::loctext::ffffj(&mut reader)?;
+				loctext::ffffj(&mut reader)?;
 			}
 		}
 	}
