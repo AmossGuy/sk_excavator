@@ -30,12 +30,3 @@ pub fn read_stl<R: BufRead + Seek>(reader: &mut R) -> BinResult<Vec<String>> {
 	}
 	Ok(strings)
 }
-
-pub fn ffffj<R: BufRead + Seek>(reader: &mut R) -> BinResult<()> {
-	let header = StlHeader::read(reader)?;
-	println!("{:?}", header);
-	if header.language_variants != 1 {
-		println!("FUNKY");
-	}
-	Ok(())
-}
