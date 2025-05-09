@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::formats::{loctext, pak};
+use crate::formats::{loctext, pak, stb};
 
 #[derive(Debug, Parser)]
 #[command(about = "Performs various operations on Shovel Knight's data files")]
@@ -27,13 +27,20 @@ enum Commands {
 		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to extract files to - omit to use working directory")]
 		dest_path: Option<String>,
 	},
-	#[command(about = "Extract text from a .stl file")]
+	#[command(about = "Extract text and associated data from .stl and .stm files")]
 	DumpLoctext {
 		#[arg(value_name = "STL", help = "Path to the .stl file")]
 		stl_path: String,
+		#[arg(value_name = "STM", help = "Path to the .stm file")]
+		stm_path: String,
 		#[arg(value_name = "DEST", help = "File to save the text to")]
 		dest_path: String,
 	},
+	/*
+	#[command(name = "stm", about = "Temporary command to help decipher the .stm format")]
+	StmTemporary {
+	},
+	*/
 }
 
 pub fn cli_main() -> binrw::BinResult<()> {
@@ -77,15 +84,36 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				println!("Done.");
 			}
 		},
-		Commands::DumpLoctext { stl_path, dest_path } => {
-			let mut reader = BufReader::new(File::open(stl_path)?);
-			let strings = loctext::read_stl(&mut reader)?;
+		Commands::DumpLoctext { stl_path, stm_path, dest_path } => {
+			let mut stl_reader = BufReader::new(File::open(stl_path)?);
+			let strings = loctext::read_stl(&mut stl_reader)?;
+			
+			let mut stm_reader = BufReader::new(File::open(stm_path)?);
+			let (stm_fields, stm_stuff) = stb::read_stb(&mut stm_reader)?;
+			let stm_fields = stm_fields as usize;
 			
 			let mut writer = File::create(dest_path)?;
-			for string in strings {
+			for (string_n, string) in strings.iter().enumerate() {
+				for field_n in 0..stm_fields {
+					let offset = string_n * stm_fields + field_n;
+					writeln!(writer, "{}: {}", stm_stuff[field_n], stm_stuff[offset]);
+				}
 				writeln!(writer, "{}", string)?;
 			}
 		},
+		/*
+		Commands::StmTemporary {} => {
+			#[allow(deprecated)] // this code is temporary and not under stress
+			let home = std::env::home_dir().unwrap();
+			let location = home.join("Documents/shovel-knight-rip-testing/loctext");
+			for file in ["dialogue.stm", "menus.stm"] {
+				println!("FILE: {}", file);
+				let path = location.join(file);
+				let mut reader = BufReader::new(File::open(path)?);
+				stb::read_stb(&mut reader)?;
+			}
+		},
+		*/
 	}
 	
 	Ok(())
