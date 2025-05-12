@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::formats::{loctext, pak, stb};
+use crate::formats::{pak, stb, FileType};
 
 #[derive(Debug, Parser)]
 #[command(about = "Performs various operations on Shovel Knight's data files")]
@@ -18,38 +18,92 @@ enum Commands {
 	#[command(visible_alias = "l", about = "List the contents of one or more .pak files")]
 	List {
 		#[arg(num_args = 1.., required = true, value_name = "PAK", help = "Path to the .pak file(s)")]
-		pak_paths: Vec<String>,
+		pak_paths: Vec<PathBuf>,
 	},
 	#[command(visible_alias = "x", about = "Extract the contents of one or more .pak files")]
 	Extract {
 		#[arg(num_args = 1.., required = true, value_name = "PAK", help = "Path to the .pak file(s)")]
-		pak_paths: Vec<String>,
-		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to extract files to - omit to use working directory")]
-		dest_path: Option<String>,
+		pak_paths: Vec<PathBuf>,
+		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to place the extracted files - omit to use working directory")]
+		dest_path: Option<PathBuf>,
 	},
-	#[command(about = "Extract text and associated data from .stl and .stm files")]
-	DumpLoctext {
-		#[arg(value_name = "STL", help = "Path to the .stl file")]
-		stl_path: String,
-		#[arg(value_name = "STM", help = "Path to the .stm file")]
-		stm_path: String,
-		#[arg(value_name = "DEST", help = "File to save the text to")]
-		dest_path: String,
+	#[command(name = "stb", about = "Temporary command to help decipher the .stb format")]
+	StbTemporary {
 	},
-	/*
-	#[command(name = "stm", about = "Temporary command to help decipher the .stm format")]
-	StmTemporary {
-	},
-	*/
 }
+
+/*
+fn find_common_location(paths: &Vec<PathBuf>) -> Option<String> {
+	// When there's only one file, it would be pointless to separate out its location
+	// And zero-length vec would cause a panic in following code
+	if paths.len() == 0 || paths.len() == 1 {
+		return None;
+	}
+	
+	// The main point of this: if all the files are in the same directory, show that directory's path separately to avoid repeating it
+	let first_location = paths[0].parent()?;
+	for path in paths.iter().skip(1) {
+		if path.parent() != Some(first_location) {
+			return None;
+		}
+	}
+	
+	// A empty path would be invisible in the output
+	// I believe the path canonicalization prevents this from actually occurring, but it doesn't hurt
+	if first_location.as_os_str().is_empty() {
+		return None;
+	} else {
+		return Some(first_location.to_string_lossy().to_string());
+	}
+}
+
+fn process_file_paths(paths: Vec<PathBuf>) -> io::Result<Vec<(PathBuf, String)>> {
+	let canon_paths = paths.into_iter().map(|p| p.canonicalize()).collect::<io::Result<_>>()?;
+	
+	let common_location = find_common_location(&canon_paths);
+	
+	Ok(canon_paths.into_iter().map(|path| {
+		let display = match common_location {
+			Some(_) => path.file_name().unwrap_or(OsStr::new("")),
+			None => OsStr::new(&path),
+		}.to_string_lossy().to_string();
+		(path, display)
+	}).collect())
+}
+*/
 
 pub fn cli_main() -> binrw::BinResult<()> {
 	let args = Cli::parse();
 	
 	match args.command {
+		/*
+		Commands::List { file_paths } => {
+			let file_paths = process_file_paths(file_paths)?;
+			for (path, display) in file_paths {
+				println!("= FILE: {} =", display);
+				match FileType::from_extension(path.extension()) {
+					FileType::Unknown => println!("Unknown file format"),
+					FileType::Pak => {
+						todo!();
+					},
+					FileType::Stb => {
+						todo!();
+					},
+				}
+			}
+			todo!();
+		},
+		Commands::Extract { file_paths, dest_path } => {
+			todo!();
+		},
+		*/
 		Commands::List { pak_paths } => {
+			if !pak_paths.iter().all(|x| FileType::from_extension(x.extension()) == FileType::Pak) {
+				panic!("wtf bro");
+			}
+			
 			for pak_path in pak_paths {
-				println!("FILE: {}", pak_path);
+				println!("FILE: {}", pak_path.display());
 				
 				let mut reader = BufReader::new(File::open(pak_path)?);
 				let index = pak::PakIndex::create_index(&mut reader)?;
@@ -60,8 +114,12 @@ pub fn cli_main() -> binrw::BinResult<()> {
 			}
 		},
 		Commands::Extract { pak_paths, dest_path } => {
+			if !pak_paths.iter().all(|x| FileType::from_extension(x.extension()) == FileType::Pak) {
+				panic!("wtf bro");
+			}
+			
 			for pak_path in pak_paths {
-				println!("FILE: {}", pak_path);
+				println!("FILE: {}", pak_path.display());
 				
 				let dest_path = match dest_path {
 					Some(ref string) => PathBuf::from(string),
@@ -84,36 +142,9 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				println!("Done.");
 			}
 		},
-		Commands::DumpLoctext { stl_path, stm_path, dest_path } => {
-			let mut stl_reader = BufReader::new(File::open(stl_path)?);
-			let strings = loctext::read_stl(&mut stl_reader)?;
-			
-			let mut stm_reader = BufReader::new(File::open(stm_path)?);
-			let (stm_fields, stm_stuff) = stb::read_stb(&mut stm_reader)?;
-			let stm_fields = stm_fields as usize;
-			
-			let mut writer = File::create(dest_path)?;
-			for (string_n, string) in strings.iter().enumerate() {
-				for field_n in 0..stm_fields {
-					let offset = string_n * stm_fields + field_n;
-					writeln!(writer, "{}: {}", stm_stuff[field_n], stm_stuff[offset]);
-				}
-				writeln!(writer, "{}", string)?;
-			}
+		Commands::StbTemporary {} => {
+			todo!();
 		},
-		/*
-		Commands::StmTemporary {} => {
-			#[allow(deprecated)] // this code is temporary and not under stress
-			let home = std::env::home_dir().unwrap();
-			let location = home.join("Documents/shovel-knight-rip-testing/loctext");
-			for file in ["dialogue.stm", "menus.stm"] {
-				println!("FILE: {}", file);
-				let path = location.join(file);
-				let mut reader = BufReader::new(File::open(path)?);
-				stb::read_stb(&mut reader)?;
-			}
-		},
-		*/
 	}
 	
 	Ok(())
