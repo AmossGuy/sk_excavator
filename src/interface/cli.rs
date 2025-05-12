@@ -27,7 +27,7 @@ enum Commands {
 		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to place the extracted files - omit to use working directory")]
 		dest_path: Option<PathBuf>,
 	},
-	#[command(name = "stb", about = "Temporary command to help decipher the .stb format")]
+	#[command(visible_alias = "stb", about = "Temporary command to help decipher the .stb format")]
 	StbTemporary {
 	},
 }
@@ -143,7 +143,16 @@ pub fn cli_main() -> binrw::BinResult<()> {
 			}
 		},
 		Commands::StbTemporary {} => {
-			todo!();
+			#[allow(deprecated)] // this code is temporary and not under stress
+			let home = std::env::home_dir().unwrap();
+			let location = home.join("Documents/shovel-knight-rip-testing/loctext");
+			
+			for file in ["dialogue.stm"] {
+				println!("FILE: {}", file);
+				let path = location.join(file);
+				let mut reader = BufReader::new(File::open(path)?);
+				stb::read_stb_wip(&mut reader)?;
+			}
 		},
 	}
 	

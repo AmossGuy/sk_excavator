@@ -45,7 +45,7 @@ struct StbHeader {
 	// more stuff?
 }
 
-pub fn read_stb<R: BufRead + Seek>(reader: &mut R) -> BinResult<StbReadData> {
+pub fn read_stb_wip<R: BufRead + Seek>(reader: &mut R) -> BinResult<()> {
 	reader.rewind()?;
 	let header = StbHeader::read(reader)?;
 	
@@ -67,7 +67,11 @@ pub fn read_stb<R: BufRead + Seek>(reader: &mut R) -> BinResult<StbReadData> {
 		Ok(NullString::read_le(reader)?.to_string())
 	}).collect::<BinResult<_>>()?;
 	
-	Ok(StbReadData {
+	let idk = StbReadData {
 		entry_count, field_count, strings,
-	})
+	};
+	
+	//println!("{:?}", idk);
+	todo!("we've gotta show some entries and those possibly-checksums side by side, i guess");
+	Ok(())
 }
