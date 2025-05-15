@@ -4,7 +4,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 
-use crate::formats::{pak, stb, FileType};
+use crate::formats::{pak, st, FileType};
 
 #[derive(Debug, Parser)]
 #[command(about = "Performs various operations on Shovel Knight's data files")]
@@ -22,13 +22,13 @@ enum Commands {
 	},
 	#[command(visible_alias = "x", about = "Extract the contents of one or more .pak files")]
 	Extract {
-		#[arg(num_args = 1.., required = true, value_name = "PAK", help = "Path to the .pak file(s)")]
+		#[arg(num_args = 1.., required = true, value_name = "PAK", help = "Path(s) to the .pak file(s)")]
 		pak_paths: Vec<PathBuf>,
 		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to place the extracted files - omit to use working directory")]
 		dest_path: Option<PathBuf>,
 	},
-	#[command(visible_alias = "stb", about = "Temporary command to help decipher the .stb format")]
-	StbTemporary {
+	#[command(visible_alias = "st", about = "Convert .stb, .stl, or .stm files into a readable JSON format")]
+	StTemporary {
 	},
 }
 
@@ -142,16 +142,18 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				println!("Done.");
 			}
 		},
-		Commands::StbTemporary {} => {
+		Commands::StTemporary {} => {
 			#[allow(deprecated)] // this code is temporary and not under stress
 			let home = std::env::home_dir().unwrap();
-			let location = home.join("Documents/shovel-knight-rip-testing/loctext");
+			let location = home.join("Documents/shovel-knight-rip-testing");
 			
-			for file in ["dialogue.stm"] {
+			for file in ["loctext/dialogue.stm", "global_free.pak/dialogue/speakers.stb", "loctext/dialogue_eng.stl"] {
 				println!("FILE: {}", file);
 				let path = location.join(file);
+				let file_type = FileType::from_extension(path.extension());
+				let stl = file_type == FileType::Stl;
 				let mut reader = BufReader::new(File::open(path)?);
-				stb::read_stb_wip(&mut reader)?;
+				st::read_st_wip(&mut reader, stl)?;
 			}
 		},
 	}

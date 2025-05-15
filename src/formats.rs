@@ -1,6 +1,5 @@
-pub mod loctext;
 pub mod pak;
-pub mod stb;
+pub mod st;
 mod util_binary;
 
 use std::ffi::OsStr;
@@ -9,14 +8,16 @@ use std::ffi::OsStr;
 pub enum FileType {
 	Unknown,
 	Pak,
-	Stb,
+	StmOrStb,
+	Stl,
 }
 
 impl FileType {
 	pub fn from_extension(ext: Option<&OsStr>) -> Self {
 		match ext.map(|e| e.as_encoded_bytes()) {
 			Some(b"pak") => Self::Pak,
-			Some(b"stb" | b"stl" | b"stm") => Self::Stb,
+			Some(b"stm" | b"stb") => Self::StmOrStb,
+			Some(b"stl") => Self::Stl,
 			_ => Self::Unknown,
 		}
 	}
@@ -31,9 +32,9 @@ mod tests {
 	fn known_extensions() {
 		let examples = vec![
 			("cool/file.pak", FileType::Pak),
-			("cool/file.stb", FileType::Stb),
-			("cool/file.stl", FileType::Stb),
-			("cool/file.stm", FileType::Stb),
+			("cool/file.stb", FileType::StmOrStb),
+			("cool/file.stm", FileType::StmOrStb),
+			("cool/file.stl", FileType::Stl),
 		];
 		
 		for example in examples {

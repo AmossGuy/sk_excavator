@@ -1,3 +1,5 @@
+// OUTDATED: DELETE THIS FILE SOON
+/*
 use std::ffi::CString;
 use std::io::{BufRead, Seek, SeekFrom};
 
@@ -80,3 +82,4 @@ pub fn look_inside_stm<R: BufRead + Seek>(reader: &mut R) -> BinResult<()> {
 	
 	Ok(())
 }
+*/
