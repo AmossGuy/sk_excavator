@@ -19,7 +19,15 @@ struct StbOrStmHeader {
 	field_count: u32,
 	checksums_pointer: u64,
 	data_pointer: u64,
-	// more stuff?
+	extra1: StbOrStmExtra,
+	extra2: StbOrStmExtra,
+}
+
+#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[brw(little, magic = b"\0\0\0\0")]
+struct StbOrStmExtra {
+	value: u32,
+	pointer: u64,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -78,10 +86,10 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 		Ok(NullString::read_le(reader)?.to_string())
 	}).collect::<BinResult<_>>()?;
 	
-	let mut pointers2 = None;
+	let mut checksums = None;
 	if let Some(header_full) = header_full {
 		reader.seek(SeekFrom::Start(header_full.checksums_pointer))?;
-		pointers2 = Some(Vec::<u32>::read_options(
+		checksums = Some(Vec::<u32>::read_options(
 			reader,
 			Endian::Little,
 			VecArgs {
@@ -90,13 +98,22 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 			},
 		)?);
 	}
-	let pointers2 = pointers2;
+	let checksums = checksums;
+	
+	println!("Entry count: {}", header.entry_count);
+	println!("Field count: {}", header.field_count);
+	
+	if let Some(header_full) = header_full {
+		for extra in [(1, header_full.extra1), (2, header_full.extra2)] {
+			println!("Extra value {}: {}", extra.0, extra.1.value);
+		}
+	}
 	
 	for i in raw_count.saturating_sub(20)..raw_count {
 		let string = &strings[i];
-		if let Some(p2) = &pointers2 {
-			let their_checksum = p2[i];
-			println!("{:?} {:08X?}", string, their_checksum);
+		if let Some(chk) = &checksums {
+			let their_checksum = chk[i];
+			println!("{:?} {:08X}", string, their_checksum);
 		} else {
 			println!("{:?}", string);
 		}
