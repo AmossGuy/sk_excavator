@@ -14,9 +14,9 @@ pub enum FileType {
 
 impl FileType {
 	pub fn from_extension(ext: Option<&OsStr>) -> Self {
-		match ext.and_then(|e| e.to_str()) {
-			Some("pak") => Self::Pak,
-			Some("stb" | "stl" | "stm") => Self::Stb,
+		match ext.map(|e| e.as_encoded_bytes()) {
+			Some(b"pak") => Self::Pak,
+			Some(b"stb" | b"stl" | b"stm") => Self::Stb,
 			_ => Self::Unknown,
 		}
 	}
