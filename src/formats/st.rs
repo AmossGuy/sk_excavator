@@ -1,8 +1,6 @@
-use std::collections::HashMap;
-use std::io::{BufRead, Seek, SeekFrom, Write};
+use std::io::{BufRead, Seek, SeekFrom};
 
 use binrw::{BinRead, BinResult, BinWrite, Endian, NullString, VecArgs};
-use serde::{Serialize, Deserialize};
 
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
@@ -19,15 +17,21 @@ struct StbOrStmHeader {
 	field_count: u32,
 	checksums_pointer: u64,
 	data_pointer: u64,
-	extra1: StbOrStmExtra,
-	extra2: StbOrStmExtra,
+	extra1: StbOrStmHeaderExtra,
+	extra2: StbOrStmHeaderExtra,
 }
 
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
 #[brw(little, magic = b"\0\0\0\0")]
-struct StbOrStmExtra {
-	value: u32,
+struct StbOrStmHeaderExtra {
+	count: u32,
 	pointer: u64,
+}
+
+#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[brw(little)]
+struct StbOrStmDataExtra {
+	contents: [u32; 8],
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -105,7 +109,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	
 	if let Some(header_full) = header_full {
 		for extra in [(1, header_full.extra1), (2, header_full.extra2)] {
-			println!("Extra value {}: {}", extra.0, extra.1.value);
+			println!("Extra data {} count: {}", extra.0, extra.1.count);
 		}
 	}
 	
