@@ -4,7 +4,7 @@ use binrw::{BinRead, BinResult, BinWrite, NullString};
 
 use super::util_binary::{read_pointers, seek_absolute};
 
-#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
 struct StlHeader {
 	entry_count: u32,
@@ -139,4 +139,41 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	//println!("{:?}", idk);
 	//todo!("we've gotta show some entries and those possibly-checksums side by side, i guess");
 	Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+	use super::*;
+	use std::io::Cursor;
+	
+	fn stl_header_sample() -> (Vec<u8>, StlHeader) {
+		let raw = vec![
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x6B, 0x0B, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+			0xCD, 0xAB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+		];
+		let header = StlHeader {
+			entry_count: 2923,
+			field_count: 1,
+			data_pointer: 0x1ABCD,
+		};
+		(raw, header)
+	}
+	
+	#[test]
+	fn stl_header_deserialize() {
+		let (raw, header) = stl_header_sample();
+		let mut reader = Cursor::new(raw);
+		let result = StlHeader::read(&mut reader).unwrap();
+		assert_eq!(result, header);
+	}
+	
+	#[test]
+	fn stl_header_serialize() {
+		let (raw, header) = stl_header_sample();
+		let mut writer = Cursor::new(Vec::<u8>::new());
+		header.write(&mut writer).unwrap();
+		let result = writer.into_inner();
+		assert_eq!(result, raw);
+	}
 }
