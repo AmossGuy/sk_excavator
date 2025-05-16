@@ -3,7 +3,7 @@ use std::io::{BufRead, Seek, SeekFrom};
 
 use binrw::{BinRead, BinResult, BinWrite};
 
-use super::util_binary::{read_pile_o_pointers, seek_absolute};
+use super::util_binary::{read_pointers, seek_absolute};
 
 /// The header at the beginning of a `.bin` archive.
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
@@ -45,9 +45,9 @@ impl PakIndex {
 		
 		let file_count_usize = header.file_count as usize;
 		reader.seek(SeekFrom::Start(header.data_table_offset))?;
-		let data_pointers = read_pile_o_pointers(reader, file_count_usize)?;
+		let data_pointers = read_pointers(reader, file_count_usize)?;
 		reader.seek(SeekFrom::Start(header.name_table_offset))?;
-		let name_pointers = read_pile_o_pointers(reader, file_count_usize)?;
+		let name_pointers = read_pointers(reader, file_count_usize)?;
 		
 		let mut file_names = Vec::<CString>::with_capacity(file_count_usize);
 		for i in 0..file_count_usize {

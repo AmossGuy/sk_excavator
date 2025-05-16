@@ -1,6 +1,8 @@
 use std::io::{BufRead, Seek, SeekFrom};
 
-use binrw::{BinRead, BinResult, BinWrite, Endian, NullString, VecArgs};
+use binrw::{BinRead, BinResult, BinWrite, NullString};
+
+use super::util_binary::{read_pointers, seek_absolute};
 
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
@@ -24,14 +26,23 @@ struct StbOrStmHeader {
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
 #[brw(little, magic = b"\0\0\0\0")]
 struct StbOrStmHeaderExtra {
-	count: u32,
+	extra_entry_count: u32,
 	pointer: u64,
 }
 
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[brw(little, repr = u64)]
+enum MagicTen {
+	HexTen = 0x10,
+}
+
+#[derive(BinRead, BinWrite, Clone, Debug)]
 #[brw(little)]
 struct StbOrStmDataExtra {
-	contents: [u32; 8],
+	piece_count: u64,
+	magic: MagicTen,
+	#[br(count = piece_count)]
+	pieces: Vec<(u32, u32)>,
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -77,14 +88,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	let raw_count = entry_count * field_count;
 	
 	reader.seek(SeekFrom::Start(header.data_pointer))?;
-	let string_pointers = Vec::<u64>::read_options(
-		reader,
-		Endian::Little,
-		VecArgs {
-			count: raw_count,
-			inner: <_>::default(),
-		},
-	)?;
+	let string_pointers = read_pointers(reader, raw_count)?;
 	let strings: Vec<String> = string_pointers.iter().map(|pointer| -> BinResult<_> {
 		reader.seek(SeekFrom::Start(*pointer))?;
 		Ok(NullString::read_le(reader)?.to_string())
@@ -93,14 +97,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	let mut checksums = None;
 	if let Some(header_full) = header_full {
 		reader.seek(SeekFrom::Start(header_full.checksums_pointer))?;
-		checksums = Some(Vec::<u32>::read_options(
-			reader,
-			Endian::Little,
-			VecArgs {
-				count: raw_count,
-				inner: <_>::default(),
-			},
-		)?);
+		checksums = Some(read_pointers(reader, raw_count)?);
 	}
 	let checksums = checksums;
 	
@@ -109,7 +106,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	
 	if let Some(header_full) = header_full {
 		for extra in [(1, header_full.extra1), (2, header_full.extra2)] {
-			println!("Extra data {} count: {}", extra.0, extra.1.count);
+			println!("Extra data {} count: {}", extra.0, extra.1.extra_entry_count);
 		}
 	}
 	
@@ -120,6 +117,22 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 			println!("{:?} {:08X}", string, their_checksum);
 		} else {
 			println!("{:?}", string);
+		}
+	}
+	
+	if let Some(header_full) = header_full {
+		for extra in [(1, header_full.extra1), (2, header_full.extra2)] {
+			println!("(Extra data {})", extra.0);
+			reader.seek(SeekFrom::Start(extra.1.pointer))?;
+			let extra_entry_count = extra.1.extra_entry_count as usize; // TODO: Checked conversion again...
+			let pointers = read_pointers(reader, extra_entry_count)?;
+			for (i, pointer) in pointers.iter().enumerate() {
+				seek_absolute(reader, *pointer)?;
+				let extra_data = StbOrStmDataExtra::read(reader)?;
+				if i >= pointers.len().saturating_sub(20) {
+					println!("{:?}", extra_data);
+				}
+			}
 		}
 	}
 	
