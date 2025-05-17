@@ -114,8 +114,12 @@ pub fn cli_main() -> binrw::BinResult<()> {
 			}
 		},
 		Commands::Extract { pak_paths, dest_path } => {
-			if !pak_paths.iter().all(|x| FileType::from_extension(x.extension()) == FileType::Pak) {
-				panic!("wtf bro");
+			for pak_path in &pak_paths {
+				let good = FileType::from_extension(pak_path.extension()) == FileType::Pak;
+				if !good {
+					// TODO: nicer error handling
+					panic!("File {} has the wrong extension!", pak_path.display());
+				}
 			}
 			
 			for pak_path in pak_paths {
