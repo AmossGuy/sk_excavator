@@ -12,7 +12,7 @@ struct StlHeader {
 	data_pointer: u64,
 }
 
-#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
 struct StbOrStmHeader {
 	entry_count: u32,
@@ -23,7 +23,7 @@ struct StbOrStmHeader {
 	extra2: StbOrStmHeaderExtra,
 }
 
-#[derive(BinRead, BinWrite, Copy, Clone, Debug)]
+#[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0")]
 struct StbOrStmHeaderExtra {
 	extra_entry_count: u32,
@@ -130,7 +130,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 				seek_absolute(reader, *pointer)?;
 				let extra_data = StbOrStmDataExtra::read(reader)?;
 				if i >= pointers.len().saturating_sub(20) {
-					println!("{:?}", extra_data);
+					println!("{:?}", extra_data.pieces);
 				}
 			}
 		}
@@ -149,7 +149,8 @@ mod tests {
 	fn stl_header_sample() -> (Vec<u8>, StlHeader) {
 		let raw = vec![
 			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-			0x6B, 0x0B, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
+			0x6B, 0x0B, 0x00, 0x00,
+			0x01, 0x00, 0x00, 0x00,
 			0xCD, 0xAB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
 		];
 		let header = StlHeader {
@@ -171,6 +172,54 @@ mod tests {
 	#[test]
 	fn stl_header_serialize() {
 		let (raw, header) = stl_header_sample();
+		let mut writer = Cursor::new(Vec::<u8>::new());
+		header.write(&mut writer).unwrap();
+		let result = writer.into_inner();
+		assert_eq!(result, raw);
+	}
+	
+	fn stm_header_sample() -> (Vec<u8>, StbOrStmHeader) {
+		let raw = vec![
+			0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x6B, 0x0B, 0x00, 0x00,
+			0x08, 0x00, 0x00, 0x00,
+			0xCD, 0xAB, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0xCD, 0xAB, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00,
+			0xCE, 0x03, 0x00, 0x00,
+			0xCD, 0xAB, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00,
+			0x00, 0x00, 0x00, 0x00,
+			0x02, 0x00, 0x00, 0x00,
+			0xCD, 0xAB, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00,
+		];
+		let header = StbOrStmHeader {
+			entry_count: 2923,
+			field_count: 8,
+			checksums_pointer: 0x1ABCD,
+			data_pointer: 0x2ABCD,
+			extra1: StbOrStmHeaderExtra {
+				extra_entry_count: 974,
+				pointer: 0x3ABCD,
+			},
+			extra2: StbOrStmHeaderExtra {
+				extra_entry_count: 2,
+				pointer: 0x4ABCD,
+			},
+		};
+		(raw, header)
+	}
+	
+	#[test]
+	fn stm_header_deserialize() {
+		let (raw, header) = stm_header_sample();
+		let mut reader = Cursor::new(raw);
+		let result = StbOrStmHeader::read(&mut reader).unwrap();
+		assert_eq!(result, header);
+	}
+	
+	#[test]
+	fn stm_header_serialize() {
+		let (raw, header) = stm_header_sample();
 		let mut writer = Cursor::new(Vec::<u8>::new());
 		header.write(&mut writer).unwrap();
 		let result = writer.into_inner();
