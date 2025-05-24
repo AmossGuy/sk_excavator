@@ -27,8 +27,10 @@ enum Commands {
 		#[arg(short = 'd', long = "dest", value_name = "DEST", help = "Directory to place the extracted files - omit to use working directory")]
 		dest_path: Option<PathBuf>,
 	},
-	#[command(visible_alias = "st", about = "Convert .stb, .stl, or .stm files into a readable JSON format")]
-	StTemporary {
+	#[command(visible_alias = "st", about = "Convert a .stb, .stl, or .stm file into a readable CSV format")]
+	StConvert {
+		#[arg(value_name = "ST", help = "Path to the file to convert")]
+		st_path: PathBuf,
 	},
 }
 
@@ -72,7 +74,7 @@ fn process_file_paths(paths: Vec<PathBuf>) -> io::Result<Vec<(PathBuf, String)>>
 }
 */
 
-pub fn cli_main() -> binrw::BinResult<()> {
+pub fn cli_main() -> Result<(), Box<dyn std::error::Error>> {
 	let args = Cli::parse();
 	
 	match args.command {
@@ -146,19 +148,17 @@ pub fn cli_main() -> binrw::BinResult<()> {
 				println!("Done.");
 			}
 		},
-		Commands::StTemporary {} => {
-			#[allow(deprecated)] // this code is temporary and not under stress
-			let home = std::env::home_dir().unwrap();
-			let location = home.join("Documents/shovel-knight-rip-testing");
+		Commands::StConvert { st_path } => {
+			let file_type = FileType::from_extension(st_path.extension());
+			let stl = file_type == FileType::Stl;
+			let mut reader = BufReader::new(File::open(st_path)?);
+			let outcome = st::read_st(&mut reader, stl)?;
 			
-			for file in ["loctext/dialogue.stm", "global_free.pak/dialogue/speakers.stb", "loctext/dialogue_eng.stl"] {
-				println!("FILE: {}", file);
-				let path = location.join(file);
-				let file_type = FileType::from_extension(path.extension());
-				let stl = file_type == FileType::Stl;
-				let mut reader = BufReader::new(File::open(path)?);
-				st::read_st_wip(&mut reader, stl)?;
+			let mut writer = csv::Writer::from_writer(std::io::stdout());
+			for row in outcome.strings.chunks(outcome.field_count) {
+				writer.write_record(row)?;
 			}
+			writer.flush()?;
 		},
 	}
 	

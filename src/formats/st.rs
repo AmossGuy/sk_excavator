@@ -2,7 +2,7 @@ use std::io::{BufRead, Seek, SeekFrom};
 
 use binrw::{BinRead, BinResult, BinWrite, NullString};
 
-use super::util_binary::{read_pointers, seek_absolute};
+use super::util_binary::read_pointers;
 
 #[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
@@ -45,6 +45,7 @@ struct StbOrStmDataExtra {
 	pieces: Vec<(u32, u32)>,
 }
 
+// TODO: stick in an Option field with the stb/stm exclusive data. or maybe our own enum
 #[derive(Copy, Clone, Debug)]
 struct StHeaderCommon {
 	entry_count: u32,
@@ -72,14 +73,17 @@ impl From<StbOrStmHeader> for StHeaderCommon {
 	}
 }
 
-pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()> {
+pub struct StReadOutcome {
+	pub field_count: usize,
+	pub strings: Vec<String>,
+}
+
+pub fn read_st<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<StReadOutcome> {
 	reader.rewind()?;
-	let (header, header_full) = if stl {
-		let h = StlHeader::read(reader)?;
-		(StHeaderCommon::from(h), None)
+	let header: StHeaderCommon = if stl {
+		StlHeader::read(reader)?.into()
 	} else {
-		let h = StbOrStmHeader::read(reader)?;
-		(StHeaderCommon::from(h), Some(h))
+		StbOrStmHeader::read(reader)?.into()
 	};
 	
 	// TODO: checked conversion and multiplication
@@ -94,6 +98,13 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 		Ok(NullString::read_le(reader)?.to_string())
 	}).collect::<BinResult<_>>()?;
 	
+	Ok(StReadOutcome {
+		field_count,
+		strings,
+	})
+	
+	// Debugging output garbage. The next time I work on these things, I should make sure this function only reads raw data, and have it be processed/displayed elsewhere.
+	/*
 	let mut checksums = None;
 	if let Some(header_full) = header_full {
 		reader.seek(SeekFrom::Start(header_full.checksums_pointer))?;
@@ -139,6 +150,7 @@ pub fn read_st_wip<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<()
 	//println!("{:?}", idk);
 	//todo!("we've gotta show some entries and those possibly-checksums side by side, i guess");
 	Ok(())
+	*/
 }
 
 #[cfg(test)]
