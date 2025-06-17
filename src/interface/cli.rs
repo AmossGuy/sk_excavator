@@ -32,6 +32,9 @@ enum Commands {
 		#[arg(value_name = "ST", help = "Path to the file to convert")]
 		st_path: PathBuf,
 	},
+	LevelWip {
+		path: PathBuf,
+	},
 }
 
 /*
@@ -159,6 +162,10 @@ pub fn cli_main() -> Result<(), Box<dyn std::error::Error>> {
 				writer.write_record(row)?;
 			}
 			writer.flush()?;
+		},
+		Commands::LevelWip { path } => {
+			let mut reader = BufReader::new(File::open(path)?);
+			crate::formats::level::ltb_wip(&mut reader)?;
 		},
 	}
 	
