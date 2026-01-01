@@ -1,4 +1,6 @@
 extends VBoxContainer
 
+var resource: SkePak
+
 func file_view_open(_path: String) -> void:
-	pass
+	$TextEdit.text = "\n".join(resource.file_names)

@@ -1,10 +1,9 @@
-[gd_scene load_steps=6 format=3 uid="uid://cnv2jx5uvp785"]
+[gd_scene load_steps=5 format=3 uid="uid://cnv2jx5uvp785"]
 
 [ext_resource type="Script" uid="uid://ovjy70j5fueg" path="res://ui/main_menu.gd" id="1_n7l54"]
 [ext_resource type="Script" uid="uid://5gc3ujnpoyp5" path="res://ui/file_tree.gd" id="2_q8pms"]
 [ext_resource type="PackedScene" uid="uid://b0vgfjxmh04oy" path="res://ui/file_views/none.tscn" id="3_7u1e2"]
 [ext_resource type="Script" uid="uid://bvdt8mdo7q56g" path="res://ui/file_view.gd" id="3_ssbel"]
-[ext_resource type="PackedScene" uid="uid://dkjfbf8i8bd6t" path="res://ui/file_views/pak.tscn" id="4_ixqua"]
 
 [node name="MainWindow" type="Panel"]
 anchors_preset = 15
@@ -49,9 +48,6 @@ script = ExtResource("2_q8pms")
 layout_mode = 2
 size_flags_horizontal = 3
 script = ExtResource("3_ssbel")
-view_scenes = Dictionary[String, PackedScene]({
-"pak": ExtResource("4_ixqua")
-})
 
 [node name="FileViewNone" parent="VBoxContainer/MarginContainer2/SplitContainer/FileView" instance=ExtResource("3_7u1e2")]
 layout_mode = 2
