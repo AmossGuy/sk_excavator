@@ -1,22 +1,21 @@
 use godot::prelude::*;
-use godot::classes::{Node, Tree};
+use godot::classes::Node;
 use godot::tools::get_autoload_by_name;
-
-use std::{ffi::OsStr, path::PathBuf};
 
 #[derive(GodotClass)]
 #[class(init, base=Node)]
-struct GlobalRust {
+pub struct GlobalRust {
 	base: Base<Node>,
 }
 
 #[godot_api]
 impl GlobalRust {
+	#[signal]
+	pub fn directory_opened(root_path: GString, child_paths: PackedArray<GString>);
+	
 	#[func]
-	fn open_directory(&self, path: String) {
-		let path = PathBuf::from(path);
-		
-		let entries = match crate::godot::files::get_directory_contents(&path) {
+	pub fn open_directory(&mut self, path: GString) {
+		let entries = match crate::filesystem::get_directory_contents(&path.to_string()) {
 			Ok(v) => v,
 			Err(e) => {
 				let message = format!("I/O error while getting folder contents: {}", e);
@@ -25,16 +24,10 @@ impl GlobalRust {
 			},
 		};
 		
-		let scene_tree = self.base().get_tree().unwrap();
-		let mut tree = scene_tree.get_current_scene().unwrap().get_node_as::<Tree>("%FileTree");
+		let child_paths = entries.into_iter()
+			.map(|e| e.to_str().unwrap().into())
+			.collect::<PackedArray<GString>>();
 		
-		tree.clear();
-		let mut root = tree.create_item().unwrap();
-		root.set_text(0, path.file_name().unwrap_or(OsStr::new("")).to_string_lossy().as_ref());
-		
-		for entry in entries {
-			let mut item = tree.create_item_ex().parent(&root).done().unwrap();
-			item.set_text(0, entry.file_name().unwrap_or(OsStr::new("")).to_string_lossy().as_ref());
-		}
+		self.signals().directory_opened().emit(&path, &child_paths);
 	}
 }

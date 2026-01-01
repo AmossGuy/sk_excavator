@@ -2,7 +2,10 @@ extends Node
 
 func _ready() -> void:
 	load_settings()
-	
+	# deferred because otherwise a signal fires before it's connected
+	call_deferred(&"_ready_deferred")
+
+func _ready_deferred() -> void:
 	if settings.has_section_key("game", "path"):
 		R.open_directory(settings.get_value("game", "path"))
 

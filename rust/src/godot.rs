@@ -1,9 +1,9 @@
 mod autoload;
-mod files;
+mod file_tree;
 
 use godot::prelude::*;
 
-struct SkeExtension;
+pub struct SkeExtension;
 
 #[gdextension]
 unsafe impl ExtensionLibrary for SkeExtension {}
