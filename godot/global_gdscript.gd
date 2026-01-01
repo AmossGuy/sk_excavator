@@ -10,30 +10,18 @@ func _ready_deferred() -> void:
 		R.open_directory(settings.get_value("game", "path"))
 
 const settings_path: String = "user://settings.cfg"
-var settings: ConfigFile
+@onready var settings: ConfigFile = load_settings()
 
-func load_settings() -> void:
-	if settings != null:
-		show_error("Tried to load settings when they were already loaded!")
-		return
-	
+func load_settings() -> ConfigFile:
 	var new_settings := ConfigFile.new()
 	var err := new_settings.load(settings_path)
-	if err != OK and err != ERR_FILE_NOT_FOUND:
-		show_error("Error while loading settings: {0}".format([error_string(err)]))
-		return
-	
-	settings = new_settings
+	if err == OK or err == ERR_FILE_NOT_FOUND:
+		return new_settings
+	else:
+		return null
 
-func save_settings() -> void:
-	if settings == null:
-		show_error("Tried to save settings before they were loaded!")
-		return
-	
-	var err := settings.save(settings_path)
-	if err != OK:
-		show_error("Error while saving settings: {0}".format([error_string(err)]))
-		return
+func save_settings() -> Error:
+	return settings.save(settings_path)
 
 func action_open() -> void:
 	var open_dialog := FileDialog.new()
@@ -55,9 +43,3 @@ func show_dialog(dialog: Window) -> void:
 	add_child(dialog)
 	dialog.move_to_center()
 	dialog.show()
-
-func show_error(message: String) -> void:
-	var error_dialog := AcceptDialog.new()
-	error_dialog.title = "Error"
-	error_dialog.dialog_text = message
-	show_dialog(error_dialog)

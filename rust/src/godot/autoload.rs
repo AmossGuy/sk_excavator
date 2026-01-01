@@ -18,8 +18,7 @@ impl GlobalRust {
 		let entries = match crate::filesystem::get_directory_contents(&path.to_string()) {
 			Ok(v) => v,
 			Err(e) => {
-				let message = format!("I/O error while getting folder contents: {}", e);
-				get_autoload_by_name::<Node>("U").call("show_error", vslice![message]);
+				godot_error!("I/O error while getting folder contents: {}", e);
 				return;
 			},
 		};
