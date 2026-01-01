@@ -1,5 +1,4 @@
 mod autoload;
-mod file_tree;
 
 use godot::prelude::*;
 
