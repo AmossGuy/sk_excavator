@@ -1,6 +1,5 @@
 use godot::prelude::*;
-use godot::classes::Node;
-use godot::tools::get_autoload_by_name;
+use godot::classes::{DirAccess, Node};
 
 use crate::godot::format_resources::SkePak;
 
@@ -17,17 +16,12 @@ impl GlobalRust {
 	
 	#[func]
 	pub fn open_directory(&mut self, path: GString) {
-		let entries = match crate::filesystem::get_directory_contents(&path.to_string()) {
-			Ok(v) => v,
-			Err(e) => {
-				godot_error!("I/O error while getting folder contents: {}", e);
-				return;
-			},
+		let Some(mut dir_access) = DirAccess::open(&path) else {
+			let e = DirAccess::get_open_error();
+			godot_error!("I/O error while getting folder contents: {:?}", e);
+			return;
 		};
-		
-		let child_paths = entries.into_iter()
-			.map(|e| e.to_str().unwrap().into())
-			.collect::<PackedArray<GString>>();
+		let child_paths = dir_access.get_files();
 		
 		self.signals().directory_opened().emit(&path, &child_paths);
 	}
