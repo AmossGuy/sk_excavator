@@ -61,6 +61,7 @@ struct LtbHeader {
 
 #[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little)]
+#[expect(dead_code)] // we'll get back to this
 struct LvbHeader {
 	elements: [HeaderElement; 7],
 }

@@ -38,6 +38,7 @@ enum MagicTen {
 
 #[derive(BinRead, BinWrite, Clone, Debug)]
 #[brw(little)]
+#[expect(dead_code)] // we'll get back to this
 struct StbOrStmDataExtra {
 	piece_count: u64,
 	magic: MagicTen,
