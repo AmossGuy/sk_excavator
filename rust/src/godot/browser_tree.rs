@@ -64,15 +64,27 @@ impl ITree for BrowserTree {
 
 #[godot_api]
 impl BrowserTree {
-	fn setup_item(item: &mut Gd<TreeItem>, source: ItemSource) {
+	fn setup_item(&mut self, item: &mut Gd<TreeItem>, source: ItemSource) {
 		let info = ItemInfo { source, state: ItemState::Unloaded };
+		let mut set_collapsed: Option<bool> = None;
 		
 		item.set_text(0, info.source.text().as_ref());
 		if info.source.can_be_expanded() {
 			item.create_child();
-			item.set_collapsed(true);
+			set_collapsed = Some(true);
 		}
 		item.set_metadata(0, &Gd::from_object(info).to_variant());
+		
+		// The item_collapsed signal going off in this function causes invalid aliasing
+		// We avoid this by disabling signals briefly when it otherwise would be sent
+		if let Some(value) = set_collapsed {
+			let previous = self.base().is_blocking_signals();
+			self.base_mut().set_block_signals(true);
+			
+			item.set_collapsed(value);
+			
+			self.base_mut().set_block_signals(previous);
+		}
 	}
 	
 	#[func]
@@ -81,9 +93,8 @@ impl BrowserTree {
 		
 		self.base_mut().clear();
 		let mut root = self.base_mut().create_item().unwrap();
-		Self::setup_item(&mut root, ItemSource::Fs { path, fs_type: FsItemType::Dir });
-		// This causes a runtime error:
-		// self.run_deferred(move |_| root.set_collapsed(false));
+		self.setup_item(&mut root, ItemSource::Fs { path, fs_type: FsItemType::Dir });
+		root.call_deferred("set_collapsed", vslice![false]);
 	}
 	
 	#[func]
@@ -112,7 +123,7 @@ impl BrowserTree {
 		
 		for source in children_sources {
 			let mut child = item.create_child().unwrap();
-			Self::setup_item(&mut child, source);
+			self.setup_item(&mut child, source);
 		}
 		
 		info.state = ItemState::Loaded;
