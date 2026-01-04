@@ -1,4 +1,5 @@
 mod autoload;
+mod browser_tree;
 mod format_resources;
 
 use godot::prelude::*;

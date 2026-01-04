@@ -4,6 +4,7 @@ pub mod st;
 mod util_binary;
 
 use std::ffi::OsStr;
+use std::path::Path;
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FileType {
@@ -14,13 +15,17 @@ pub enum FileType {
 }
 
 impl FileType {
-	pub fn from_extension(ext: Option<&OsStr>) -> Self {
+	fn from_extension(ext: Option<&OsStr>) -> Self {
 		match ext.map(|e| e.as_encoded_bytes()) {
 			Some(b"pak") => Self::Pak,
 			Some(b"stm" | b"stb") => Self::StmOrStb,
 			Some(b"stl") => Self::Stl,
 			_ => Self::Unknown,
 		}
+	}
+	
+	pub fn from_path(path: impl AsRef<Path>) -> Self {
+		Self::from_extension(path.as_ref().extension())
 	}
 }
 
