@@ -1,8 +1,7 @@
-[gd_scene load_steps=4 format=3 uid="uid://cnv2jx5uvp785"]
+[gd_scene load_steps=3 format=3 uid="uid://cnv2jx5uvp785"]
 
 [ext_resource type="Script" uid="uid://ovjy70j5fueg" path="res://ui/main_menu.gd" id="1_n7l54"]
 [ext_resource type="PackedScene" uid="uid://b0vgfjxmh04oy" path="res://ui/file_views/none.tscn" id="3_7u1e2"]
-[ext_resource type="Script" uid="uid://bvdt8mdo7q56g" path="res://ui/file_view.gd" id="3_ssbel"]
 
 [node name="MainWindow" type="Panel"]
 anchors_preset = 15
@@ -45,7 +44,6 @@ size_flags_horizontal = 3
 [node name="FileView" type="VBoxContainer" parent="VBoxContainer/MarginContainer2/SplitContainer"]
 layout_mode = 2
 size_flags_horizontal = 3
-script = ExtResource("3_ssbel")
 
 [node name="FileViewNone" parent="VBoxContainer/MarginContainer2/SplitContainer/FileView" instance=ExtResource("3_7u1e2")]
 layout_mode = 2

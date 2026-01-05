@@ -1,5 +1,5 @@
-use std::fs;
-use std::io;
+use std::fs::{self, File};
+use std::io::{self, BufRead, BufReader, Seek};
 use std::path::{Path, PathBuf};
 
 #[derive(Copy, Clone, Eq, PartialEq)]
@@ -38,4 +38,8 @@ pub fn load_directory(path: impl AsRef<Path>) -> io::Result<Vec<FsItem>> {
 			Ok(FsItem { path: item_path, item_type })
 		}))
 		.collect::<Result<Vec<_>, _>>()
+}
+
+pub fn open_file(path: impl AsRef<Path>) -> io::Result<impl BufRead + Seek> {
+	File::open(path).map(|f| BufReader::new(f))
 }

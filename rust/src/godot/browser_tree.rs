@@ -3,14 +3,17 @@ use godot::classes::{Tree, ITree, TreeItem};
 use godot::tools::get_autoload_by_name;
 
 use std::borrow::Cow;
+use std::ffi::CString;
 use std::path::PathBuf;
 
-use crate::filesystem::{FsItem, FsItemType, load_directory};
+use crate::filesystem::{FsItem, FsItemType, load_directory, open_file};
+use crate::formats::{FileType, pak::PakIndex};
 use crate::godot::autoload::GlobalRust;
 
 #[derive(Clone)]
 enum ItemSource {
 	Fs { path: PathBuf, fs_type: FsItemType },
+	Pak { outer_path: PathBuf, inner_path: CString },
 }
 
 impl From<FsItem> for ItemSource {
@@ -36,12 +39,18 @@ impl ItemSource {
 	fn text(&self) -> Cow<'_, str> {
 		match self {
 			ItemSource::Fs { path, .. } => path.file_name().unwrap_or_default().to_string_lossy(),
+			ItemSource::Pak { inner_path, .. } => inner_path.to_string_lossy(),
 		}
 	}
 	
 	fn can_be_expanded(&self) -> bool {
 		match self {
-			ItemSource::Fs { fs_type, .. } => *fs_type == FsItemType::Dir,
+			ItemSource::Fs { path, fs_type } => match fs_type {
+				FsItemType::Dir => true,
+				FsItemType::File => FileType::from_path(path) == FileType::Pak,
+				_ => false,
+			},
+			ItemSource::Pak { .. } => false,
 		}
 	}
 }
@@ -107,19 +116,32 @@ impl BrowserTree {
 		
 		if info.state != ItemState::Unloaded { return; }
 		
+		let mut children_sources: Vec<ItemSource> = match &info.source {
+			ItemSource::Fs { path, fs_type } => {
+				match fs_type {
+					FsItemType::Dir => {
+						let fs_items = load_directory(path).unwrap();
+						fs_items.into_iter().map(|fs_item| ItemSource::from(fs_item)).collect()
+					},
+					FsItemType::File if FileType::from_path(path) == FileType::Pak => {
+						let mut reader = open_file(path).unwrap();
+						let index = PakIndex::create_index(&mut reader).unwrap();
+						index.files.into_iter().map(|file| {
+							ItemSource::Pak { outer_path: path.clone(), inner_path: file.0 }
+						}).collect()
+					},
+					_ => unreachable!(),
+				}
+			},
+			_ => unreachable!(),
+		};
+		
+		children_sources.sort_by_key(|source| source.text().into_owned());
+		
 		// Earlier we put a placeholder child so we could expand this item. We don't need it anymore.
 		for old_child in item.get_children().iter_shared() {
 			old_child.free();
 		}
-		
-		let mut children_sources: Vec<ItemSource> = match &info.source {
-			ItemSource::Fs { path, .. } => {
-				let fs_items = load_directory(path).unwrap();
-				fs_items.into_iter().map(|fs_item| ItemSource::from(fs_item)).collect()
-			},
-		};
-		
-		children_sources.sort_by_key(|source| source.text().into_owned());
 		
 		for source in children_sources {
 			let mut child = item.create_child().unwrap();
