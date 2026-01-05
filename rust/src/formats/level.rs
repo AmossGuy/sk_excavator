@@ -73,6 +73,7 @@ struct LtbLayerEntry {
 	numbers: [u32; 24],
 }
 
+#[expect(dead_code)] // we'll get back to this
 pub fn ltb_wip<R: BufRead + Seek>(reader: &mut R) -> Result<(), Box<dyn std::error::Error>> {
 	let header = LtbHeader::read(reader)?;
 	

@@ -74,11 +74,13 @@ impl From<StbOrStmHeader> for StHeaderCommon {
 	}
 }
 
+#[expect(dead_code)] // we'll get back to this
 pub struct StReadOutcome {
 	pub field_count: usize,
 	pub strings: Vec<String>,
 }
 
+#[expect(dead_code)] // we'll get back to this
 pub fn read_st<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<StReadOutcome> {
 	reader.rewind()?;
 	let header: StHeaderCommon = if stl {
