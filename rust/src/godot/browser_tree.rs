@@ -11,7 +11,7 @@ use crate::formats::{FileType, pak::PakIndex};
 use crate::godot::autoload::GlobalRust;
 
 #[derive(Clone)]
-enum ItemSource {
+pub enum ItemSource {
 	Fs { path: PathBuf, fs_type: FsItemType },
 	Pak { outer_path: PathBuf, inner_path: CString },
 }
@@ -30,8 +30,10 @@ enum ItemState {
 
 #[derive(GodotClass, Clone)]
 #[class(no_init)]
-struct ItemInfo {
-	source: ItemSource,
+// Right now this struct is doing double duty in an inelegant way. I'm using it as a wrapper that can pass through Godot to places that only need the `source` field.
+// The `state` field *only* refers to whether the item's children have been added to the browser tree.
+pub struct ItemInfo {
+	pub source: ItemSource,
 	state: ItemState,
 }
 
@@ -68,11 +70,15 @@ impl ITree for BrowserTree {
 		r.signals().directory_opened().connect_other(&*self, Self::show_directory);
 		
 		self.signals().item_collapsed().connect_self(Self::on_item_collapsed);
+		self.signals().item_selected().connect_self(Self::on_item_activated);
 	}
 }
 
 #[godot_api]
 impl BrowserTree {
+	#[signal]
+	fn file_open_requested(item_info: Gd<ItemInfo>);
+	
 	fn setup_item(&mut self, item: &mut Gd<TreeItem>, source: ItemSource) {
 		let info = ItemInfo { source, state: ItemState::Unloaded };
 		let mut set_collapsed: Option<bool> = None;
@@ -149,5 +155,12 @@ impl BrowserTree {
 		}
 		
 		info.state = ItemState::Loaded;
+	}
+	
+	fn on_item_activated(&mut self) {
+		let item = self.base().get_selected().unwrap();
+		let Ok(info_gd) = item.get_metadata(0).try_to::<Gd<ItemInfo>>() else { return; };
+		
+		self.signals().file_open_requested().emit(&info_gd);
 	}
 }

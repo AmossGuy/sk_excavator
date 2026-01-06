@@ -1,6 +1,9 @@
 use std::fs::{self, File};
-use std::io::{self, BufRead, BufReader, Seek};
+use std::error::Error;
+use std::io::{self, BufRead, BufReader, Read, Seek};
 use std::path::{Path, PathBuf};
+
+use crate::godot::browser_tree::ItemSource;
 
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub enum FsItemType {
@@ -42,4 +45,24 @@ pub fn load_directory(path: impl AsRef<Path>) -> io::Result<Vec<FsItem>> {
 
 pub fn open_file(path: impl AsRef<Path>) -> io::Result<impl BufRead + Seek> {
 	File::open(path).map(|f| BufReader::new(f))
+}
+
+pub fn cruddy_complex_load(source: &ItemSource) -> Result<Vec<u8>, Box<dyn Error>> {
+	match source {
+		ItemSource::Fs { path, .. } => {
+			let mut reader = crate::filesystem::open_file(path)?;
+			let mut buf = Vec::new();
+			reader.read_to_end(&mut buf)?;
+			Ok(buf)
+		},
+		ItemSource::Pak { outer_path, inner_path } => {
+			let mut reader = crate::filesystem::open_file(outer_path)?;
+			let index = crate::formats::pak::PakIndex::create_index(&mut reader)?;
+			let entry = index.files.iter()
+				.find(|f| &f.0 == inner_path)
+				.ok_or(io::Error::from(io::ErrorKind::NotFound))?;
+			let data = crate::formats::pak::read_whole_file(&entry.1, &mut reader)?;
+			Ok(data)
+		},
+	}
 }
