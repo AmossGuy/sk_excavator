@@ -6,6 +6,7 @@ use std::path::PathBuf;
 
 use crate::filesystem::{cruddy_complex_load, FsItemType};
 use crate::godot::browser_tree::{ItemInfo, ItemSource};
+use crate::godot::file_view_st::FileViewSt;
 
 #[derive(GodotClass)]
 #[class(base=Node)]
@@ -51,6 +52,11 @@ impl FileViewController {
 				let texture = ImageTexture::create_from_image(&image).unwrap();
 				view.get_node_as::<TextureRect>("TextureRect").set_texture(Some(&texture));
 				view
+			},
+			Some("stl") => {
+				let mut view = FileViewSt::new_alloc();
+				view.bind_mut().load_stl_stuff(&item_info.bind().source).unwrap();
+				view.upcast()
 			},
 			_ => self.scene_unknown.instantiate().unwrap(),
 		};

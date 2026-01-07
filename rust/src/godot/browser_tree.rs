@@ -10,7 +10,7 @@ use crate::filesystem::{FsItem, FsItemType, load_directory, open_file};
 use crate::formats::{FileType, pak::PakIndex};
 use crate::godot::autoload::GlobalRust;
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ItemSource {
 	Fs { path: PathBuf, fs_type: FsItemType },
 	Pak { outer_path: PathBuf, inner_path: CString },

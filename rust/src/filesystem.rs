@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use crate::godot::browser_tree::ItemSource;
 
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum FsItemType {
 	Dir,
 	File,
