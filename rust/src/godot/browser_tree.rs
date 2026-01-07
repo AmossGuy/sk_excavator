@@ -149,6 +149,11 @@ impl BrowserTree {
 			old_child.free();
 		}
 		
+		if children_sources.len() == 0 {
+			let mut child = item.create_child().unwrap();
+			child.set_text(0, "(Empty)");
+		}
+		
 		for source in children_sources {
 			let mut child = item.create_child().unwrap();
 			self.setup_item(&mut child, source);
