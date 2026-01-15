@@ -16,27 +16,23 @@ pub struct FileViewSt {
 
 impl FileViewSt {
 	pub fn load_stl_stuff(&mut self, source: &ItemSource) -> Result<(), Box<dyn Error>> {
-		self.base_mut().set_hide_root(true);
-		self.base_mut().set_column_titles_visible(true);
-		
 		let data = cruddy_complex_load(source)?;
 		let stuff = read_st(&mut Cursor::new(data), true)?;
 		let field_count = stuff.field_count;
-		let mut column = 0;
+		
+		self.base_mut().set_hide_root(true);
+		self.base_mut().set_column_titles_visible(true);
+		self.base_mut().set_columns(field_count as i32);
 		let _root = self.base_mut().create_item().unwrap();
-		let mut item: Option<Gd<TreeItem>> = None;
-		for string in &stuff.strings {
-			if item.is_none() {
-				self.base_mut().set_column_title(column, string);
+		
+		let chunks = stuff.strings.chunks(field_count);
+		for (i, chunk) in chunks.enumerate() {
+			if i == 0 {
+				for (j, column_name) in chunk.iter().enumerate() {
+					self.base_mut().set_column_title(j as i32, column_name);
+				}
 			} else {
-				item.as_mut().unwrap().set_text(column, string);
-			}
-			
-			if column < (field_count - 1).try_into().unwrap() {
-				column += 1;
-			} else {
-				column = 0;
-				item = Some(self.base_mut().create_item().unwrap());
+				self.base_mut().create_item().unwrap();
 			}
 		}
 		Ok(())

@@ -35,11 +35,10 @@ size_flags_vertical = 3
 [node name="SplitContainer" type="HSplitContainer" parent="VBoxContainer/MarginContainer2"]
 layout_mode = 2
 size_flags_vertical = 3
-split_offset = -250
+split_offset = 250
 
 [node name="BrowserTree" type="BrowserTree" parent="VBoxContainer/MarginContainer2/SplitContainer"]
 layout_mode = 2
-size_flags_horizontal = 3
 
 [node name="FileViewController" type="FileViewController" parent="VBoxContainer/MarginContainer2/SplitContainer" node_paths=PackedStringArray("current_view")]
 current_view = NodePath("../FileViewNone")
