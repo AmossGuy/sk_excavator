@@ -1,6 +1,10 @@
+mod file_tree;
+
 use eframe::egui;
 use std::convert::Infallible;
 use std::path::PathBuf;
+
+use file_tree::{FileTree, add_file_treeview};
 
 fn main() -> eframe::Result {
 	let native_options = eframe::NativeOptions::default();
@@ -13,14 +17,14 @@ fn main() -> eframe::Result {
 
 struct ExcavatorApp {
 	choose_dir_bind: Option<egui_async::Bind<Option<PathBuf>, Infallible>>,
-	root_path: Option<PathBuf>,
+	file_tree: FileTree,
 }
 
 impl ExcavatorApp {
 	fn new(_cc: &eframe::CreationContext<'_>) -> Self {
 		Self {
 			choose_dir_bind: None,
-			root_path: None,
+			file_tree: FileTree::default(),
 		}
 	}
 }
@@ -35,13 +39,17 @@ impl eframe::App for ExcavatorApp {
 				Ok(handle.map(|h| h.path().to_owned()))
 			}) {
 				if let Ok(Some(path)) = result {
-					self.root_path = Some(path.clone());
+					self.file_tree.set_root_from_path(path);
 				}
 				self.choose_dir_bind = None;
 			}
 		}
 		
 		egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+			if self.choose_dir_bind.is_some() {
+				ui.disable();
+			}
+			
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
@@ -55,7 +63,11 @@ impl eframe::App for ExcavatorApp {
 		});
 		
 		egui::CentralPanel::default().show(ctx, |ui| {
-			ui.label(format!("{:?}", self.root_path));
+			if self.choose_dir_bind.is_some() {
+				ui.disable();
+			}
+			
+			add_file_treeview(ui, &mut self.file_tree);
 		});
 	}
 }
