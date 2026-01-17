@@ -49,14 +49,14 @@ impl eframe::App for ExcavatorApp {
 		}
 		
 		egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
-			if self.choose_dir_bind.is_some() {
-				ui.disable();
-			}
-			
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
-						self.choose_dir_bind = Some(egui_async::Bind::new(true));
+						// If there's already a file dialog open, overwriting choose_dir_bind leaves it open, but the program will no longer react if something is chosen with it.
+						// TODO: Either make it able to handle multiple file dialogs, or just show an error popup.
+						if self.choose_dir_bind.is_none() {
+							self.choose_dir_bind = Some(egui_async::Bind::new(true));
+						}
 					}
 					if ui.button("Quit").clicked() {
 						ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -65,12 +65,14 @@ impl eframe::App for ExcavatorApp {
 			});
 		});
 		
-		egui::CentralPanel::default().show(ctx, |ui| {
-			if self.choose_dir_bind.is_some() {
-				ui.disable();
-			}
-			
-			self.file_tree.add_view(ui);
+		egui::SidePanel::left("file tree").show(ctx, |ui| {
+			egui::ScrollArea::both().show(ui, |ui| {
+				self.file_tree.add_view(ui);
+				ui.take_available_space();
+			})
+		});
+		
+		egui::CentralPanel::default().show(ctx, |_ui| {
 		});
 	}
 }

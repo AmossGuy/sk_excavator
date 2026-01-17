@@ -7,15 +7,6 @@ pub struct FileTree {
 	root: Option<TreeNode>,
 }
 
-impl FileTree {
-	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
-		self.root = Some(TreeNode {
-			path: path.as_ref().to_owned(),
-			children: TreeChildren::Unloaded,
-		});
-	}
-}
-
 struct TreeNode {
 	path: PathBuf,
 	children: TreeChildren,
@@ -31,12 +22,21 @@ enum TreeChildren {
 }
 
 impl FileTree {
-	pub fn add_view(&mut self, ui: &mut Ui) {
-		TreeView::new(Id::new("browser tree")).show(ui, |builder| {
-			if let Some(root) = &mut self.root {
-				root.build(builder, true);
-			}
+	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
+		self.root = Some(TreeNode {
+			path: path.as_ref().to_owned(),
+			children: TreeChildren::Unloaded,
 		});
+	}
+	
+	pub fn add_view(&mut self, ui: &mut Ui) {
+		if let Some(root) = &mut self.root {
+			TreeView::new(Id::new("browser tree")).show(ui, |builder| {
+				root.build(builder, true);
+			});
+		} else {
+			ui.label("No directory has been opened.");
+		}
 	}
 }
 
