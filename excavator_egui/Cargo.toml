@@ -4,9 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-eframe = "0.33.3"
+eframe = { version = "0.33.3", features = ["persistence"] }
 egui-async = "0.3.0"
-egui_ltreeview = "0.6.0"
+# There's a fix for a compile error when egui persistence is on that hasn't made it into an ltreeview release yet.
+# It seems the fix will be in ltreeview 0.6.1, so once that comes out, we can stop using the git version.
+# For reference:
+# https://github.com/LennysLounge/egui_ltreeview/issues/19
+# https://github.com/LennysLounge/egui_ltreeview/commit/1b26c363e0a1669fb1f7593622e102fd6e6f87ac
+egui_ltreeview = { version = "0.6.1-dev", git = "https://github.com/LennysLounge/egui_ltreeview.git" }
 excavator_formats = { version = "0.1.0", path = "../excavator_formats" }
 lexical-sort = "0.3.1"
 rfd = "0.17.2"
