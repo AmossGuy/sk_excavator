@@ -16,60 +16,97 @@ impl FileTree {
 	}
 }
 
-#[derive(Default)]
-struct IdGiver {
-	next_id: usize,
-}
-
-impl IdGiver {
-	fn next(&mut self) -> usize {
-		let id = self.next_id;
-		self.next_id += 1;
-		id
-	}
-}
-
 struct TreeNode {
 	path: PathBuf,
 	children: TreeChildren,
 }
 
+// TODO: Isn't this just duplicating the functionality of `egui_async::StateWithData`?
+// What if TreeNode's children field just held the Bind?
+enum TreeChildren {
+	Unloaded,
+	Loading(egui_async::Bind<Vec<PathBuf>, std::io::Error>),
+	Loaded(Vec<TreeNode>),
+	Failed(String),
+}
+
+impl FileTree {
+	pub fn add_view(&mut self, ui: &mut Ui) {
+		TreeView::new(Id::new("browser tree")).show(ui, |builder| {
+			if let Some(root) = &mut self.root {
+				root.build(builder, true);
+			}
+		});
+	}
+}
+
 impl TreeNode {
-	fn build(&self, id_giver: &mut IdGiver, builder: &mut TreeViewBuilder<'_, usize>) {
-		let text = self.path.file_name().unwrap_or_default().to_string_lossy();
-		builder.dir(id_giver.next(), text);
-		
-		match &self.children {
+	fn handle_load(&mut self) {
+		match &mut self.children {
 			TreeChildren::Unloaded => {
-				builder.leaf(id_giver.next(), "Not loaded");
+				let bind = egui_async::Bind::new(true);
+				self.children = TreeChildren::Loading(bind);
+				// Effectively a weird way of expressing fallthrough.
+				self.handle_load();
 			},
-			TreeChildren::Loading => {
-				let spinner_node = NodeBuilder::leaf(id_giver.next())
-					.label_ui(|ui| { ui.spinner(); });
-				builder.node(spinner_node);
-			},
-			TreeChildren::Loaded(children) => {
-				for child in children {
-					child.build(id_giver, builder);
+			TreeChildren::Loading(bind) => {
+				let path_clone = self.path.clone();
+				if let Some(result) = bind.read_or_request(|| async {
+					let mut dir = tokio::fs::read_dir(path_clone).await?;
+					let mut contents = Vec::new();
+					while let Some(entry) = dir.next_entry().await? {
+						contents.push(entry.path());
+					}
+					contents.sort();
+					Ok(contents)
+				}) {
+					self.children = match result {
+						Ok(data) => TreeChildren::Loaded(data.iter().map(|path| {
+							TreeNode {
+								path: path.clone(),
+								children: TreeChildren::Unloaded,
+							}
+						}).collect()),
+						Err(error) => TreeChildren::Failed(error.to_string()),
+					};
 				}
 			},
+			_ => {},
+		}
+	}
+	
+	// `self` being mutable here is a tad quirky.
+	// It's only like that so `handle_load` can be called here.
+	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (PathBuf, bool)>, default_open: bool) {
+		let text = self.path.file_name().unwrap_or_default().to_string_lossy();
+		let dir_node = NodeBuilder::dir((self.path.clone(), false))
+			.label(text)
+			.default_open(default_open);
+		let is_open = builder.node(dir_node);
+		
+		if is_open {
+			self.handle_load();
+			
+			match &mut self.children {
+				TreeChildren::Unloaded => {
+					builder.leaf((self.path.clone(), true), "Not loaded");
+				},
+				TreeChildren::Loading(_) => {
+					let spinner_node = NodeBuilder::leaf((self.path.clone(), true))
+						.label_ui(|ui| { ui.spinner(); });
+					builder.node(spinner_node);
+				},
+				TreeChildren::Loaded(children) => {
+					for child in children {
+						child.build(builder, false);
+					}
+				},
+				TreeChildren::Failed(error) => {
+					builder.leaf((self.path.clone(), true), format!("Error: {}", error));
+				},
+			}
 		}
 		
 		builder.close_dir();
 	}
-}
-
-enum TreeChildren {
-	Unloaded,
-	Loading,
-	Loaded(Vec<TreeNode>),
-}
-
-pub fn add_file_treeview(ui: &mut Ui, tree: &mut FileTree) {
-	TreeView::new(Id::new("browser tree")).show(ui, |builder| {
-		if let Some(root) = &tree.root {
-			let mut id_giver = IdGiver::default();
-			root.build(&mut id_giver, builder);
-		}
-	});
 }

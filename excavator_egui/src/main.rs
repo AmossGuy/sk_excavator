@@ -4,7 +4,7 @@ use eframe::egui;
 use std::convert::Infallible;
 use std::path::PathBuf;
 
-use file_tree::{FileTree, add_file_treeview};
+use file_tree::FileTree;
 
 fn main() -> eframe::Result {
 	let native_options = eframe::NativeOptions::default();
@@ -53,7 +53,7 @@ impl eframe::App for ExcavatorApp {
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
-						self.choose_dir_bind = Some(egui_async::Bind::new(false));
+						self.choose_dir_bind = Some(egui_async::Bind::new(true));
 					}
 					if ui.button("Quit").clicked() {
 						ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -67,7 +67,7 @@ impl eframe::App for ExcavatorApp {
 				ui.disable();
 			}
 			
-			add_file_treeview(ui, &mut self.file_tree);
+			self.file_tree.add_view(ui);
 		});
 	}
 }
