@@ -1,3 +1,5 @@
+#![forbid(unsafe_code)]
+
 // pub mod level;
 pub mod pak;
 pub mod st;
