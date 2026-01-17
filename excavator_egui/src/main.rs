@@ -32,12 +32,13 @@ impl ExcavatorApp {
 }
 
 impl eframe::App for ExcavatorApp {
-	fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+	fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
 		ctx.plugin_or_default::<egui_async::EguiAsyncPlugin>();
 		
 		if let Some(bind) = &mut self.choose_dir_bind {
+			let dialog = rfd::AsyncFileDialog::new().set_parent(&frame);
 			if let Some(result) = bind.read_or_request(|| async {
-				let handle = rfd::AsyncFileDialog::new().pick_folder().await;
+				let handle = dialog.pick_folder().await;
 				Ok(handle.map(|h| h.path().to_owned()))
 			}) {
 				if let Ok(Some(path)) = result {
