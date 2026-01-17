@@ -8,5 +8,6 @@ eframe = "0.33.3"
 egui-async = "0.3.0"
 egui_ltreeview = "0.6.0"
 excavator_formats = { version = "0.1.0", path = "../excavator_formats" }
+lexical-sort = "0.3.1"
 rfd = "0.17.2"
 tokio = { version = "1.49.0", features = ["fs"] }

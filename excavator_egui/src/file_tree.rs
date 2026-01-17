@@ -1,5 +1,6 @@
 use eframe::egui::{Id, Ui};
 use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
+use lexical_sort::natural_lexical_cmp;
 use std::path::{Path, PathBuf};
 
 #[derive(Default)]
@@ -71,7 +72,10 @@ impl TreeNode {
 						let metadata = entry.metadata().await?;
 						contents.push((entry.path(), NodeKind::from(&metadata)));
 					}
-					contents.sort_by(|a, b| Ord::cmp(&a.0, &b.0));
+					contents.sort_by(|a, b| natural_lexical_cmp(
+						&a.0.to_string_lossy(),
+						&b.0.to_string_lossy(),
+					));
 					Ok(contents)
 				}) {
 					self.children = match result {
