@@ -9,24 +9,29 @@ pub struct FileTree {
 
 struct TreeNode {
 	path: PathBuf,
+	kind: NodeKind,
 	children: TreeChildren,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+enum NodeKind {
+	FsDirectory,
+	FsFile,
+	FsOther,
 }
 
 // TODO: Isn't this just duplicating the functionality of `egui_async::StateWithData`?
 // What if TreeNode's children field just held the Bind?
 enum TreeChildren {
 	Unloaded,
-	Loading(egui_async::Bind<Vec<PathBuf>, std::io::Error>),
+	Loading(egui_async::Bind<Vec<(PathBuf, NodeKind)>, std::io::Error>),
 	Loaded(Vec<TreeNode>),
 	Failed(String),
 }
 
 impl FileTree {
 	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
-		self.root = Some(TreeNode {
-			path: path.as_ref().to_owned(),
-			children: TreeChildren::Unloaded,
-		});
+		self.root = Some(TreeNode::new(path, NodeKind::FsDirectory));
 	}
 	
 	pub fn add_view(&mut self, ui: &mut Ui) {
@@ -41,6 +46,14 @@ impl FileTree {
 }
 
 impl TreeNode {
+	fn new(path: impl AsRef<Path>, kind: NodeKind) -> Self {
+		Self {
+			path: path.as_ref().to_owned(),
+			kind: kind,
+			children: TreeChildren::Unloaded,
+		}
+	}
+	
 	fn handle_load(&mut self) {
 		match &mut self.children {
 			TreeChildren::Unloaded => {
@@ -55,17 +68,15 @@ impl TreeNode {
 					let mut dir = tokio::fs::read_dir(path_clone).await?;
 					let mut contents = Vec::new();
 					while let Some(entry) = dir.next_entry().await? {
-						contents.push(entry.path());
+						let metadata = entry.metadata().await?;
+						contents.push((entry.path(), NodeKind::from(&metadata)));
 					}
-					contents.sort();
+					contents.sort_by(|a, b| Ord::cmp(&a.0, &b.0));
 					Ok(contents)
 				}) {
 					self.children = match result {
-						Ok(data) => TreeChildren::Loaded(data.iter().map(|path| {
-							TreeNode {
-								path: path.clone(),
-								children: TreeChildren::Unloaded,
-							}
+						Ok(data) => TreeChildren::Loaded(data.iter().map(|(path, kind)| {
+							Self::new(path, *kind)
 						}).collect()),
 						Err(error) => TreeChildren::Failed(error.to_string()),
 					};
@@ -78,13 +89,19 @@ impl TreeNode {
 	// `self` being mutable here is a tad quirky.
 	// It's only like that so `handle_load` can be called here.
 	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (PathBuf, bool)>, default_open: bool) {
+		let id = (self.path.clone(), false);
 		let text = self.path.file_name().unwrap_or_default().to_string_lossy();
-		let dir_node = NodeBuilder::dir((self.path.clone(), false))
-			.label(text)
-			.default_open(default_open);
-		let is_open = builder.node(dir_node);
+		let is_openable = self.kind == NodeKind::FsDirectory;
 		
-		if is_open {
+		let node = if is_openable {
+			NodeBuilder::dir(id)
+		} else {
+			NodeBuilder::leaf(id)
+		};
+		let node = node.label(text).default_open(default_open);
+		let is_open = builder.node(node);
+		
+		if is_openable && is_open {
 			self.handle_load();
 			
 			match &mut self.children {
@@ -107,6 +124,20 @@ impl TreeNode {
 			}
 		}
 		
-		builder.close_dir();
+		if is_openable {
+			builder.close_dir();
+		}
+	}
+}
+
+impl From<&std::fs::Metadata> for NodeKind {
+	fn from(value: &std::fs::Metadata) -> Self {
+		if value.is_dir() {
+			Self::FsDirectory
+		} else if value.is_file() {
+			Self::FsFile
+		} else {
+			Self::FsOther
+		}
 	}
 }
