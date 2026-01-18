@@ -1,4 +1,4 @@
-use eframe::egui::{Id, Ui};
+use egui::{Id, Ui};
 use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
 use lexical_sort::natural_lexical_cmp;
 use std::path::{Path, PathBuf};
@@ -33,6 +33,16 @@ enum TreeChildren {
 impl FileTree {
 	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
 		self.root = Some(TreeNode::new(path, NodeKind::FsDirectory));
+	}
+	
+	pub fn set_root_from_path_if_different(&mut self, path: impl AsRef<Path>) {
+		let is_same_path = match &self.root {
+			Some(root) => root.path == path.as_ref(),
+			None => false,
+		};
+		if !is_same_path {
+			self.set_root_from_path(path);
+		}
 	}
 	
 	pub fn add_view(&mut self, ui: &mut Ui) {

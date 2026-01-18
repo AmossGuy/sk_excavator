@@ -2,7 +2,6 @@
 
 mod file_tree;
 
-use eframe::egui;
 use std::convert::Infallible;
 use std::path::PathBuf;
 
@@ -13,25 +12,31 @@ fn main() -> eframe::Result {
 	eframe::run_native(
 		"Shovel Knight Excavator",
 		native_options,
-		Box::new(|cc| Ok(Box::new(ExcavatorApp::new(cc)))),
+		Box::new(|cc| {
+			if let Some(storage) = cc.storage && let Some(app) = eframe::get_value::<ExcavatorApp>(storage, eframe::APP_KEY) {
+				Ok(Box::new(app))
+			}	else {
+				Ok(Box::new(ExcavatorApp::default()))
+			}
+		}),
 	)
 }
 
+#[derive(Default, serde::Serialize, serde::Deserialize)]
 struct ExcavatorApp {
+	file_tree_root: PathBuf,
+	
+	#[serde(skip)]
 	choose_dir_bind: Option<egui_async::Bind<Option<PathBuf>, Infallible>>,
+	#[serde(skip)]
 	file_tree: FileTree,
 }
 
-impl ExcavatorApp {
-	fn new(_cc: &eframe::CreationContext<'_>) -> Self {
-		Self {
-			choose_dir_bind: None,
-			file_tree: FileTree::default(),
-		}
-	}
-}
-
 impl eframe::App for ExcavatorApp {
+	fn save(&mut self, storage: &mut dyn eframe::Storage) {
+		eframe::set_value(storage, eframe::APP_KEY, self);
+	}
+	
 	fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
 		ctx.plugin_or_default::<egui_async::EguiAsyncPlugin>();
 		
@@ -42,11 +47,13 @@ impl eframe::App for ExcavatorApp {
 				Ok(handle.map(|h| h.path().to_owned()))
 			}) {
 				if let Ok(Some(path)) = result {
-					self.file_tree.set_root_from_path(path);
+					self.file_tree_root = path.clone();
 				}
 				self.choose_dir_bind = None;
 			}
 		}
+		
+		self.file_tree.set_root_from_path_if_different(self.file_tree_root.clone());
 		
 		egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
 			egui::MenuBar::new().ui(ui, |ui| {
