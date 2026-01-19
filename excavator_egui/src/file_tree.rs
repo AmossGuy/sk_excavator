@@ -3,13 +3,15 @@ use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
 use lexical_sort::natural_lexical_cmp;
 use std::path::{Path, PathBuf};
 
+use crate::file_read::FileLocation;
+
 #[derive(Default)]
 pub struct FileTree {
 	root: Option<TreeNode>,
 }
 
 struct TreeNode {
-	path: PathBuf,
+	location: FileLocation,
 	kind: NodeKind,
 	children: TreeChildren,
 }
@@ -25,19 +27,20 @@ enum NodeKind {
 // What if TreeNode's children field just held the Bind?
 enum TreeChildren {
 	Unloaded,
-	Loading(egui_async::Bind<Vec<(PathBuf, NodeKind)>, std::io::Error>),
+	Loading(egui_async::Bind<Vec<(FileLocation, NodeKind)>, std::io::Error>),
 	Loaded(Vec<TreeNode>),
 	Failed(String),
 }
 
 impl FileTree {
 	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
-		self.root = Some(TreeNode::new(path, NodeKind::FsDirectory));
+		let location = FileLocation::from(path.as_ref());
+		self.root = Some(TreeNode::new(location, NodeKind::FsDirectory));
 	}
 	
 	pub fn set_root_from_path_if_different(&mut self, path: impl AsRef<Path>) {
 		let is_same_path = match &self.root {
-			Some(root) => root.path == path.as_ref(),
+			Some(root) => root.location == path.as_ref(),
 			None => false,
 		};
 		if !is_same_path {
@@ -57,9 +60,9 @@ impl FileTree {
 }
 
 impl TreeNode {
-	fn new(path: impl AsRef<Path>, kind: NodeKind) -> Self {
+	fn new(location: FileLocation, kind: NodeKind) -> Self {
 		Self {
-			path: path.as_ref().to_owned(),
+			location: location.clone(),
 			kind: kind,
 			children: TreeChildren::Unloaded,
 		}
@@ -74,23 +77,29 @@ impl TreeNode {
 				self.handle_load();
 			},
 			TreeChildren::Loading(bind) => {
-				let path_clone = self.path.clone();
+				let Ok(path_clone) = PathBuf::try_from(self.location.clone()) else {
+					// TODO: Implement reading file list from .pak archives.
+					// I should probably do something to make this more readable while I'm at it.
+					// Also move it to file_read.rs, probably.
+					todo!()
+				};
 				if let Some(result) = bind.read_or_request(|| async {
 					let mut dir = tokio::fs::read_dir(path_clone).await?;
 					let mut contents = Vec::new();
 					while let Some(entry) = dir.next_entry().await? {
-						let metadata = entry.metadata().await?;
-						contents.push((entry.path(), NodeKind::from(&metadata)));
+						let e_path = entry.path();
+						let e_metadata = entry.metadata().await?;
+						contents.push((FileLocation::from(e_path), NodeKind::from(&e_metadata)));
 					}
 					contents.sort_by(|a, b| natural_lexical_cmp(
-						&a.0.to_string_lossy(),
-						&b.0.to_string_lossy(),
+						&a.0.file_name().unwrap_or_default(),
+						&b.0.file_name().unwrap_or_default(),
 					));
 					Ok(contents)
 				}) {
 					self.children = match result {
-						Ok(data) => TreeChildren::Loaded(data.iter().map(|(path, kind)| {
-							Self::new(path, *kind)
+						Ok(data) => TreeChildren::Loaded(data.iter().map(|(location, kind)| {
+							Self::new(location.clone(), *kind)
 						}).collect()),
 						Err(error) => TreeChildren::Failed(error.to_string()),
 					};
@@ -102,9 +111,9 @@ impl TreeNode {
 	
 	// `self` being mutable here is a tad quirky.
 	// It's only like that so `handle_load` can be called here.
-	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (PathBuf, bool)>, default_open: bool) {
-		let id = (self.path.clone(), false);
-		let text = self.path.file_name().unwrap_or_default().to_string_lossy();
+	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (FileLocation, bool)>, default_open: bool) {
+		let id = (self.location.clone(), false);
+		let text = self.location.file_name().unwrap_or_default();
 		let is_openable = self.kind == NodeKind::FsDirectory;
 		
 		let node = if is_openable {
@@ -120,10 +129,10 @@ impl TreeNode {
 			
 			match &mut self.children {
 				TreeChildren::Unloaded => {
-					builder.leaf((self.path.clone(), true), "Not loaded");
+					builder.leaf((self.location.clone(), true), "Not loaded");
 				},
 				TreeChildren::Loading(_) => {
-					let spinner_node = NodeBuilder::leaf((self.path.clone(), true))
+					let spinner_node = NodeBuilder::leaf((self.location.clone(), true))
 						.label_ui(|ui| { ui.spinner(); });
 					builder.node(spinner_node);
 				},
@@ -133,7 +142,7 @@ impl TreeNode {
 					}
 				},
 				TreeChildren::Failed(error) => {
-					builder.leaf((self.path.clone(), true), format!("Error: {}", error));
+					builder.leaf((self.location.clone(), true), format!("Error: {}", error));
 				},
 			}
 		}

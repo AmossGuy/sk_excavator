@@ -1,5 +1,6 @@
 #![forbid(unsafe_code)]
 
+mod file_read;
 mod file_tree;
 
 use std::convert::Infallible;
