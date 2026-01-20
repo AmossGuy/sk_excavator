@@ -982,8 +982,9 @@ dependencies = [
 
 [[package]]
 name = "egui_ltreeview"
-version = "0.6.1-dev"
-source = "git+https://github.com/LennysLounge/egui_ltreeview.git#531e6912227dabd105497d41f3aa4cf8bb2166cd"
+version = "0.6.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3866bdabd204d3839ea4f69252207153864adc4f4f49faecdc579b8d9e362ac9"
 dependencies = [
  "egui",
 ]
