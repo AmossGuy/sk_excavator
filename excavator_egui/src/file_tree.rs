@@ -1,7 +1,7 @@
 use egui::{Id, Ui};
 use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
 use lexical_sort::natural_lexical_cmp;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use crate::file_read::FileLocation;
 
@@ -41,13 +41,16 @@ enum TreeChildren {
 
 impl FileTree {
 	pub fn set_root_from_path(&mut self, path: impl AsRef<Path>) {
-		let location = FileLocation::from(path.as_ref());
+		let location = FileLocation::Fs { path: path.as_ref().to_owned() };
 		self.root = Some(TreeNode::new(location, NodeKind::FsDirectory));
 	}
 	
 	pub fn set_root_from_path_if_different(&mut self, path: impl AsRef<Path>) {
 		let is_same_path = match &self.root {
-			Some(root) => root.location == path.as_ref(),
+			Some(root) => match &root.location {
+				FileLocation::Fs { path: location_path } => location_path == path.as_ref(),
+				_ => false,
+			},
 			None => false,
 		};
 		if !is_same_path {
@@ -97,12 +100,12 @@ impl TreeNode {
 				let Some(expand_handler) = expand_handler else {
 					unreachable!("Nodes without expand handler shouldn't be expandable")
 				};
-				let Ok(path_clone) = PathBuf::try_from(self.location.clone()) else {
+				let FileLocation::Fs { path } = &self.location else {
 					unreachable!("Nodes with non-filesystem location shouldn't be expandable")
 				};
 				let thingy = match expand_handler {
-					ExpandHandler::Directory => bind.read_or_request(|| read_node_contents_dir(path_clone)),
-					ExpandHandler::PakArchive => bind.read_or_request(|| read_node_contents_pak(path_clone)),
+					ExpandHandler::Directory => bind.read_or_request(|| read_node_contents_dir(path.clone())),
+					ExpandHandler::PakArchive => bind.read_or_request(|| read_node_contents_pak(path.clone())),
 				};
 				if let Some(result) = thingy {
 					self.children = match result {
@@ -121,7 +124,7 @@ impl TreeNode {
 	// It's only like that so `handle_load` can be called here.
 	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (FileLocation, bool)>, default_open: bool) {
 		let id = (self.location.clone(), false);
-		let text = self.location.file_name().unwrap_or_default();
+		let text = self.location.file_name_lossy().unwrap_or_default();
 		let is_openable = self.expand_handler().is_some();
 		
 		let node = if is_openable {
@@ -179,11 +182,11 @@ async fn read_node_contents_dir(path: impl AsRef<Path>) -> Result<Vec<(FileLocat
 	while let Some(entry) = dir.next_entry().await.map_err(|e| e.to_string())? {
 		let e_path = entry.path();
 		let e_metadata = entry.metadata().await.map_err(|e| e.to_string())?;
-		contents.push((FileLocation::from(e_path), NodeKind::from(&e_metadata)));
+		contents.push((FileLocation::Fs { path: e_path }, NodeKind::from(&e_metadata)));
 	}
 	contents.sort_by(|a, b| natural_lexical_cmp(
-		&a.0.file_name().unwrap_or_default(),
-		&b.0.file_name().unwrap_or_default(),
+		&a.0.file_name_lossy().unwrap_or_default(),
+		&b.0.file_name_lossy().unwrap_or_default(),
 	));
 	Ok(contents)
 }
@@ -197,10 +200,9 @@ async fn read_node_contents_pak(pak_path: impl AsRef<Path>) -> Result<Vec<(FileL
 		let mut reader = BufReader::new(file);
 		let index = excavator_formats::pak::PakIndex::create_index(&mut reader).map_err(|e| e.to_string())?;
 		Ok(index.files.iter().map(|f| {
-			(FileLocation::new(pak_path_clone.clone(), Some(f.0.clone())), NodeKind::ArchivedFile)
+			let location = FileLocation::Pak { outer_path: pak_path_clone.clone(), inner_path: f.0.clone() };
+			(location, NodeKind::ArchivedFile)
 		}).collect::<Vec<_>>())
 	});
 	handle.await.unwrap() // I don't think there's any way for a JoinError to occur
 }
-
-// .map_err(|e| e.to_string())
