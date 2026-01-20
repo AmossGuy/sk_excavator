@@ -17,10 +17,20 @@ impl FileLocation {
 	}
 	
 	pub fn file_name(&self) -> Option<Cow<'_, str>> {
-		if self.inner_path.is_none() {
-			self.outer_path.file_name().map(|s| s.to_string_lossy())
+		if let Some(inner_path) = &self.inner_path {
+			Some(inner_path.to_string_lossy())
 		} else {
-			todo!();
+			self.outer_path.file_name().map(|s| s.to_string_lossy())
+		}
+	}
+	
+	// Returning a slice of u8 is for the sake of having a shared type in both cases.
+	// It's fine since we only need to handle ASCII extensions.
+	pub fn extension(&self) -> Option<&[u8]> {
+		if let Some(_inner_path) = &self.inner_path {
+			todo!()
+		} else {
+			self.outer_path.extension().map(|e| e.as_encoded_bytes())
 		}
 	}
 }
@@ -85,3 +95,5 @@ impl PartialEq<Path> for FileLocation {
 		self.inner_path.is_none() && self.outer_path == other
 	}
 }
+
+

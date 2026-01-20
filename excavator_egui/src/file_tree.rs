@@ -21,13 +21,20 @@ enum NodeKind {
 	FsDirectory,
 	FsFile,
 	FsOther,
+	ArchivedFile,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+enum ExpandHandler {
+	Directory,
+	PakArchive,
 }
 
 // TODO: Isn't this just duplicating the functionality of `egui_async::StateWithData`?
 // What if TreeNode's children field just held the Bind?
 enum TreeChildren {
 	Unloaded,
-	Loading(egui_async::Bind<Vec<(FileLocation, NodeKind)>, std::io::Error>),
+	Loading(egui_async::Bind<Vec<(FileLocation, NodeKind)>, String>),
 	Loaded(Vec<TreeNode>),
 	Failed(String),
 }
@@ -68,7 +75,17 @@ impl TreeNode {
 		}
 	}
 	
+	fn expand_handler(&self) -> Option<ExpandHandler> {
+		match self.kind {
+			NodeKind::FsDirectory => Some(ExpandHandler::Directory),
+			NodeKind::FsFile if self.location.extension() == Some(b"pak") => Some(ExpandHandler::PakArchive),
+			_ => None,
+		}
+	}
+	
 	fn handle_load(&mut self) {
+		let expand_handler = self.expand_handler(); // There was a lifetime issue...
+		
 		match &mut self.children {
 			TreeChildren::Unloaded => {
 				let bind = egui_async::Bind::new(true);
@@ -77,31 +94,22 @@ impl TreeNode {
 				self.handle_load();
 			},
 			TreeChildren::Loading(bind) => {
-				let Ok(path_clone) = PathBuf::try_from(self.location.clone()) else {
-					// TODO: Implement reading file list from .pak archives.
-					// I should probably do something to make this more readable while I'm at it.
-					// Also move it to file_read.rs, probably.
-					todo!()
+				let Some(expand_handler) = expand_handler else {
+					unreachable!("Nodes without expand handler shouldn't be expandable")
 				};
-				if let Some(result) = bind.read_or_request(|| async {
-					let mut dir = tokio::fs::read_dir(path_clone).await?;
-					let mut contents = Vec::new();
-					while let Some(entry) = dir.next_entry().await? {
-						let e_path = entry.path();
-						let e_metadata = entry.metadata().await?;
-						contents.push((FileLocation::from(e_path), NodeKind::from(&e_metadata)));
-					}
-					contents.sort_by(|a, b| natural_lexical_cmp(
-						&a.0.file_name().unwrap_or_default(),
-						&b.0.file_name().unwrap_or_default(),
-					));
-					Ok(contents)
-				}) {
+				let Ok(path_clone) = PathBuf::try_from(self.location.clone()) else {
+					unreachable!("Nodes with non-filesystem location shouldn't be expandable")
+				};
+				let thingy = match expand_handler {
+					ExpandHandler::Directory => bind.read_or_request(|| read_node_contents_dir(path_clone)),
+					ExpandHandler::PakArchive => bind.read_or_request(|| read_node_contents_pak(path_clone)),
+				};
+				if let Some(result) = thingy {
 					self.children = match result {
 						Ok(data) => TreeChildren::Loaded(data.iter().map(|(location, kind)| {
 							Self::new(location.clone(), *kind)
 						}).collect()),
-						Err(error) => TreeChildren::Failed(error.to_string()),
+						Err(error) => TreeChildren::Failed(error.clone()),
 					};
 				}
 			},
@@ -114,7 +122,7 @@ impl TreeNode {
 	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (FileLocation, bool)>, default_open: bool) {
 		let id = (self.location.clone(), false);
 		let text = self.location.file_name().unwrap_or_default();
-		let is_openable = self.kind == NodeKind::FsDirectory;
+		let is_openable = self.expand_handler().is_some();
 		
 		let node = if is_openable {
 			NodeBuilder::dir(id)
@@ -164,3 +172,35 @@ impl From<&std::fs::Metadata> for NodeKind {
 		}
 	}
 }
+
+async fn read_node_contents_dir(path: impl AsRef<Path>) -> Result<Vec<(FileLocation, NodeKind)>, String> {
+	let mut dir = tokio::fs::read_dir(path).await.map_err(|e| e.to_string())?;
+	let mut contents = Vec::new();
+	while let Some(entry) = dir.next_entry().await.map_err(|e| e.to_string())? {
+		let e_path = entry.path();
+		let e_metadata = entry.metadata().await.map_err(|e| e.to_string())?;
+		contents.push((FileLocation::from(e_path), NodeKind::from(&e_metadata)));
+	}
+	contents.sort_by(|a, b| natural_lexical_cmp(
+		&a.0.file_name().unwrap_or_default(),
+		&b.0.file_name().unwrap_or_default(),
+	));
+	Ok(contents)
+}
+
+async fn read_node_contents_pak(pak_path: impl AsRef<Path>) -> Result<Vec<(FileLocation, NodeKind)>, String> {
+	use std::{fs::File, io::BufReader}; // lol
+	
+	let pak_path_clone = pak_path.as_ref().to_owned();
+	let handle = egui_async::bind::ASYNC_RUNTIME.spawn_blocking(move || {
+		let file = File::open(&pak_path_clone).map_err(|e| e.to_string())?;
+		let mut reader = BufReader::new(file);
+		let index = excavator_formats::pak::PakIndex::create_index(&mut reader).map_err(|e| e.to_string())?;
+		Ok(index.files.iter().map(|f| {
+			(FileLocation::new(pak_path_clone.clone(), Some(f.0.clone())), NodeKind::ArchivedFile)
+		}).collect::<Vec<_>>())
+	});
+	handle.await.unwrap() // I don't think there's any way for a JoinError to occur
+}
+
+// .map_err(|e| e.to_string())
