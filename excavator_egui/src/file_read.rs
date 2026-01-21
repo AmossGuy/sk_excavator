@@ -2,13 +2,13 @@ use std::borrow::Cow;
 use std::ffi::CString;
 use std::path::PathBuf;
 
-#[derive(Clone, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ItemInfo {
 	Fs { path: PathBuf, kind: FsItemKind },
 	Pak { outer_path: PathBuf, inner_path: CString },
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub enum FsItemKind {
 	Directory,
 	File,

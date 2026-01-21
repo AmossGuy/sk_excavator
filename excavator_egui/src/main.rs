@@ -2,11 +2,13 @@
 
 mod file_read;
 mod file_tree;
+mod file_view;
 
 use std::convert::Infallible;
 use std::path::PathBuf;
 
 use file_tree::FileTree;
+use file_view::show_file_view;
 
 fn main() -> eframe::Result {
 	let native_options = eframe::NativeOptions::default();
@@ -73,14 +75,20 @@ impl eframe::App for ExcavatorApp {
 			});
 		});
 		
+		let mut tree_state = None; // There's gotta be a better way to do this
+		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				self.file_tree.add_view(ui);
+				tree_state = self.file_tree.add_view(ui);
 				ui.take_available_space();
 			})
 		});
 		
-		egui::CentralPanel::default().show(ctx, |_ui| {
+		egui::CentralPanel::default().show(ctx, |ui| {
+			let fallback = Vec::new();
+			let files = tree_state.as_ref().map_or(&fallback, |s| s.selected());
+			let files = files.iter().map(|f| f.0.clone()).collect::<Vec<_>>();
+			show_file_view(ui, files);
 		});
 	}
 }
