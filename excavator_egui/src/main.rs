@@ -75,19 +75,16 @@ impl eframe::App for ExcavatorApp {
 			});
 		});
 		
-		let mut tree_state = None; // There's gotta be a better way to do this
-		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				tree_state = self.file_tree.add_view(ui);
+				self.file_tree.add_view(ui);
 				ui.take_available_space();
 			})
 		});
 		
 		egui::CentralPanel::default().show(ctx, |ui| {
-			let fallback = Vec::new();
-			let files = tree_state.as_ref().map_or(&fallback, |s| s.selected());
-			let files = files.iter().map(|f| f.0.clone()).collect::<Vec<_>>();
+			let selected = self.file_tree.state.selected();
+			let files = selected.iter().map(|f| f.0.clone()).collect::<Vec<_>>();
 			show_file_view(ui, files);
 		});
 	}

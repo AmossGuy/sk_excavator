@@ -1,15 +1,14 @@
-use egui::{Id, Ui};
+use egui::Ui;
 use egui_ltreeview::{TreeView, TreeViewBuilder, TreeViewState, NodeBuilder};
 use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 
 use crate::file_read::{ItemInfo, FsItemKind};
 
-const TREE_ID: &'static str = "file tree";
-
 #[derive(Default)]
 pub struct FileTree {
 	root: Option<TreeNode>,
+	pub state: TreeViewState<(ItemInfo, bool)>,
 }
 
 struct TreeNode {
@@ -53,19 +52,14 @@ impl FileTree {
 		}
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui) -> Option<TreeViewState<(ItemInfo, bool)>> {
+	pub fn add_view(&mut self, ui: &mut Ui) {
 		if let Some(root) = &mut self.root {
-			let id = Id::new(TREE_ID);
-			let mut state = TreeViewState::load(ui, id).unwrap_or_default();
-			let view = TreeView::new(Id::NULL);
-			view.show_state(ui, &mut state, |builder| {
+			let view = TreeView::new(ui.make_persistent_id("file tree"));
+			view.show_state(ui, &mut self.state, |builder| {
 				root.build(builder, true);
 			});
-			state.clone().store(ui, id);
-			Some(state)
 		} else {
 			ui.label("No directory has been opened.");
-			None
 		}
 	}
 }
