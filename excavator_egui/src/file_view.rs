@@ -1,11 +1,62 @@
 use egui::Ui;
 
-use crate::file_read::ItemInfo;
+use crate::file_read::{FileLoader, ItemInfo};
 
-pub fn show_file_view(ui: &mut Ui, files: Vec<ItemInfo>) {
-	match files.len() {
-		0 => ui.label("No files are selected."),
-		1 => ui.label(format!("Selected file: {:?}", files[0])),
-		2.. => ui.label("Multiple files are selected."),
-	};
+#[derive(Default)]
+pub struct FileViewSwitcher {
+	state: SwitcherState,
+}
+
+#[derive(Default)]
+enum SwitcherState {
+	#[default]
+	Blank,
+	Multi,
+	Single {
+		item: ItemInfo,
+	},
+}
+
+impl FileViewSwitcher {
+	pub fn switch(&mut self, selection: &Vec<ItemInfo>) {
+		match selection.len() {
+			0 => self.state = SwitcherState::Blank,
+			1 => self.switch_single(&selection[0]),
+			2.. => self.state = SwitcherState::Multi,
+		};
+	}
+	
+	fn switch_single(&mut self, selection: &ItemInfo) {
+		self.state = SwitcherState::Single { item: selection.clone() };
+	}
+	
+	pub fn add_view(&mut self, ui: &mut Ui, loader: &mut FileLoader) {
+		match &mut self.state {
+			SwitcherState::Blank => { ui.label("No files are selected."); },
+			SwitcherState::Multi => { ui.label("Multiple files are selected."); },
+			SwitcherState::Single { item } => {
+				if !item.is_file() {
+					ui.label("The selected item isn't a file.");
+					return;
+				}
+				
+				match item.extension() {
+					Some(b"pak") => { ui.label("Archive selected; please select one of the files inside the archive."); },
+					Some(b"stl") => {
+						if let Some(result) = loader.read_or_request(item) {
+							match result {
+								Ok(data) => {
+									ui.label(format!("test data: {:?}", String::from_utf8_lossy(data)));
+								},
+								Err(error) => { ui.label(format!("Error: {}", error)); },
+							};
+						} else {
+							ui.spinner();
+						}
+					},
+					_ => { ui.label("Unknown or unimplemented file type."); },
+				}
+			},
+		};
+	}
 }

@@ -8,7 +8,7 @@ use crate::file_read::{ItemInfo, FsItemKind};
 #[derive(Default)]
 pub struct FileTree {
 	root: Option<TreeNode>,
-	pub state: TreeViewState<(ItemInfo, bool)>,
+	state: TreeViewState<(ItemInfo, bool)>,
 }
 
 struct TreeNode {
@@ -52,14 +52,26 @@ impl FileTree {
 		}
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui) {
+	pub fn add_view(&mut self, ui: &mut Ui) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
 			let view = TreeView::new(ui.make_persistent_id("file tree"));
-			view.show_state(ui, &mut self.state, |builder| {
+			let (_, actions) = view.show_state(ui, &mut self.state, |builder| {
 				root.build(builder, true);
 			});
+			
+			let mut selection_update = None;
+			for action in actions {
+				match action {
+					egui_ltreeview::Action::SetSelected(s) => {
+						selection_update = Some(s.into_iter().map(|x| x.0).collect());
+					},
+					_ => {},
+				}
+			}
+			selection_update
 		} else {
 			ui.label("No directory has been opened.");
+			None
 		}
 	}
 }

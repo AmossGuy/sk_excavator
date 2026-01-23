@@ -7,8 +7,9 @@ mod file_view;
 use std::convert::Infallible;
 use std::path::PathBuf;
 
-use file_tree::FileTree;
-use file_view::show_file_view;
+use crate::file_read::FileLoader;
+use crate::file_tree::FileTree;
+use crate::file_view::FileViewSwitcher;
 
 fn main() -> eframe::Result {
 	let native_options = eframe::NativeOptions::default();
@@ -33,6 +34,10 @@ struct ExcavatorApp {
 	choose_dir_bind: Option<egui_async::Bind<Option<PathBuf>, Infallible>>,
 	#[serde(skip)]
 	file_tree: FileTree,
+	#[serde(skip)]
+	file_view: FileViewSwitcher,
+	#[serde(skip)]
+	file_loader: FileLoader,
 }
 
 impl eframe::App for ExcavatorApp {
@@ -77,15 +82,17 @@ impl eframe::App for ExcavatorApp {
 		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				self.file_tree.add_view(ui);
+				let selection_update = self.file_tree.add_view(ui);
 				ui.take_available_space();
+				
+				if let Some(selection_update) = selection_update {
+					self.file_view.switch(&selection_update);
+				}
 			})
 		});
 		
 		egui::CentralPanel::default().show(ctx, |ui| {
-			let selected = self.file_tree.state.selected();
-			let files = selected.iter().map(|f| f.0.clone()).collect::<Vec<_>>();
-			show_file_view(ui, files);
+			self.file_view.add_view(ui, &mut self.file_loader);
 		});
 	}
 }
