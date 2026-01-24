@@ -1,8 +1,10 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CString;
+use std::io::Cursor;
 use std::path::PathBuf;
-use std::sync::Arc;
+
+use excavator_formats::pak::PakIndex;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub enum ItemInfo {
@@ -45,6 +47,13 @@ impl ItemInfo {
 			Self::Pak { .. } => true,
 		}
 	}
+	
+	pub fn outer_path(&self) -> &PathBuf {
+		match self {
+			Self::Fs { path, .. } => &path,
+			Self::Pak { outer_path, .. } => &outer_path,
+		}
+	}
 }
 
 impl From<&std::fs::FileType> for FsItemKind {
@@ -62,17 +71,39 @@ impl From<&std::fs::FileType> for FsItemKind {
 // This is a struct so I can try adding caching or somesuch to it later.
 #[derive(Default)]
 pub struct FileLoader {
-	file_binds: HashMap<ItemInfo, egui_async::Bind<Arc<[u8]>, std::io::Error>>,
+	file_binds: HashMap<PathBuf, egui_async::Bind<Vec<u8>, std::io::Error>>,
 }
 
 impl FileLoader {
-	pub fn read_or_request(&mut self, file_info: &ItemInfo) -> Option<&std::io::Result<Arc<[u8]>>> {
+	fn read_or_request_fs(&mut self, path: PathBuf) -> Option<&Result<Vec<u8>, std::io::Error>> {
 		// Passing false for the Bind's retain parameter as a rudimentary way of clearing old files.
 		// Later I would like to do something more advanced, so that switching between a few files doesn't discard them every time.
-		let bind = self.file_binds.entry(file_info.clone()).or_insert_with(|| egui_async::Bind::new(false));
-		bind.read_or_request(|| async {
-			let data = Arc::<[u8]>::from(*b"test data that isn't actually loaded from the file");
-			Ok(data)
+		let bind = self.file_binds.entry(path.clone()).or_insert_with(|| egui_async::Bind::new(false));
+		bind.read_or_request(move || {
+			tokio::fs::read(path)
 		})
+	}
+	
+	fn slice_file_from_pak<'a>(data: &'a Vec<u8>, inner_path: &CString) -> Result<&'a [u8], anyhow::Error> {
+		let index = PakIndex::create_index(&mut Cursor::new(data))?;
+		let file = index.files.iter().find(|x| *x.0 == *inner_path).ok_or_else(|| {
+			anyhow::anyhow!("File not found inside archive")
+		})?;
+		let (start, length) = (file.1.data_start as usize, file.1.data_length as usize);
+		let slice = data.get(start..start+length).ok_or_else(|| {
+			anyhow::anyhow!("Archive file points outside of archive")
+		})?;
+		Ok(slice)
+	}
+	
+	pub fn read_or_request(&mut self, file_info: &ItemInfo) -> Option<Result<&[u8], anyhow::Error>> {
+		match self.read_or_request_fs(file_info.outer_path().clone()) {
+			Some(Ok(data)) => match file_info {
+				ItemInfo::Fs { .. } => Some(Ok(data.as_slice())),
+				ItemInfo::Pak { inner_path, .. } => Some(Self::slice_file_from_pak(&data, &inner_path)),
+			},
+			Some(Err(error)) => Some(Err(anyhow::anyhow!("{}", error))), // std::io::Error isn't Clone. stupid workaround
+			None => None,
+		}
 	}
 }

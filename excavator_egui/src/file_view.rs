@@ -46,7 +46,8 @@ impl FileViewSwitcher {
 						if let Some(result) = loader.read_or_request(item) {
 							match result {
 								Ok(data) => {
-									ui.label(format!("test data: {:?}", String::from_utf8_lossy(data)));
+									// I still need to write the code for reading only part of an st file...
+									ui.label(format!("size: {} (test)", data.len()));
 								},
 								Err(error) => { ui.label(format!("Error: {}", error)); },
 							};

@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+anyhow = "1.0.100"
 eframe = { version = "0.33.3", features = ["persistence"] }
 egui = "0.33.3"
 egui-async = "0.3.0"
