@@ -6,6 +6,7 @@ use super::util_binary::read_pointers;
 
 #[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
+
 struct StlHeader {
 	entry_count: u32,
 	field_count: u32,
@@ -47,11 +48,14 @@ struct StbOrStmDataExtra {
 }
 
 // TODO: stick in an Option field with the stb/stm exclusive data. or maybe our own enum
+// That's a very outdated todo by now.
+
+// Right now it's just pub for the sake of throwing something together. I don't yet know whether I'll eventually end up with this type of struct being consistently pub, or never pub.
 #[derive(Copy, Clone, Debug)]
-struct StHeaderCommon {
-	entry_count: u32,
-	field_count: u32,
-	data_pointer: u64,
+pub struct StHeaderCommon {
+	pub entry_count: u32,
+	pub field_count: u32,
+	pub data_pointer: u64,
 }
 
 impl From<StlHeader> for StHeaderCommon {
@@ -79,13 +83,26 @@ pub struct StReadOutcome {
 	pub strings: Vec<String>,
 }
 
-pub fn read_st<R: BufRead + Seek>(reader: &mut R, stl: bool) -> BinResult<StReadOutcome> {
-	reader.rewind()?;
-	let header: StHeaderCommon = if stl {
-		StlHeader::read(reader)?.into()
+pub fn read_st_header<R: BufRead + Seek>(reader: &mut R, is_stl: bool) -> BinResult<StHeaderCommon> {
+	let header = if is_stl {
+		StlHeader::read_le(reader)?.into()
 	} else {
-		StbOrStmHeader::read(reader)?.into()
+		StbOrStmHeader::read_le(reader)?.into()
 	};
+	Ok(header)
+}
+
+pub fn read_st_cell<R: BufRead + Seek>(reader: &mut R, header: &StHeaderCommon, index: usize) -> BinResult<NullString> {
+	reader.seek(SeekFrom::Start(header.data_pointer))?;
+	reader.seek(SeekFrom::Current((index * std::mem::size_of::<u64>()) as i64))?;
+	let string_pointer = u64::read_le(reader)?;
+	reader.seek(SeekFrom::Start(string_pointer))?;
+	NullString::read_le(reader)
+}
+
+pub fn read_st<R: BufRead + Seek>(reader: &mut R, is_stl: bool) -> BinResult<StReadOutcome> {
+	reader.rewind()?;
+	let header = read_st_header(reader, is_stl)?;
 	
 	// TODO: checked conversion and multiplication
 	let entry_count = header.entry_count as usize;

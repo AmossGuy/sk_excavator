@@ -8,6 +8,7 @@ anyhow = "1.0.100"
 eframe = { version = "0.33.3", features = ["persistence"] }
 egui = "0.33.3"
 egui-async = "0.3.0"
+egui_extras = "0.33.3"
 egui_ltreeview = "0.6.1"
 excavator_formats = { version = "0.1.0", path = "../excavator_formats" }
 lexical-sort = "0.3.1"
