@@ -23,20 +23,23 @@ impl StFileView {
 			.size.max(ui.spacing().interact_size.y);
 		
 		let mut table = TableBuilder::new(ui);
+		table = table.striped(true);
 		
 		for _ in 0..st_header.field_count {
-			table = table.column(Column::remainder());
+			table = table.column(Column::remainder().clip(true));
 		}
 		
 		table.header(20.0, |mut table_header| {
-			for col_n in 0..st_header.field_count {
+			for col_n in 0..st_header.field_count as usize {
 				table_header.col(|ui| {
-					ui.strong(col_n.to_string());
+					let cell_n = col_n;
+					let string = read_st_cell(&mut cursor, &st_header, cell_n).unwrap().to_string();
+					ui.strong(string);
 				});
 			}
 		}).body(|body| {
-			body.rows(text_height, st_header.entry_count as usize, |mut row| {
-				let row_n = row.index();
+			body.rows(text_height, st_header.entry_count as usize - 1, |mut row| {
+				let row_n = row.index() + 1;
 				for col_n in 0..st_header.field_count as usize {
 					row.col(|ui| {
 						let cell_n = row_n * st_header.field_count as usize + col_n;
