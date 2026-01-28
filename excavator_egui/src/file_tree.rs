@@ -1,5 +1,5 @@
 use egui::Ui;
-use egui_ltreeview::{TreeView, TreeViewBuilder, TreeViewState, NodeBuilder};
+use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
 use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 
@@ -8,7 +8,6 @@ use crate::file_read::{ItemInfo, FsItemKind};
 #[derive(Default)]
 pub struct FileTree {
 	root: Option<TreeNode>,
-	state: TreeViewState<(ItemInfo, bool)>,
 }
 
 struct TreeNode {
@@ -55,7 +54,7 @@ impl FileTree {
 	pub fn add_view(&mut self, ui: &mut Ui) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
 			let view = TreeView::new(ui.make_persistent_id("file tree"));
-			let (_, actions) = view.show_state(ui, &mut self.state, |builder| {
+			let (_, actions) = view.show(ui, |builder| {
 				root.build(builder, true);
 			});
 			

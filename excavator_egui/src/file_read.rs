@@ -4,15 +4,17 @@ use std::ffi::CString;
 use std::io::Cursor;
 use std::path::PathBuf;
 
+use serde::{Deserialize, Serialize};
+
 use excavator_formats::pak::PakIndex;
 
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum ItemInfo {
 	Fs { path: PathBuf, kind: FsItemKind },
 	Pak { outer_path: PathBuf, inner_path: CString },
 }
 
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum FsItemKind {
 	Directory,
 	File,

@@ -50,28 +50,30 @@ impl FileViewSwitcher {
 			SwitcherState::Blank => { ui.label("No files are selected."); },
 			SwitcherState::Multi => { ui.label("Multiple files are selected."); },
 			SwitcherState::Single { item, view } => {
-				if !item.is_file() {
-					ui.label("The selected item isn't a file.");
-					return;
-				}
-				
-				match view {
-					SingleView::Pak => { ui.label("Archive selected; please select one of the files inside the archive."); },
-					SingleView::St(st_view) => {
-						if let Some(result) = loader.read_or_request(item) {
-							match result {
-								Ok(data) => {
-									let is_stl = item.extension() == Some(b"stl");
-									st_view.view_ui(ui, data, is_stl);
-								},
-								Err(error) => { ui.label(format!("Error: {}", error)); },
-							};
-						} else {
-							ui.spinner();
-						}
-					},
-					SingleView::Unknown => { ui.label("Unknown or unimplemented file type."); },
-				}
+				ui.push_id(&*item, |ui| {
+					if !item.is_file() {
+						ui.label("The selected item isn't a file.");
+						return;
+					}
+					
+					match view {
+						SingleView::Pak => { ui.label("Archive selected; please select one of the files inside the archive."); },
+						SingleView::St(st_view) => {
+							if let Some(result) = loader.read_or_request(item) {
+								match result {
+									Ok(data) => {
+										let is_stl = item.extension() == Some(b"stl");
+										st_view.view_ui(ui, data, is_stl);
+									},
+									Err(error) => { ui.label(format!("Error: {}", error)); },
+								};
+							} else {
+								ui.spinner();
+							}
+						},
+						SingleView::Unknown => { ui.label("Unknown or unimplemented file type."); },
+					}
+				});
 			},
 		};
 	}
