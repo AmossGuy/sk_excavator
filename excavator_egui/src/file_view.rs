@@ -1,9 +1,11 @@
+mod image;
 mod st;
 
 use egui::Ui;
 
 use crate::file_read::{FileLoader, ItemInfo};
-use crate::file_view::st::StFileView;
+use image::ImageFileView;
+use st::StFileView;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {
@@ -21,10 +23,13 @@ enum SwitcherState {
 	},
 }
 
+// You'll notice that this is ad-hoc and inconsistent...
 enum SingleView {
 	Unknown,
 	Pak,
 	St(StFileView),
+	ImageLoading,
+	Image(anyhow::Result<ImageFileView>),
 }
 
 impl FileViewSwitcher {
@@ -40,6 +45,7 @@ impl FileViewSwitcher {
 		let view = match selection.extension() {
 			Some(b"pak") => SingleView::Pak,
 			Some(b"stb" | b"stl" | b"stm") => SingleView::St(StFileView::default()),
+			Some(b"png") => SingleView::ImageLoading,
 			_ => SingleView::Unknown,
 		};
 		self.state = SwitcherState::Single { item: selection.clone(), view };
@@ -70,6 +76,25 @@ impl FileViewSwitcher {
 							} else {
 								ui.spinner();
 							}
+						},
+						SingleView::ImageLoading => {
+							ui.spinner();
+							if let Some(result) = loader.read_or_request(item) {
+								match result {
+									Ok(data) => {
+										*view = SingleView::Image(
+											ImageFileView::load(data, ui.ctx(), format!("{:?}", item))
+										);
+									},
+									Err(error) => { ui.label(format!("Error: {}", error)); },
+								};
+							}
+						},
+						SingleView::Image(image_view_result) => {
+							match image_view_result {
+								Ok(image_view) => { image_view.view_ui(ui); },
+								Err(error) => { ui.label(format!("Error: {}", error)); },
+							};
 						},
 						SingleView::Unknown => { ui.label("Unknown or unimplemented file type."); },
 					}

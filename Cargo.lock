@@ -1163,6 +1163,7 @@ dependencies = [
  "egui_extras",
  "egui_ltreeview",
  "excavator_formats",
+ "image",
  "lexical-sort",
  "rfd",
  "serde",
