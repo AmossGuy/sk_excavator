@@ -53,7 +53,9 @@ impl FileTree {
 	
 	pub fn add_view(&mut self, ui: &mut Ui) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
-			let view = TreeView::new(ui.make_persistent_id("file tree"));
+			let view = TreeView::new(ui.make_persistent_id("file tree"))
+				.fallback_context_menu(Self::context_menu);
+			
 			let (_, actions) = view.show(ui, |builder| {
 				root.build(builder, true);
 			});
@@ -72,6 +74,34 @@ impl FileTree {
 			ui.label("No directory has been opened.");
 			None
 		}
+	}
+	
+	fn context_menu(ui: &mut Ui, nodes: &Vec<(ItemInfo, bool)>) {
+		let text_size = egui::TextStyle::Body
+			.resolve(ui.style())
+			.size;
+		ui.set_width(text_size * 15.); // UGH. stupid
+		
+		let node = match nodes.len() {
+			0 => { ui.label("Nothing selected"); return; },
+			1 => &nodes[0],
+			2.. => { ui.label("Multiselect actions not yet implemented"); return; },
+		};
+		
+		let item = &node.0;
+		match item {
+			ItemInfo::Fs { path, kind: _ } => {
+				if ui.button("Copy path").clicked() {
+					ui.ctx().copy_text(path.to_string_lossy().into_owned());
+				}
+			},
+			ItemInfo::Pak { inner_path: _, outer_path: _ } => {
+				/*
+				if ui.button("Extract from archive").clicked() {
+				}
+				*/
+			},
+		};
 	}
 }
 

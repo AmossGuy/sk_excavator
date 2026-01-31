@@ -3,7 +3,7 @@ use image::{DynamicImage, EncodableLayout};
 use image::codecs::png::PngDecoder;
 use std::io::Cursor;
 
-use crate::file_read::ItemInfo;
+// use crate::file_read::ItemInfo;
 
 pub struct ImageFileView {
 	texture_handle: egui::TextureHandle,
