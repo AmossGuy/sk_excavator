@@ -40,15 +40,14 @@ impl egui::Plugin for ThreadSpawner {
 }
 
 impl ThreadSpawner {
-	pub fn spawn<F>(&mut self, ctx: &egui::Context, f: F)
+	pub fn spawn<F>(&mut self, ctx: egui::Context, f: F)
 	where
-		F: FnOnce() -> Option<ExcavatorMessage>,
+		F: FnOnce(&egui::Context) -> Option<ExcavatorMessage>,
 		F: Send + 'static,
 	{
-		let ctx = ctx.clone();
 		let handle = std::thread::spawn(move || {
 			// Call request_repaint only when the result of f is Some, while passing said result through unchanged
-			f().map(|message| {
+			f(&ctx).map(|message| {
 				ctx.request_repaint();
 				message
 			})

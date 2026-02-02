@@ -111,7 +111,7 @@ impl ExcavatorMessage {
 		match self {
 			Self::LaunchFileDialog { dialog, kind, after } => {
 				let spawner = ctx.plugin_or_default::<ThreadSpawner>();
-				spawner.lock().spawn(ctx, move || {
+				spawner.lock().spawn(ctx.clone(), move |_| {
 					let maybe_path = match kind {
 						FileDialogKind::PickFile => dialog.pick_file(),
 						FileDialogKind::PickFolder => dialog.pick_folder(),
