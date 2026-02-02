@@ -1,6 +1,6 @@
 use egui::Ui;
 use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
-use lexical_sort::natural_lexical_cmp;
+// use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 
 use crate::file_read::{ItemInfo, FsItemKind};
@@ -25,7 +25,8 @@ enum ExpandHandler {
 // What if TreeNode's children field just held the Bind?
 enum TreeChildren {
 	Unloaded,
-	Loading(egui_async::Bind<Vec<ItemInfo>, String>),
+	//Loading(egui_async::Bind<Vec<ItemInfo>, String>),
+	Loading(()),
 	Loaded(Vec<TreeNode>),
 	Failed(String),
 }
@@ -125,6 +126,8 @@ impl TreeNode {
 	}
 	
 	fn handle_load(&mut self) {
+		todo!()
+		/*
 		let expand_handler = self.expand_handler(); // There was a lifetime issue...
 		
 		match &mut self.children {
@@ -156,6 +159,7 @@ impl TreeNode {
 			},
 			_ => {},
 		}
+		*/
 	}
 	
 	// `self` being mutable here is a tad quirky.
@@ -174,7 +178,7 @@ impl TreeNode {
 		let is_open = builder.node(node);
 		
 		if is_openable && is_open {
-			self.handle_load();
+			// self.handle_load();
 			
 			match &mut self.children {
 				TreeChildren::Unloaded => {
@@ -203,6 +207,8 @@ impl TreeNode {
 }
 
 async fn read_node_contents_dir(path: impl AsRef<Path>) -> Result<Vec<ItemInfo>, String> {
+	todo!()
+	/*
 	let mut dir = tokio::fs::read_dir(path).await.map_err(|e| e.to_string())?;
 	let mut contents = Vec::new();
 	while let Some(entry) = dir.next_entry().await.map_err(|e| e.to_string())? {
@@ -215,9 +221,12 @@ async fn read_node_contents_dir(path: impl AsRef<Path>) -> Result<Vec<ItemInfo>,
 		&b.file_name_lossy().unwrap_or_default(),
 	));
 	Ok(contents)
+	*/
 }
 
 async fn read_node_contents_pak(pak_path: impl AsRef<Path>) -> Result<Vec<ItemInfo>, String> {
+	todo!()
+	/*
 	use std::{fs::File, io::BufReader}; // lol
 	
 	let pak_path_clone = pak_path.as_ref().to_owned();
@@ -230,4 +239,5 @@ async fn read_node_contents_pak(pak_path: impl AsRef<Path>) -> Result<Vec<ItemIn
 		}).collect::<Vec<_>>())
 	});
 	handle.await.unwrap() // I don't think there's any way for a JoinError to occur here other than a panic
+	*/
 }

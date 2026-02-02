@@ -1,12 +1,13 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CString;
-use std::io::Cursor;
+// use std::io::Cursor;
 use std::path::PathBuf;
+use std::thread;
 
 use serde::{Deserialize, Serialize};
 
-use excavator_formats::pak::PakIndex;
+// use excavator_formats::pak::PakIndex;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum ItemInfo {
@@ -70,13 +71,36 @@ impl From<&std::fs::FileType> for FsItemKind {
 	}
 }
 
-// This is a struct so I can try adding caching or somesuch to it later.
+
+
+
+
+type FileLoadResult = Result<Box<[u8]>, std::io::Error>;
+
+enum FileLoadState {
+	Loading(thread::JoinHandle<FileLoadResult>),
+	Done(std::sync::Weak<FileLoadResult>),
+}
+
 #[derive(Default)]
 pub struct FileLoader {
-	file_binds: HashMap<PathBuf, egui_async::Bind<Vec<u8>, std::io::Error>>,
+	fs_files: HashMap<PathBuf, FileLoadState>,
+	egui_ctx: Option<egui::Context>,
+}
+
+impl egui::Plugin for FileLoader {
+	fn debug_name(&self) -> &'static str {
+		"FileLoader (excavator)"
+	}
 }
 
 impl FileLoader {
+	// needs something added for the whole slicing thing... use self_cell?
+	pub fn get(&self, item: &ItemInfo) -> Option<std::sync::Arc<FileLoadResult>> {
+		todo!()
+	}
+	
+	/*
 	fn read_or_request_fs(&mut self, path: PathBuf) -> Option<&Result<Vec<u8>, std::io::Error>> {
 		// Passing false for the Bind's retain parameter as a rudimentary way of clearing old files.
 		// Later I would like to do something more advanced, so that switching between a few files doesn't discard them every time.
@@ -108,4 +132,5 @@ impl FileLoader {
 			None => None,
 		}
 	}
+	*/
 }

@@ -65,6 +65,8 @@ impl FileViewSwitcher {
 					match view {
 						SingleView::Pak => { ui.label("Archive selected; please select one of the files inside the archive."); },
 						SingleView::St(st_view) => {
+							todo!();
+							/*
 							if let Some(result) = loader.read_or_request(item) {
 								match result {
 									Ok(data) => {
@@ -76,8 +78,11 @@ impl FileViewSwitcher {
 							} else {
 								ui.spinner();
 							}
+							*/
 						},
 						SingleView::ImageLoading => {
+							todo!();
+							/*
 							ui.spinner();
 							if let Some(result) = loader.read_or_request(item) {
 								match result {
@@ -89,6 +94,7 @@ impl FileViewSwitcher {
 									Err(error) => { ui.label(format!("Error: {}", error)); },
 								};
 							}
+							*/
 						},
 						SingleView::Image(image_view_result) => {
 							match image_view_result {

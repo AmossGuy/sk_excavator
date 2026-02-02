@@ -3,13 +3,15 @@
 mod file_read;
 mod file_tree;
 mod file_view;
+mod plugins;
 
-use std::convert::Infallible;
+// use std::convert::Infallible;
 use std::path::PathBuf;
 
 use crate::file_read::FileLoader;
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
+use crate::plugins::{MessageQueue, ThreadSpawner};
 
 fn main() -> eframe::Result {
 	let native_options = eframe::NativeOptions::default();
@@ -31,8 +33,6 @@ struct ExcavatorApp {
 	file_tree_root: PathBuf,
 	
 	#[serde(skip)]
-	choose_dir_bind: Option<egui_async::Bind<Option<PathBuf>, Infallible>>,
-	#[serde(skip)]
 	file_tree: FileTree,
 	#[serde(skip)]
 	file_view: FileViewSwitcher,
@@ -46,20 +46,10 @@ impl eframe::App for ExcavatorApp {
 	}
 	
 	fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
-		ctx.plugin_or_default::<egui_async::EguiAsyncPlugin>();
-		
-		if let Some(bind) = &mut self.choose_dir_bind {
-			let dialog = rfd::AsyncFileDialog::new().set_parent(&frame);
-			if let Some(result) = bind.read_or_request(|| async {
-				let handle = dialog.pick_folder().await;
-				Ok(handle.map(|h| h.path().to_owned()))
-			}) {
-				if let Ok(Some(path)) = result {
-					self.file_tree_root = path.clone();
-				}
-				self.choose_dir_bind = None;
-			}
-		}
+		let messages = ctx.plugin_or_default::<MessageQueue>();
+		let threads = ctx.plugin_or_default::<ThreadSpawner>();
+		messages.lock().send_multiple(threads.lock().take_messages());
+		messages.lock().apply_all(self, ctx);
 		
 		self.file_tree.set_root_from_path_if_different(self.file_tree_root.clone());
 		
@@ -67,11 +57,11 @@ impl eframe::App for ExcavatorApp {
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
-						// If there's already a file dialog open, overwriting choose_dir_bind leaves it open, but the program will no longer react if something is chosen with it.
-						// TODO: Either make it able to handle multiple file dialogs, or just show an error popup.
-						if self.choose_dir_bind.is_none() {
-							self.choose_dir_bind = Some(egui_async::Bind::new(true));
-						}
+						messages.lock().send(ExcavatorMessage::LaunchFileDialog {
+							dialog: rfd::FileDialog::new().set_parent(&frame),
+							kind: FileDialogKind::PickFolder,
+							after: |path| { ExcavatorMessage::UpdateGameDir { path } },
+						});
 					}
 					if ui.button("Quit").clicked() {
 						ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
@@ -94,5 +84,46 @@ impl eframe::App for ExcavatorApp {
 		egui::CentralPanel::default().show(ctx, |ui| {
 			self.file_view.add_view(ui, &mut self.file_loader);
 		});
+	}
+}
+
+#[derive(Clone)]
+pub enum ExcavatorMessage {
+	LaunchFileDialog {
+		dialog: rfd::FileDialog,
+		kind: FileDialogKind,
+		after: fn(PathBuf) -> ExcavatorMessage,
+	},
+	UpdateGameDir {
+		path: PathBuf,
+	},
+}
+
+#[derive(Copy, Clone)]
+pub enum FileDialogKind {
+	PickFile,
+	PickFolder,
+	SaveFile,
+}
+
+impl ExcavatorMessage {
+	fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context) {
+		match self {
+			Self::LaunchFileDialog { dialog, kind, after } => {
+				let spawner = ctx.plugin_or_default::<ThreadSpawner>();
+				spawner.lock().spawn(move || {
+					let maybe_path = match kind {
+						FileDialogKind::PickFile => dialog.pick_file(),
+						FileDialogKind::PickFolder => dialog.pick_folder(),
+						FileDialogKind::SaveFile => dialog.save_file(),
+					};
+					maybe_path.map(after)
+				});
+			},
+			Self::UpdateGameDir { path } => {
+				println!("UpdateGameDir: {}", path.display());
+				todo!();
+			},
+		}
 	}
 }
