@@ -1,13 +1,13 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CString;
-// use std::io::Cursor;
 use std::path::PathBuf;
-use std::thread;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Serialize};
 
-// use excavator_formats::pak::PakIndex;
+use crate::ExcavatorMessage;
+use crate::plugins::ThreadSpawner;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum ItemInfo {
@@ -75,62 +75,91 @@ impl From<&std::fs::FileType> for FsItemKind {
 
 
 
-type FileLoadResult = Result<Box<[u8]>, std::io::Error>;
+enum FsLoadState {
+	Loading,
+	Done(std::sync::Weak<LoadResult>),
+}
 
-enum FileLoadState {
-	Loading(thread::JoinHandle<FileLoadResult>),
-	Done(std::sync::Weak<FileLoadResult>),
+pub type LoadResult = Result<LoadedData, Box<str>>;
+
+#[derive(Debug)]
+pub enum LoadedData {
+	Dir(Box<[DirEntry]>),
+}
+
+#[derive(Debug)]
+pub struct DirEntry {
+	pub path: PathBuf,
+	pub metadata: std::fs::Metadata,
 }
 
 #[derive(Default)]
-pub struct FileLoader {
-	fs_files: HashMap<PathBuf, FileLoadState>,
-	egui_ctx: Option<egui::Context>,
+pub struct ItemLoader {
+	fs_items: Arc<Mutex<HashMap<PathBuf, FsLoadState>>>,
 }
 
-impl egui::Plugin for FileLoader {
-	fn debug_name(&self) -> &'static str {
-		"FileLoader (excavator)"
-	}
-}
-
-impl FileLoader {
-	// needs something added for the whole slicing thing... use self_cell?
-	pub fn get(&self, item: &ItemInfo) -> Option<std::sync::Arc<FileLoadResult>> {
-		todo!()
+impl ItemLoader {
+	// This function exists so the or_else closure can use the same lock, ensuring that no external modification can occur in the middle of this logic.
+	fn get_or_else<F>(&self, item: &ItemInfo, f: F) -> Option<Arc<LoadResult>>
+	where
+		F: FnOnce(&mut HashMap<PathBuf, FsLoadState>) -> Option<Arc<LoadResult>>,
+	{
+		let path = item.outer_path();
+		let mut fs_items = self.fs_items.lock().unwrap();
+		match fs_items.get(path) {
+			Some(FsLoadState::Done(weak)) => {
+				let strong = weak.upgrade();
+				if strong.is_none() { fs_items.remove(path); }
+				strong
+			},
+			_ => None,
+		}.or_else(|| f(&mut fs_items))
 	}
 	
-	/*
-	fn read_or_request_fs(&mut self, path: PathBuf) -> Option<&Result<Vec<u8>, std::io::Error>> {
-		// Passing false for the Bind's retain parameter as a rudimentary way of clearing old files.
-		// Later I would like to do something more advanced, so that switching between a few files doesn't discard them every time.
-		let bind = self.file_binds.entry(path.clone()).or_insert_with(|| egui_async::Bind::new(false));
-		bind.read_or_request(move || {
-			tokio::fs::read(path)
+	#[expect(dead_code)] // This'll probably be useful somewhere
+	pub fn get(&self, item: &ItemInfo) -> Option<Arc<LoadResult>> {
+		self.get_or_else(item, |_| { None })
+	}
+	
+	pub fn get_or_request(&self, item: &ItemInfo, ctx: &egui::Context) -> Option<Arc<LoadResult>> {
+		self.get_or_else(item, |fs_items| {
+			let path = item.outer_path();
+			if !fs_items.contains_key(path) {
+				fs_items.insert(path.to_owned(), FsLoadState::Loading);
+				self.start_load(item.clone(), ctx.clone());
+			}
+			None
 		})
 	}
 	
-	fn slice_file_from_pak<'a>(data: &'a Vec<u8>, inner_path: &CString) -> Result<&'a [u8], anyhow::Error> {
-		let index = PakIndex::create_index(&mut Cursor::new(data))?;
-		let file = index.files.iter().find(|x| *x.0 == *inner_path).ok_or_else(|| {
-			anyhow::anyhow!("File not found inside archive")
-		})?;
-		let (start, length) = (file.1.data_start as usize, file.1.data_length as usize);
-		let slice = data.get(start..start+length).ok_or_else(|| {
-			anyhow::anyhow!("Archive file points outside of archive")
-		})?;
-		Ok(slice)
+	fn start_load(&self, item: ItemInfo, ctx: egui::Context) {
+		let fs_items = Arc::clone(&self.fs_items);
+		let spawner = ctx.plugin_or_default::<ThreadSpawner>();
+		spawner.lock().spawn(ctx, move |_| {
+			let result = Arc::new(Self::do_load(&item));
+			fs_items.lock().unwrap().insert(
+				item.outer_path().to_owned(),
+				FsLoadState::Done(Arc::downgrade(&result)),
+			);
+			Some(ExcavatorMessage::ItemLoadDone { result })
+		});
 	}
 	
-	pub fn read_or_request(&mut self, file_info: &ItemInfo) -> Option<Result<&[u8], anyhow::Error>> {
-		match self.read_or_request_fs(file_info.outer_path().clone()) {
-			Some(Ok(data)) => match file_info {
-				ItemInfo::Fs { .. } => Some(Ok(data.as_slice())),
-				ItemInfo::Pak { inner_path, .. } => Some(Self::slice_file_from_pak(&data, &inner_path)),
+	fn do_load(item: &ItemInfo) -> LoadResult {
+		let contents = match item {
+			ItemInfo::Fs { path, kind: FsItemKind::Directory } => {
+				let contents = std::fs::read_dir(path)
+					.map_err(|e| e.to_string())?
+					.map(|entry| entry.and_then(|entry| Ok(DirEntry {
+						path: path.clone(),
+						metadata: entry.metadata()?,
+					})))
+					.collect::<Result<_, _>>()
+					.map_err(|e| e.to_string())?;
+				LoadedData::Dir(contents)
 			},
-			Some(Err(error)) => Some(Err(anyhow::anyhow!("{}", error))), // std::io::Error isn't Clone. stupid workaround
-			None => None,
-		}
+			_ => todo!("{:?}", item),
+		};
+		Ok(contents)
 	}
-	*/
 }

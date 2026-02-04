@@ -8,6 +8,7 @@ use excavator_formats::st::{read_st_header, read_st_cell};
 pub struct StFileView;
 
 impl StFileView {
+	#[expect(dead_code)] // Refactoring not yet complete enough to get here
 	pub fn view_ui(&mut self, ui: &mut Ui, data: &[u8], is_stl: bool) {
 		egui::ScrollArea::horizontal().show(ui, |ui| {
 			self.table_ui(ui, data, is_stl);

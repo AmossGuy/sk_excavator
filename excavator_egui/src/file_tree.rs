@@ -3,7 +3,7 @@ use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
 // use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 
-use crate::file_read::{ItemInfo, FsItemKind};
+use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, LoadedData};
 
 #[derive(Default)]
 pub struct FileTree {
@@ -25,10 +25,9 @@ enum ExpandHandler {
 // What if TreeNode's children field just held the Bind?
 enum TreeChildren {
 	Unloaded,
-	//Loading(egui_async::Bind<Vec<ItemInfo>, String>),
-	Loading(()),
-	Loaded(Vec<TreeNode>),
-	Failed(String),
+	Loading,
+	Loaded(Box<[TreeNode]>),
+	Failed(Box<str>),
 }
 
 impl FileTree {
@@ -52,13 +51,14 @@ impl FileTree {
 		}
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui) -> Option<Vec<ItemInfo>> {
+	pub fn add_view(&mut self, ui: &mut Ui, loader: &ItemLoader) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
 			let view = TreeView::new(ui.make_persistent_id("file tree"))
 				.fallback_context_menu(Self::context_menu);
 			
+			let ctx2 = ui.ctx().clone();
 			let (_, actions) = view.show(ui, |builder| {
-				root.build(builder, true);
+				root.build(builder, loader, &ctx2, true);
 			});
 			
 			let mut selection_update = None;
@@ -125,25 +125,31 @@ impl TreeNode {
 		}
 	}
 	
-	fn handle_load(&mut self) {
-		todo!()
-		/*
+	fn handle_load(&mut self, loader: &ItemLoader, ctx: &egui::Context) {
 		let expand_handler = self.expand_handler(); // There was a lifetime issue...
 		
 		match &mut self.children {
-			TreeChildren::Unloaded => {
-				let bind = egui_async::Bind::new(true);
-				self.children = TreeChildren::Loading(bind);
-				// Effectively a weird way of expressing fallthrough.
-				self.handle_load();
-			},
-			TreeChildren::Loading(bind) => {
-				let Some(expand_handler) = expand_handler else {
+			TreeChildren::Unloaded | TreeChildren::Loading => {
+				self.children = TreeChildren::Loading;
+				
+				let Some(_) = expand_handler else {
 					unreachable!("Nodes without expand handler shouldn't be expandable")
 				};
-				let ItemInfo::Fs { path, .. } = &self.source else {
+				let ItemInfo::Fs { path: _, .. } = &self.source else {
 					unreachable!("Nodes with non-filesystem source shouldn't be expandable")
 				};
+				if let Some(result) = loader.get_or_request(&self.source, ctx) {
+					self.children = match *result {
+						Ok(LoadedData::Dir(ref data)) => TreeChildren::Loaded(data.iter().map(|entry| {
+							Self::new(ItemInfo::Fs {
+								path: entry.path.clone(),
+								kind: FsItemKind::from(&entry.metadata.file_type()),
+							})
+						}).collect()),
+						Err(ref e) => TreeChildren::Failed(e.clone()),
+					}
+				}
+				/*
 				let thingy = match expand_handler {
 					ExpandHandler::Directory => bind.read_or_request(|| read_node_contents_dir(path.clone())),
 					ExpandHandler::PakArchive => bind.read_or_request(|| read_node_contents_pak(path.clone())),
@@ -156,15 +162,17 @@ impl TreeNode {
 						Err(error) => TreeChildren::Failed(error.clone()),
 					};
 				}
+				*/
 			},
 			_ => {},
 		}
-		*/
 	}
 	
 	// `self` being mutable here is a tad quirky.
 	// It's only like that so `handle_load` can be called here.
-	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, default_open: bool) {
+	//
+	// ...It's gotten even worse since I wrote that. It's seeming like it would be better if the ui and loading logic were separated.
+	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, loader: &ItemLoader, ctx: &egui::Context, default_open: bool) {
 		let id = (self.source.clone(), false);
 		let text = self.source.file_name_lossy().unwrap_or_default();
 		let is_openable = self.expand_handler().is_some();
@@ -178,20 +186,20 @@ impl TreeNode {
 		let is_open = builder.node(node);
 		
 		if is_openable && is_open {
-			// self.handle_load();
+			self.handle_load(loader, ctx);
 			
 			match &mut self.children {
 				TreeChildren::Unloaded => {
 					builder.leaf((self.source.clone(), true), "Not loaded");
 				},
-				TreeChildren::Loading(_) => {
+				TreeChildren::Loading => {
 					let spinner_node = NodeBuilder::leaf((self.source.clone(), true))
 						.label_ui(|ui| { ui.spinner(); });
 					builder.node(spinner_node);
 				},
 				TreeChildren::Loaded(children) => {
 					for child in children {
-						child.build(builder, false);
+						child.build(builder, loader, ctx, false);
 					}
 				},
 				TreeChildren::Failed(error) => {
@@ -204,40 +212,4 @@ impl TreeNode {
 			builder.close_dir();
 		}
 	}
-}
-
-async fn read_node_contents_dir(path: impl AsRef<Path>) -> Result<Vec<ItemInfo>, String> {
-	todo!()
-	/*
-	let mut dir = tokio::fs::read_dir(path).await.map_err(|e| e.to_string())?;
-	let mut contents = Vec::new();
-	while let Some(entry) = dir.next_entry().await.map_err(|e| e.to_string())? {
-		let e_path = entry.path();
-		let e_file_type = entry.file_type().await.map_err(|e| e.to_string())?;
-		contents.push(ItemInfo::Fs { path: e_path, kind: FsItemKind::from(&e_file_type) });
-	}
-	contents.sort_by(|a, b| natural_lexical_cmp(
-		&a.file_name_lossy().unwrap_or_default(),
-		&b.file_name_lossy().unwrap_or_default(),
-	));
-	Ok(contents)
-	*/
-}
-
-async fn read_node_contents_pak(pak_path: impl AsRef<Path>) -> Result<Vec<ItemInfo>, String> {
-	todo!()
-	/*
-	use std::{fs::File, io::BufReader}; // lol
-	
-	let pak_path_clone = pak_path.as_ref().to_owned();
-	let handle = egui_async::bind::ASYNC_RUNTIME.spawn_blocking(move || {
-		let file = File::open(&pak_path_clone).map_err(|e| e.to_string())?;
-		let mut reader = BufReader::new(file);
-		let index = excavator_formats::pak::PakIndex::create_index(&mut reader).map_err(|e| e.to_string())?;
-		Ok(index.files.iter().map(|f| {
-			ItemInfo::Pak { outer_path: pak_path_clone.clone(), inner_path: f.0.clone() }
-		}).collect::<Vec<_>>())
-	});
-	handle.await.unwrap() // I don't think there's any way for a JoinError to occur here other than a panic
-	*/
 }

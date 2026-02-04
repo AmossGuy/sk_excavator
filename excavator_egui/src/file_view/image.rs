@@ -11,6 +11,7 @@ pub struct ImageFileView {
 }
 
 impl ImageFileView {
+	#[expect(dead_code)] // Refactoring not yet complete enough to get here
 	pub fn load(data: &[u8], ctx: &egui::Context, texture_name: String) -> anyhow::Result<Self> {
 		let mut cursor = Cursor::new(data);
 		let decoder = PngDecoder::new(&mut cursor)?;

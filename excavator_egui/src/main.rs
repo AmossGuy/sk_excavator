@@ -7,8 +7,9 @@ mod plugins;
 
 // use std::convert::Infallible;
 use std::path::PathBuf;
+use std::sync::Arc;
 
-use crate::file_read::FileLoader;
+use crate::file_read::ItemLoader;
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
 use crate::plugins::{MessageQueue, ThreadSpawner};
@@ -37,7 +38,7 @@ struct ExcavatorApp {
 	#[serde(skip)]
 	file_view: FileViewSwitcher,
 	#[serde(skip)]
-	file_loader: FileLoader,
+	item_loader: ItemLoader,
 }
 
 impl eframe::App for ExcavatorApp {
@@ -57,10 +58,10 @@ impl eframe::App for ExcavatorApp {
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
-						messages.lock().send(ExcavatorMessage::LaunchFileDialog {
-							dialog: rfd::FileDialog::new().set_parent(&frame),
-							kind: FileDialogKind::PickFolder,
-							after: |path| { ExcavatorMessage::UpdateGameDir { path } },
+						let dialog = rfd::FileDialog::new().set_parent(&frame);
+						threads.lock().spawn(ctx.clone(), move |_| {
+							let maybe_path = dialog.pick_folder();
+							maybe_path.map(|path| { ExcavatorMessage::UpdateGameDir { path } })
 						});
 					}
 					if ui.button("Quit").clicked() {
@@ -72,7 +73,7 @@ impl eframe::App for ExcavatorApp {
 		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				let selection_update = self.file_tree.add_view(ui);
+				let selection_update = self.file_tree.add_view(ui, &self.item_loader);
 				ui.take_available_space();
 				
 				if let Some(selection_update) = selection_update {
@@ -82,46 +83,28 @@ impl eframe::App for ExcavatorApp {
 		});
 		
 		egui::CentralPanel::default().show(ctx, |ui| {
-			self.file_view.add_view(ui, &mut self.file_loader);
+			self.file_view.add_view(ui, &mut self.item_loader);
 		});
 	}
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ExcavatorMessage {
-	LaunchFileDialog {
-		dialog: rfd::FileDialog,
-		kind: FileDialogKind,
-		after: fn(PathBuf) -> ExcavatorMessage,
-	},
 	UpdateGameDir {
 		path: PathBuf,
 	},
-}
-
-#[derive(Copy, Clone)]
-pub enum FileDialogKind {
-	PickFile,
-	PickFolder,
-	SaveFile,
+	ItemLoadDone {
+		result: Arc<crate::file_read::LoadResult>,
+	},
 }
 
 impl ExcavatorMessage {
-	fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context) {
+	fn apply(self, app: &mut ExcavatorApp, _ctx: &egui::Context) {
 		match self {
-			Self::LaunchFileDialog { dialog, kind, after } => {
-				let spawner = ctx.plugin_or_default::<ThreadSpawner>();
-				spawner.lock().spawn(ctx.clone(), move |_| {
-					let maybe_path = match kind {
-						FileDialogKind::PickFile => dialog.pick_file(),
-						FileDialogKind::PickFolder => dialog.pick_folder(),
-						FileDialogKind::SaveFile => dialog.save_file(),
-					};
-					maybe_path.map(after)
-				});
-			},
 			Self::UpdateGameDir { path } => {
-				println!("UpdateGameDir: {}", path.display());
+				app.file_tree_root = path;
+			},
+			Self::ItemLoadDone { result } => {
 				todo!();
 			},
 		}

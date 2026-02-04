@@ -13,6 +13,7 @@ impl egui::Plugin for MessageQueue {
 }
 
 impl MessageQueue {
+	#[expect(dead_code)] // it'll have its moment soon enough
 	pub fn send(&mut self, message: ExcavatorMessage) {
 		self.messages.push(message);
 	}
@@ -45,6 +46,7 @@ impl ThreadSpawner {
 		F: FnOnce(&egui::Context) -> Option<ExcavatorMessage>,
 		F: Send + 'static,
 	{
+		println!("ThreadSpawner: spawning thread");
 		let handle = std::thread::spawn(move || {
 			// Call request_repaint only when the result of f is Some, while passing said result through unchanged
 			f(&ctx).map(|message| {

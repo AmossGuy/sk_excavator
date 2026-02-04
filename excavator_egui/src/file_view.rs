@@ -3,7 +3,7 @@ mod st;
 
 use egui::Ui;
 
-use crate::file_read::{FileLoader, ItemInfo};
+use crate::file_read::{ItemInfo, ItemLoader};
 use image::ImageFileView;
 use st::StFileView;
 
@@ -29,6 +29,7 @@ enum SingleView {
 	Pak,
 	St(StFileView),
 	ImageLoading,
+	#[expect(dead_code)] // Refactoring not yet complete enough to get here
 	Image(anyhow::Result<ImageFileView>),
 }
 
@@ -51,7 +52,7 @@ impl FileViewSwitcher {
 		self.state = SwitcherState::Single { item: selection.clone(), view };
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui, loader: &mut FileLoader) {
+	pub fn add_view(&mut self, ui: &mut Ui, _loader: &mut ItemLoader) {
 		match &mut self.state {
 			SwitcherState::Blank => { ui.label("No files are selected."); },
 			SwitcherState::Multi => { ui.label("Multiple files are selected."); },
@@ -65,6 +66,7 @@ impl FileViewSwitcher {
 					match view {
 						SingleView::Pak => { ui.label("Archive selected; please select one of the files inside the archive."); },
 						SingleView::St(st_view) => {
+							let _ = st_view;
 							todo!();
 							/*
 							if let Some(result) = loader.read_or_request(item) {
