@@ -156,21 +156,7 @@ impl TreeNode {
 	
 	fn update_from_load(&mut self, item: &ItemInfo, load_result: &Arc<LoadResult>) {
 		if *item == self.source {
-			self.children = match **load_result {
-				Ok(LoadedData::Dir(ref entries)) => {
-					let mut entries = entries.clone();
-					entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
-						&lhs.path.to_string_lossy(), &rhs.path.to_string_lossy(),
-					));
-					TreeChildren::Loaded(entries.iter().map(|entry| {
-						Self::new(ItemInfo::Fs {
-							path: entry.path.clone(),
-							kind: FsItemKind::from(&entry.metadata),
-						})
-					}).collect())
-				},
-				Err(ref e) => TreeChildren::Failed(e.clone()),
-			};
+			self.setup_children(Arc::clone(load_result));
 		}
 		
 		match self.children {
@@ -183,13 +169,18 @@ impl TreeNode {
 		
 	fn setup_children(&mut self, load_result: Arc<LoadResult>) {
 		self.children = match *load_result {
-			Ok(LoadedData::Dir(ref data)) => TreeChildren::Loaded(data.iter().map(|entry| {
-				println!("{:?}", entry);
-				Self::new(ItemInfo::Fs {
-					path: entry.path.clone(),
-					kind: FsItemKind::from(&entry.metadata.file_type()),
-				})
-			}).collect()),
+			Ok(LoadedData::Dir(ref entries)) => {
+				let mut entries = entries.clone();
+				entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
+					&lhs.path.to_string_lossy(), &rhs.path.to_string_lossy(),
+				));
+				TreeChildren::Loaded(entries.iter().map(|entry| {
+					Self::new(ItemInfo::Fs {
+						path: entry.path.clone(),
+						kind: FsItemKind::from(&entry.metadata),
+					})
+				}).collect())
+			},
 			Err(ref e) => TreeChildren::Failed(e.clone()),
 		};
 	}
