@@ -181,6 +181,18 @@ impl TreeNode {
 					})
 				}).collect())
 			},
+			Ok(LoadedData::PakListing(ref entries)) => {
+				let mut entries = entries.clone();
+				entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
+					&lhs.name.to_string_lossy(), &rhs.name.to_string_lossy(),
+				));
+				TreeChildren::Loaded(entries.iter().map(|entry| {
+					Self::new(ItemInfo::Pak {
+						outer_path: self.source.outer_path().clone(),
+						inner_path: entry.name.clone(),
+					})
+				}).collect())
+			},
 			Err(ref e) => TreeChildren::Failed(e.clone()),
 		};
 	}

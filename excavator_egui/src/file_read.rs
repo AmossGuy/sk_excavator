@@ -91,12 +91,18 @@ pub type LoadResult = Result<LoadedData, Box<str>>;
 #[derive(Debug)]
 pub enum LoadedData {
 	Dir(Box<[DirEntry]>),
+	PakListing(Box<[PakEntry]>),
 }
 
 #[derive(Clone, Debug)]
 pub struct DirEntry {
 	pub path: PathBuf,
 	pub metadata: std::fs::Metadata,
+}
+
+#[derive(Clone, Debug)]
+pub struct PakEntry {
+	pub name: CString,
 }
 
 #[derive(Default)]
@@ -152,7 +158,7 @@ impl ItemLoader {
 	}
 	
 	fn do_load(item: &ItemInfo) -> LoadResult {
-		let contents = match item {
+		match item {
 			ItemInfo::Fs { path, kind: FsItemKind::Directory } => {
 				let contents = std::fs::read_dir(path)
 					.map_err(|e| e.to_string())?
@@ -162,13 +168,34 @@ impl ItemLoader {
 					})))
 					.collect::<Result<_, _>>()
 					.map_err(|e| e.to_string())?;
-				LoadedData::Dir(contents)
+				Ok(LoadedData::Dir(contents))
 			},
-			_ => {
-				println!("do_load todo: {:?}", item);
-				LoadedData::Dir(Default::default())
+			ItemInfo::Fs { path, kind: FsItemKind::File } => {
+				use std::fs::File;
+				use std::io::BufReader;
+				
+				let extension = path.extension().map(|ex| ex.as_encoded_bytes());
+				if extension == Some(b"pak") {
+					let file = File::open(&path)
+						.map_err(|e| e.to_string())?;
+					let mut reader = BufReader::new(file);
+					
+					let index = excavator_formats::pak::PakIndex::create_index(&mut reader)
+						.map_err(|e| e.to_string())?;
+					
+					let contents = index.files.iter()
+						.map(|entry| {
+							PakEntry {
+								name: entry.0.clone(),
+							}
+						})
+						.collect();
+					Ok(LoadedData::PakListing(contents))
+				} else {
+					Err("hit unhandled case in do_load (fs file)".into())
+				}
 			},
-		};
-		Ok(contents)
+			_ => Err("hit unhandled case in do_load".into()),
+		}
 	}
 }
