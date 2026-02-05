@@ -9,7 +9,7 @@ mod plugins;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::file_read::ItemLoader;
+use crate::file_read::{ItemInfo, ItemLoader};
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
 use crate::plugins::{MessageQueue, ThreadSpawner};
@@ -94,6 +94,7 @@ pub enum ExcavatorMessage {
 		path: PathBuf,
 	},
 	ItemLoadDone {
+		item: ItemInfo,
 		result: Arc<crate::file_read::LoadResult>,
 	},
 }
@@ -104,8 +105,8 @@ impl ExcavatorMessage {
 			Self::UpdateGameDir { path } => {
 				app.file_tree_root = path;
 			},
-			Self::ItemLoadDone { result } => {
-				todo!();
+			Self::ItemLoadDone { item, result } => {
+				app.file_tree.update_from_load(item, result);
 			},
 		}
 	}

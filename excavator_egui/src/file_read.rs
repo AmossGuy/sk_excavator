@@ -71,6 +71,12 @@ impl From<&std::fs::FileType> for FsItemKind {
 	}
 }
 
+impl From<&std::fs::Metadata> for FsItemKind {
+	fn from(value: &std::fs::Metadata) -> Self {
+		Self::from(&value.file_type())
+	}
+}
+
 
 
 
@@ -87,7 +93,7 @@ pub enum LoadedData {
 	Dir(Box<[DirEntry]>),
 }
 
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct DirEntry {
 	pub path: PathBuf,
 	pub metadata: std::fs::Metadata,
@@ -141,7 +147,7 @@ impl ItemLoader {
 				item.outer_path().to_owned(),
 				FsLoadState::Done(Arc::downgrade(&result)),
 			);
-			Some(ExcavatorMessage::ItemLoadDone { result })
+			Some(ExcavatorMessage::ItemLoadDone { item, result })
 		});
 	}
 	
@@ -151,14 +157,17 @@ impl ItemLoader {
 				let contents = std::fs::read_dir(path)
 					.map_err(|e| e.to_string())?
 					.map(|entry| entry.and_then(|entry| Ok(DirEntry {
-						path: path.clone(),
+						path: entry.path(),
 						metadata: entry.metadata()?,
 					})))
 					.collect::<Result<_, _>>()
 					.map_err(|e| e.to_string())?;
 				LoadedData::Dir(contents)
 			},
-			_ => todo!("{:?}", item),
+			_ => {
+				println!("do_load todo: {:?}", item);
+				LoadedData::Dir(Default::default())
+			},
 		};
 		Ok(contents)
 	}

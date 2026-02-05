@@ -1,9 +1,11 @@
 use egui::Ui;
 use egui_ltreeview::{TreeView, TreeViewBuilder, NodeBuilder};
-// use lexical_sort::natural_lexical_cmp;
-use std::path::Path;
+use lexical_sort::natural_lexical_cmp;
 
-use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, LoadedData};
+use std::path::Path;
+use std::sync::Arc;
+
+use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, LoadedData, LoadResult};
 
 #[derive(Default)]
 pub struct FileTree {
@@ -48,6 +50,12 @@ impl FileTree {
 		};
 		if !is_same_path {
 			self.set_root_from_path(path);
+		}
+	}
+	
+	pub fn update_from_load(&mut self, item: ItemInfo, load_result: Arc<LoadResult>) {
+		if let Some(root) = &mut self.root {
+			root.update_from_load(&item, &load_result);
 		}
 	}
 	
@@ -139,33 +147,51 @@ impl TreeNode {
 					unreachable!("Nodes with non-filesystem source shouldn't be expandable")
 				};
 				if let Some(result) = loader.get_or_request(&self.source, ctx) {
-					self.children = match *result {
-						Ok(LoadedData::Dir(ref data)) => TreeChildren::Loaded(data.iter().map(|entry| {
-							Self::new(ItemInfo::Fs {
-								path: entry.path.clone(),
-								kind: FsItemKind::from(&entry.metadata.file_type()),
-							})
-						}).collect()),
-						Err(ref e) => TreeChildren::Failed(e.clone()),
-					}
+					self.setup_children(result);
 				}
-				/*
-				let thingy = match expand_handler {
-					ExpandHandler::Directory => bind.read_or_request(|| read_node_contents_dir(path.clone())),
-					ExpandHandler::PakArchive => bind.read_or_request(|| read_node_contents_pak(path.clone())),
-				};
-				if let Some(result) = thingy {
-					self.children = match result {
-						Ok(data) => TreeChildren::Loaded(data.into_iter().map(|source| {
-							Self::new(source.clone())
-						}).collect()),
-						Err(error) => TreeChildren::Failed(error.clone()),
-					};
-				}
-				*/
 			},
 			_ => {},
 		}
+	}
+	
+	fn update_from_load(&mut self, item: &ItemInfo, load_result: &Arc<LoadResult>) {
+		if *item == self.source {
+			self.children = match **load_result {
+				Ok(LoadedData::Dir(ref entries)) => {
+					let mut entries = entries.clone();
+					entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
+						&lhs.path.to_string_lossy(), &rhs.path.to_string_lossy(),
+					));
+					TreeChildren::Loaded(entries.iter().map(|entry| {
+						Self::new(ItemInfo::Fs {
+							path: entry.path.clone(),
+							kind: FsItemKind::from(&entry.metadata),
+						})
+					}).collect())
+				},
+				Err(ref e) => TreeChildren::Failed(e.clone()),
+			};
+		}
+		
+		match self.children {
+			TreeChildren::Loaded(ref mut children) => for child in children.iter_mut() {
+				child.update_from_load(item, load_result);
+			},
+			_ => {},
+		};
+	}
+		
+	fn setup_children(&mut self, load_result: Arc<LoadResult>) {
+		self.children = match *load_result {
+			Ok(LoadedData::Dir(ref data)) => TreeChildren::Loaded(data.iter().map(|entry| {
+				println!("{:?}", entry);
+				Self::new(ItemInfo::Fs {
+					path: entry.path.clone(),
+					kind: FsItemKind::from(&entry.metadata.file_type()),
+				})
+			}).collect()),
+			Err(ref e) => TreeChildren::Failed(e.clone()),
+		};
 	}
 	
 	// `self` being mutable here is a tad quirky.
