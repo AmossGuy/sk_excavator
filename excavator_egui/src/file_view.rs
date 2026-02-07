@@ -1,11 +1,13 @@
 mod image;
 mod st;
 
-use egui::Ui;
+use std::path::PathBuf;
+use std::sync::Arc;
 
-use crate::file_read::{ItemInfo, ItemLoader};
-use image::ImageFileView;
-use st::StFileView;
+use crate::ExcavatorMessage;
+use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo, ItemLoader};
+use self::image::ImageFileView;
+use self::st::StFileView;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {
@@ -15,34 +17,78 @@ pub struct FileViewSwitcher {
 #[derive(Default)]
 enum SwitcherState {
 	#[default]
-	Blank,
-	Multi,
-	Single {
+	NoticeBlank,
+	NoticeMulti,
+	NoticeUnknown,
+	NoticePak,
+	Loading {
 		item: ItemInfo,
-		view: SingleView,
+		when_ready: WhenReadyFunc,
+	},
+	LoadError {
+		item: ItemInfo,
+		message: String
+	},
+	View {
+		item: ItemInfo,
+		view: Box<dyn ItemView>,
 	},
 }
 
-// You'll notice that this is ad-hoc and inconsistent...
-enum SingleView {
-	Unknown,
-	Pak,
-	St(StFileView),
-	ImageLoading,
-	#[expect(dead_code)] // Refactoring not yet complete enough to get here
-	Image(anyhow::Result<ImageFileView>),
+type WhenReadyFunc = fn(ItemInfo, FileBytes, &egui::Context) -> SwitcherState;
+
+type BytesLoader = ItemLoader<BytesLoadResult>;
+
+impl SwitcherState {
+	fn start_load<T: ItemView + 'static>(item: &ItemInfo, loader: &mut BytesLoader, ctx: &egui::Context) -> Self {
+		let item = item.clone();
+		let when_ready: WhenReadyFunc = |item, bytes, ctx| {
+			let view = Box::new(T::new(bytes, ctx));
+			Self::View { item, view }
+		};
+		
+		if let Some(result) = loader.get_or_request(&item, ctx) {
+			Self::make_loaded_state(result, &item, &when_ready, ctx)
+		} else {
+			Self::Loading { item, when_ready }
+		}
+	}
+	
+	fn make_loaded_state(load_result: Arc<BytesLoadResult>, item: &ItemInfo, when_ready: &WhenReadyFunc, ctx: &egui::Context) -> Self {
+		let item = item.clone();
+		match crate::file_read::slice_item(load_result, &item) {
+			Ok(bytes) => when_ready(item, bytes, ctx),
+			Err(message) => Self::LoadError { item, message },
+		}
+	}
+}
+
+trait ItemView {
+	fn new(bytes: FileBytes, ctx: &egui::Context) -> Self where Self: Sized;
+	
+	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage>;
 }
 
 impl FileViewSwitcher {
-	pub fn switch(&mut self, selection: &Vec<ItemInfo>) {
+	pub fn switch(&mut self, selection: &Vec<ItemInfo>, loader: &mut BytesLoader, ctx: &egui::Context) {
 		match selection.len() {
-			0 => self.state = SwitcherState::Blank,
-			1 => self.switch_single(&selection[0]),
-			2.. => self.state = SwitcherState::Multi,
+			0 => self.state = SwitcherState::NoticeBlank,
+			1 => self.switch_single(&selection[0], loader, ctx),
+			2.. => self.state = SwitcherState::NoticeMulti,
 		};
 	}
 	
-	fn switch_single(&mut self, selection: &ItemInfo) {
+	fn switch_single(&mut self, item: &ItemInfo, loader: &mut BytesLoader, ctx: &egui::Context) {
+		let extension = item.extension();
+		
+		self.state = match extension {
+			Some(b"pak") => SwitcherState::NoticePak,
+			// Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(item, loader, ctx),
+			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, loader, ctx),
+			_ => SwitcherState::NoticeUnknown,
+		};
+		
+		/*
 		let view = match selection.extension() {
 			Some(b"pak") => SingleView::Pak,
 			Some(b"stb" | b"stl" | b"stm") => SingleView::St(StFileView::default()),
@@ -50,64 +96,34 @@ impl FileViewSwitcher {
 			_ => SingleView::Unknown,
 		};
 		self.state = SwitcherState::Single { item: selection.clone(), view };
+		*/
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui, _loader: &mut ItemLoader) {
-		match &mut self.state {
-			SwitcherState::Blank => { ui.label("No files are selected."); },
-			SwitcherState::Multi => { ui.label("Multiple files are selected."); },
-			SwitcherState::Single { item, view } => {
-				ui.push_id(&*item, |ui| {
-					if !item.is_file() {
-						ui.label("The selected item isn't a file.");
-						return;
-					}
-					
-					match view {
-						SingleView::Pak => { ui.label("Archive selected; please select one of the files inside the archive."); },
-						SingleView::St(st_view) => {
-							let _ = st_view;
-							todo!();
-							/*
-							if let Some(result) = loader.read_or_request(item) {
-								match result {
-									Ok(data) => {
-										let is_stl = item.extension() == Some(b"stl");
-										st_view.view_ui(ui, data, is_stl);
-									},
-									Err(error) => { ui.label(format!("Error: {}", error)); },
-								};
-							} else {
-								ui.spinner();
-							}
-							*/
-						},
-						SingleView::ImageLoading => {
-							todo!();
-							/*
-							ui.spinner();
-							if let Some(result) = loader.read_or_request(item) {
-								match result {
-									Ok(data) => {
-										*view = SingleView::Image(
-											ImageFileView::load(data, ui.ctx(), format!("{:?}", item))
-										);
-									},
-									Err(error) => { ui.label(format!("Error: {}", error)); },
-								};
-							}
-							*/
-						},
-						SingleView::Image(image_view_result) => {
-							match image_view_result {
-								Ok(image_view) => { image_view.view_ui(ui); },
-								Err(error) => { ui.label(format!("Error: {}", error)); },
-							};
-						},
-						SingleView::Unknown => { ui.label("Unknown or unimplemented file type."); },
-					}
-				});
+	pub fn update_from_load(&mut self, load_path: &PathBuf, load_result: Arc<BytesLoadResult>, ctx: &egui::Context) {
+		match &self.state {
+			SwitcherState::Loading { item, when_ready } if item.outer_path() == load_path => {
+				self.state = SwitcherState::make_loaded_state(load_result, &item, &when_ready, ctx);
 			},
+			_ => {},
 		};
+	}
+	
+	pub fn add_view(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+		match &mut self.state {
+			SwitcherState::NoticeBlank => { ui.label("No files are selected."); },
+			SwitcherState::NoticeMulti => { ui.label("Multiple files are selected."); },
+			SwitcherState::NoticeUnknown => { ui.label("Unknown or unimplemented file type."); },
+			SwitcherState::NoticePak => { ui.label("Archive selected; please select one of the files inside the archive."); },
+			SwitcherState::Loading { .. } => { ui.spinner(); },
+			SwitcherState::LoadError { item, message } => {
+				ui.label(format!(
+					"Error loading item \"{}\":\n{}",
+					item.file_name_lossy().unwrap_or_default(),
+					message,
+				));
+			},
+			SwitcherState::View { item: _, view } => { return view.ui(ui); },
+		};
+		None
 	}
 }

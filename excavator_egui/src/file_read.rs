@@ -1,9 +1,12 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ffi::CString;
+use std::ffi::{CStr, CString};
+use std::fs::File;
+use std::io::{BufReader, Cursor, Read};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
+use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
 use crate::ExcavatorMessage;
@@ -77,87 +80,136 @@ impl From<&std::fs::Metadata> for FsItemKind {
 	}
 }
 
-
-
-
-
-enum FsLoadState {
+enum LoadState<T> {
 	Loading,
-	Done(std::sync::Weak<LoadResult>),
+	Done(std::sync::Weak<T>),
 }
 
-pub type LoadResult = Result<LoadedData, Box<str>>;
+pub type ListingLoadResult = Result<LoadedListing, Box<str>>;
 
-#[derive(Debug)]
-pub enum LoadedData {
+pub enum LoadedListing {
 	Dir(Box<[DirEntry]>),
-	PakListing(Box<[PakEntry]>),
+	Pak(Box<[PakEntry]>),
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct DirEntry {
 	pub path: PathBuf,
 	pub metadata: std::fs::Metadata,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PakEntry {
 	pub name: CString,
 }
 
-#[derive(Default)]
-pub struct ItemLoader {
-	fs_items: Arc<Mutex<HashMap<PathBuf, FsLoadState>>>,
+pub type BytesLoadResult = Result<Box<[u8]>, Box<str>>;
+
+pub struct FileBytes {
+	source_item: ItemInfo,
+	cell: FileBytesCell,
 }
 
-impl ItemLoader {
+impl FileBytes {
+	pub fn as_slice(&self) -> &[u8] {
+		self.cell.borrow_dependent().0
+	}
+	
+	pub fn source_item(&self) -> &ItemInfo {
+		&self.source_item
+	}
+}
+
+self_cell!(
+	struct FileBytesCell {
+		owner: Arc<BytesLoadResult>,
+		#[covariant]
+		dependent: FileBytesDep,
+	}
+);
+
+// the self_cell macro uses very simplistic parsing that requires the dependent to be a struct
+struct FileBytesDep<'a>(&'a [u8]);
+
+#[derive(Default)]
+pub struct ItemLoaders {
+	pub listing_loader: ItemLoader<ListingLoadResult>,
+	pub bytes_loader: ItemLoader<BytesLoadResult>,
+}
+
+pub struct ItemLoader<T: Send + Sync + 'static> {
+	load_items: Arc<Mutex<HashMap<PathBuf, LoadState<T>>>>,
+}
+
+// Default's derive macro requires the type parameter to implement Default.
+// Since we want this to be Default regardless of the type parameter, we have to do it manually.
+impl<T: Send + Sync + 'static> Default for ItemLoader<T> {
+	fn default() -> Self {
+		Self { load_items: Default::default() }
+	}
+}
+
+impl<T: Send + Sync + 'static> ItemLoader<T> {
 	// This function exists so the or_else closure can use the same lock, ensuring that no external modification can occur in the middle of this logic.
-	fn get_or_else<F>(&self, item: &ItemInfo, f: F) -> Option<Arc<LoadResult>>
+	fn get_or_else<F>(&self, item: &ItemInfo, f: F) -> Option<Arc<T>>
 	where
-		F: FnOnce(&mut HashMap<PathBuf, FsLoadState>) -> Option<Arc<LoadResult>>,
+		F: FnOnce(&mut HashMap<PathBuf, LoadState<T>>) -> Option<Arc<T>>,
 	{
 		let path = item.outer_path();
-		let mut fs_items = self.fs_items.lock().unwrap();
-		match fs_items.get(path) {
-			Some(FsLoadState::Done(weak)) => {
+		let mut load_items = self.load_items.lock().unwrap();
+		match load_items.get(path) {
+			Some(LoadState::Done(weak)) => {
 				let strong = weak.upgrade();
-				if strong.is_none() { fs_items.remove(path); }
+				if strong.is_none() { load_items.remove(path); }
 				strong
 			},
 			_ => None,
-		}.or_else(|| f(&mut fs_items))
+		}.or_else(|| f(&mut load_items))
 	}
 	
 	#[expect(dead_code)] // This'll probably be useful somewhere
-	pub fn get(&self, item: &ItemInfo) -> Option<Arc<LoadResult>> {
+	pub fn get(&self, item: &ItemInfo) -> Option<Arc<T>> {
 		self.get_or_else(item, |_| { None })
 	}
 	
-	pub fn get_or_request(&self, item: &ItemInfo, ctx: &egui::Context) -> Option<Arc<LoadResult>> {
-		self.get_or_else(item, |fs_items| {
+	pub fn get_or_request(&self, item: &ItemInfo, ctx: &egui::Context) -> Option<Arc<T>>
+	where
+		T: LoadableData,
+	{
+		self.get_or_else(item, |load_items| {
 			let path = item.outer_path();
-			if !fs_items.contains_key(path) {
-				fs_items.insert(path.to_owned(), FsLoadState::Loading);
+			if !load_items.contains_key(path) {
+				load_items.insert(path.to_owned(), LoadState::Loading);
 				self.start_load(item.clone(), ctx.clone());
 			}
 			None
 		})
 	}
 	
-	fn start_load(&self, item: ItemInfo, ctx: egui::Context) {
-		let fs_items = Arc::clone(&self.fs_items);
+	fn start_load(&self, item: ItemInfo, ctx: egui::Context)
+	where
+		T: LoadableData,
+	{
+		let load_items = Arc::clone(&self.load_items);
 		let spawner = ctx.plugin_or_default::<ThreadSpawner>();
 		spawner.lock().spawn(ctx, move |_| {
-			let result = Arc::new(Self::do_load(&item));
-			fs_items.lock().unwrap().insert(
+			let result = Arc::new(T::do_load(&item));
+			load_items.lock().unwrap().insert(
 				item.outer_path().to_owned(),
-				FsLoadState::Done(Arc::downgrade(&result)),
+				LoadState::Done(Arc::downgrade(&result)),
 			);
-			Some(ExcavatorMessage::ItemLoadDone { item, result })
+			Some(result.into_message(item))
 		});
 	}
-	
-	fn do_load(item: &ItemInfo) -> LoadResult {
+}
+
+trait LoadableData {
+	fn do_load(item: &ItemInfo) -> Self;
+	fn into_message(self: Arc<Self>, item: ItemInfo) -> ExcavatorMessage;
+}
+
+impl LoadableData for ListingLoadResult {
+	fn do_load(item: &ItemInfo) -> Self {
 		match item {
 			ItemInfo::Fs { path, kind: FsItemKind::Directory } => {
 				let contents = std::fs::read_dir(path)
@@ -168,13 +220,11 @@ impl ItemLoader {
 					})))
 					.collect::<Result<_, _>>()
 					.map_err(|e| e.to_string())?;
-				Ok(LoadedData::Dir(contents))
+				Ok(LoadedListing::Dir(contents))
 			},
 			ItemInfo::Fs { path, kind: FsItemKind::File } => {
-				use std::fs::File;
-				use std::io::BufReader;
-				
 				let extension = path.extension().map(|ex| ex.as_encoded_bytes());
+				
 				if extension == Some(b"pak") {
 					let file = File::open(&path)
 						.map_err(|e| e.to_string())?;
@@ -190,12 +240,71 @@ impl ItemLoader {
 							}
 						})
 						.collect();
-					Ok(LoadedData::PakListing(contents))
+					Ok(LoadedListing::Pak(contents))
 				} else {
-					Err("hit unhandled case in do_load (fs file)".into())
+					Err("extension not known archive type".into())
 				}
 			},
-			_ => Err("hit unhandled case in do_load".into()),
+			_ => Err("unhandled kind of ItemInfo in ListingLoadResult::do_load".into()),
 		}
+	}
+	
+	fn into_message(self: Arc<Self>, item: ItemInfo) -> ExcavatorMessage {
+		ExcavatorMessage::ListingLoadDone { item, result: self }
+	}
+}
+
+impl LoadableData for BytesLoadResult {
+	fn do_load(item: &ItemInfo) -> Self {
+		let path = item.outer_path();
+		let mut file = File::open(&path)
+			.map_err(|e| e.to_string())?;
+		
+		let mut buf = Vec::new();
+		file.read_to_end(&mut buf)
+			.map_err(|e| e.to_string())?;
+		
+		Ok(buf.into())
+	}
+	
+	fn into_message(self: Arc<Self>, item: ItemInfo) -> ExcavatorMessage {
+		ExcavatorMessage::BytesLoadDone { path: item.outer_path().to_owned(), result: self }
+	}
+}
+
+pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<FileBytes, String> {
+	let bytes = load_result.as_ref().as_ref()
+		.map_err(|e| e.to_string())?;
+	
+	match item {
+		ItemInfo::Fs { .. } => {
+			Ok(FileBytes {
+				source_item: item.clone(),
+				cell: FileBytesCell::new(load_result, |load_result| {
+					// so like if we've gotten this far we've already checked the result is ok
+					let slice = &load_result.as_ref().as_ref().unwrap();
+					FileBytesDep(slice)
+				}),
+			})
+		},
+		ItemInfo::Pak { inner_path, .. } => {
+			let mut cursor = Cursor::new(bytes);
+			let index = excavator_formats::pak::PakIndex::create_index(&mut cursor)
+				.map_err(|e| e.to_string())?;
+			
+			let entry = index.files.iter().find(|entry| &entry.0 == inner_path)
+				.ok_or("file not found in archive")?;
+			let start = entry.1.data_start as usize;
+			let length = entry.1.data_length as usize;
+			
+			Ok(FileBytes {
+				source_item: item.clone(),
+				cell: FileBytesCell::new(load_result, |load_result| {
+					// so like if we've gotten this far we've already checked the result is ok
+					let slice = &load_result.as_ref().as_ref().unwrap()[start..start+length];
+					FileBytesDep(slice)
+				}),
+			})
+		},
 	}
 }

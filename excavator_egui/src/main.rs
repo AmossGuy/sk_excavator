@@ -9,7 +9,7 @@ mod plugins;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::file_read::{ItemInfo, ItemLoader};
+use crate::file_read::{ItemInfo, ItemLoaders, BytesLoadResult, ListingLoadResult};
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
 use crate::plugins::{MessageQueue, ThreadSpawner};
@@ -38,7 +38,7 @@ struct ExcavatorApp {
 	#[serde(skip)]
 	file_view: FileViewSwitcher,
 	#[serde(skip)]
-	item_loader: ItemLoader,
+	item_loaders: ItemLoaders,
 }
 
 impl eframe::App for ExcavatorApp {
@@ -73,40 +73,48 @@ impl eframe::App for ExcavatorApp {
 		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				let selection_update = self.file_tree.add_view(ui, &self.item_loader);
+				let selection_update = self.file_tree.add_view(ui, &self.item_loaders.listing_loader);
 				ui.take_available_space();
 				
 				if let Some(selection_update) = selection_update {
-					self.file_view.switch(&selection_update);
+					self.file_view.switch(&selection_update, &mut self.item_loaders.bytes_loader, &ui.ctx());
 				}
 			})
 		});
 		
 		egui::CentralPanel::default().show(ctx, |ui| {
-			self.file_view.add_view(ui, &mut self.item_loader);
+			if let Some(message) = self.file_view.add_view(ui) {
+				messages.lock().send(message);
+			}
 		});
 	}
 }
 
-#[derive(Clone, Debug)]
 pub enum ExcavatorMessage {
 	UpdateGameDir {
 		path: PathBuf,
 	},
-	ItemLoadDone {
+	ListingLoadDone {
 		item: ItemInfo,
-		result: Arc<crate::file_read::LoadResult>,
+		result: Arc<ListingLoadResult>,
 	},
+	BytesLoadDone {
+		path: PathBuf,
+		result: Arc<BytesLoadResult>,
+	}
 }
 
 impl ExcavatorMessage {
-	fn apply(self, app: &mut ExcavatorApp, _ctx: &egui::Context) {
+	fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context) {
 		match self {
 			Self::UpdateGameDir { path } => {
 				app.file_tree_root = path;
 			},
-			Self::ItemLoadDone { item, result } => {
+			Self::ListingLoadDone { item, result } => {
 				app.file_tree.update_from_load(item, result);
+			},
+			Self::BytesLoadDone { path, result } => {
+				app.file_view.update_from_load(&path, result, ctx);
 			},
 		}
 	}

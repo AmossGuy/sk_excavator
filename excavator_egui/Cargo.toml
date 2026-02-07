@@ -13,4 +13,5 @@ excavator_formats = { version = "0.1.0", path = "../excavator_formats" }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 lexical-sort = "0.3.1"
 rfd = "0.17.2"
+self_cell = "1.2.2"
 serde = "1.0.228"

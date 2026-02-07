@@ -5,7 +5,7 @@ use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, LoadedData, LoadResult};
+use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, ListingLoadResult, LoadedListing};
 
 #[derive(Default)]
 pub struct FileTree {
@@ -53,13 +53,13 @@ impl FileTree {
 		}
 	}
 	
-	pub fn update_from_load(&mut self, item: ItemInfo, load_result: Arc<LoadResult>) {
+	pub fn update_from_load(&mut self, item: ItemInfo, load_result: Arc<ListingLoadResult>) {
 		if let Some(root) = &mut self.root {
 			root.update_from_load(&item, &load_result);
 		}
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui, loader: &ItemLoader) -> Option<Vec<ItemInfo>> {
+	pub fn add_view(&mut self, ui: &mut Ui, loader: &ItemLoader<ListingLoadResult>) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
 			let view = TreeView::new(ui.make_persistent_id("file tree"))
 				.fallback_context_menu(Self::context_menu);
@@ -133,7 +133,7 @@ impl TreeNode {
 		}
 	}
 	
-	fn handle_load(&mut self, loader: &ItemLoader, ctx: &egui::Context) {
+	fn handle_load(&mut self, loader: &ItemLoader<ListingLoadResult>, ctx: &egui::Context) {
 		let expand_handler = self.expand_handler(); // There was a lifetime issue...
 		
 		match &mut self.children {
@@ -154,7 +154,7 @@ impl TreeNode {
 		}
 	}
 	
-	fn update_from_load(&mut self, item: &ItemInfo, load_result: &Arc<LoadResult>) {
+	fn update_from_load(&mut self, item: &ItemInfo, load_result: &Arc<ListingLoadResult>) {
 		if *item == self.source {
 			self.setup_children(Arc::clone(load_result));
 		}
@@ -167,9 +167,9 @@ impl TreeNode {
 		};
 	}
 		
-	fn setup_children(&mut self, load_result: Arc<LoadResult>) {
+	fn setup_children(&mut self, load_result: Arc<ListingLoadResult>) {
 		self.children = match *load_result {
-			Ok(LoadedData::Dir(ref entries)) => {
+			Ok(LoadedListing::Dir(ref entries)) => {
 				let mut entries = entries.clone();
 				entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
 					&lhs.path.to_string_lossy(), &rhs.path.to_string_lossy(),
@@ -181,7 +181,7 @@ impl TreeNode {
 					})
 				}).collect())
 			},
-			Ok(LoadedData::PakListing(ref entries)) => {
+			Ok(LoadedListing::Pak(ref entries)) => {
 				let mut entries = entries.clone();
 				entries.sort_unstable_by(|lhs, rhs| natural_lexical_cmp(
 					&lhs.name.to_string_lossy(), &rhs.name.to_string_lossy(),
@@ -201,7 +201,7 @@ impl TreeNode {
 	// It's only like that so `handle_load` can be called here.
 	//
 	// ...It's gotten even worse since I wrote that. It's seeming like it would be better if the ui and loading logic were separated.
-	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, loader: &ItemLoader, ctx: &egui::Context, default_open: bool) {
+	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, loader: &ItemLoader<ListingLoadResult>, ctx: &egui::Context, default_open: bool) {
 		let id = (self.source.clone(), false);
 		let text = self.source.file_name_lossy().unwrap_or_default();
 		let is_openable = self.expand_handler().is_some();
