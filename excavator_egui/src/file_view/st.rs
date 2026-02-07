@@ -2,22 +2,35 @@ use egui::Ui;
 use egui_extras::{Column, TableBuilder};
 use std::io::Cursor;
 
+use crate::ExcavatorMessage;
+use crate::file_view::FileBytes;
 use excavator_formats::st::{read_st_header, read_st_cell};
 
-#[derive(Default)]
-pub struct StFileView;
+pub struct StFileView {
+	bytes: FileBytes,
+	is_stl: bool,
+}
 
-impl StFileView {
-	#[expect(dead_code)] // Refactoring not yet complete enough to get here
-	pub fn view_ui(&mut self, ui: &mut Ui, data: &[u8], is_stl: bool) {
-		egui::ScrollArea::horizontal().show(ui, |ui| {
-			self.table_ui(ui, data, is_stl);
-		});
+impl super::ItemView for StFileView {
+	fn new(bytes: FileBytes, _ctx: &egui::Context) -> Self where Self: Sized {
+		let is_stl = bytes.source_item().extension() == Some(b"stl");
+		Self { bytes, is_stl }
 	}
 	
-	fn table_ui(&mut self, ui: &mut Ui, data: &[u8], is_stl: bool) {
+	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+		egui::ScrollArea::horizontal().show(ui, |ui| {
+			self.table_ui(ui);
+		});
+		None
+	}
+}
+
+impl StFileView {
+	
+	fn table_ui(&mut self, ui: &mut Ui) {
+		let data = self.bytes.as_slice();
 		let mut cursor = Cursor::new(data);
-		let st_header = read_st_header(&mut cursor, is_stl).unwrap();
+		let st_header = read_st_header(&mut cursor, self.is_stl).unwrap();
 		
 		let text_height = egui::TextStyle::Body
 			.resolve(ui.style())

@@ -83,20 +83,10 @@ impl FileViewSwitcher {
 		
 		self.state = match extension {
 			Some(b"pak") => SwitcherState::NoticePak,
-			// Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(item, loader, ctx),
+			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, loader, ctx),
 			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, loader, ctx),
 			_ => SwitcherState::NoticeUnknown,
 		};
-		
-		/*
-		let view = match selection.extension() {
-			Some(b"pak") => SingleView::Pak,
-			Some(b"stb" | b"stl" | b"stm") => SingleView::St(StFileView::default()),
-			Some(b"png") => SingleView::ImageLoading,
-			_ => SingleView::Unknown,
-		};
-		self.state = SwitcherState::Single { item: selection.clone(), view };
-		*/
 	}
 	
 	pub fn update_from_load(&mut self, load_path: &PathBuf, load_result: Arc<BytesLoadResult>, ctx: &egui::Context) {
