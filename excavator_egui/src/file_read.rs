@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::ffi::{CStr, CString};
+use std::ffi::CString;
 use std::fs::File;
 use std::io::{BufReader, Cursor, Read};
 use std::path::PathBuf;
@@ -203,7 +203,7 @@ impl<T: Send + Sync + 'static> ItemLoader<T> {
 	}
 }
 
-trait LoadableData {
+pub trait LoadableData {
 	fn do_load(item: &ItemInfo) -> Self;
 	fn into_message(self: Arc<Self>, item: ItemInfo) -> ExcavatorMessage;
 }

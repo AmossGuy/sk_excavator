@@ -7,7 +7,7 @@ use crate::file_read::FileBytes;
 use super::ItemView;
 
 pub struct ImageFileView {
-	bytes: FileBytes,
+	// bytes: FileBytes,
 	texture: Result<ImageViewTexture, String>,
 }
 
@@ -16,7 +16,7 @@ impl ItemView for ImageFileView {
 		let name = format!("{:?}", bytes.source_item());
 		let texture = ImageViewTexture::load(bytes.as_slice(), ctx, name)
 			.map_err(|e| e.to_string());
-		Self { bytes, texture }
+		Self { /* bytes, */ texture }
 	}
 	
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {

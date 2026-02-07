@@ -30,7 +30,7 @@ enum SwitcherState {
 		message: String
 	},
 	View {
-		item: ItemInfo,
+		// item: ItemInfo,
 		view: Box<dyn ItemView>,
 	},
 }
@@ -42,9 +42,9 @@ type BytesLoader = ItemLoader<BytesLoadResult>;
 impl SwitcherState {
 	fn start_load<T: ItemView + 'static>(item: &ItemInfo, loader: &mut BytesLoader, ctx: &egui::Context) -> Self {
 		let item = item.clone();
-		let when_ready: WhenReadyFunc = |item, bytes, ctx| {
+		let when_ready: WhenReadyFunc = |_item, bytes, ctx| {
 			let view = Box::new(T::new(bytes, ctx));
-			Self::View { item, view }
+			Self::View { /* item, */ view }
 		};
 		
 		if let Some(result) = loader.get_or_request(&item, ctx) {
@@ -122,7 +122,7 @@ impl FileViewSwitcher {
 					message,
 				));
 			},
-			SwitcherState::View { item: _, view } => { return view.ui(ui); },
+			SwitcherState::View { /* item: _, */ view } => { return view.ui(ui); },
 		};
 		None
 	}

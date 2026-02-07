@@ -13,7 +13,6 @@ impl egui::Plugin for MessageQueue {
 }
 
 impl MessageQueue {
-	#[expect(dead_code)] // it'll have its moment soon enough
 	pub fn send(&mut self, message: ExcavatorMessage) {
 		self.messages.push(message);
 	}
