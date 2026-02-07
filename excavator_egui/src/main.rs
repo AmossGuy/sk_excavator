@@ -9,7 +9,7 @@ mod plugins;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use crate::file_read::{ItemInfo, ItemLoaders, BytesLoadResult, ListingLoadResult};
+use crate::file_read::{ItemInfo, BytesLoadResult, ListingLoadResult};
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
 use crate::plugins::{MessageQueue, ThreadSpawner};
@@ -37,8 +37,6 @@ struct ExcavatorApp {
 	file_tree: FileTree,
 	#[serde(skip)]
 	file_view: FileViewSwitcher,
-	#[serde(skip)]
-	item_loaders: ItemLoaders,
 }
 
 impl eframe::App for ExcavatorApp {
@@ -73,11 +71,11 @@ impl eframe::App for ExcavatorApp {
 		
 		egui::SidePanel::left("file tree").show(ctx, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
-				let selection_update = self.file_tree.add_view(ui, &self.item_loaders.listing_loader);
+				let selection_update = self.file_tree.add_view(ui);
 				ui.take_available_space();
 				
 				if let Some(selection_update) = selection_update {
-					self.file_view.switch(&selection_update, &mut self.item_loaders.bytes_loader, &ui.ctx());
+					self.file_view.switch(&selection_update, &ui.ctx());
 				}
 			})
 		});

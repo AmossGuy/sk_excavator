@@ -131,12 +131,6 @@ self_cell!(
 // the self_cell macro uses very simplistic parsing that requires the dependent to be a struct
 struct FileBytesDep<'a>(&'a [u8]);
 
-#[derive(Default)]
-pub struct ItemLoaders {
-	pub listing_loader: ItemLoader<ListingLoadResult>,
-	pub bytes_loader: ItemLoader<BytesLoadResult>,
-}
-
 pub struct ItemLoader<T: Send + Sync + 'static> {
 	load_items: Arc<Mutex<HashMap<PathBuf, LoadState<T>>>>,
 }

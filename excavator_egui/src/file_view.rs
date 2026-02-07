@@ -5,7 +5,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::ExcavatorMessage;
-use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo, ItemLoader};
+use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
+use crate::plugins::ItemLoaders;
+
 use self::image::ImageFileView;
 use self::st::StFileView;
 
@@ -37,15 +39,16 @@ enum SwitcherState {
 
 type WhenReadyFunc = fn(ItemInfo, FileBytes, &egui::Context) -> SwitcherState;
 
-type BytesLoader = ItemLoader<BytesLoadResult>;
-
 impl SwitcherState {
-	fn start_load<T: ItemView + 'static>(item: &ItemInfo, loader: &mut BytesLoader, ctx: &egui::Context) -> Self {
+	fn start_load<T: ItemView + 'static>(item: &ItemInfo, ctx: &egui::Context) -> Self {
 		let item = item.clone();
 		let when_ready: WhenReadyFunc = |_item, bytes, ctx| {
 			let view = Box::new(T::new(bytes, ctx));
 			Self::View { /* item, */ view }
 		};
+		
+		let loaders = ctx.plugin_or_default::<ItemLoaders>();
+		let loader = &mut loaders.lock().bytes_loader;
 		
 		if let Some(result) = loader.get_or_request(&item, ctx) {
 			Self::make_loaded_state(result, &item, &when_ready, ctx)
@@ -70,21 +73,21 @@ trait ItemView {
 }
 
 impl FileViewSwitcher {
-	pub fn switch(&mut self, selection: &Vec<ItemInfo>, loader: &mut BytesLoader, ctx: &egui::Context) {
+	pub fn switch(&mut self, selection: &Vec<ItemInfo>, ctx: &egui::Context) {
 		match selection.len() {
 			0 => self.state = SwitcherState::NoticeBlank,
-			1 => self.switch_single(&selection[0], loader, ctx),
+			1 => self.switch_single(&selection[0], ctx),
 			2.. => self.state = SwitcherState::NoticeMulti,
 		};
 	}
 	
-	fn switch_single(&mut self, item: &ItemInfo, loader: &mut BytesLoader, ctx: &egui::Context) {
+	fn switch_single(&mut self, item: &ItemInfo, ctx: &egui::Context) {
 		let extension = item.extension();
 		
 		self.state = match extension {
 			Some(b"pak") => SwitcherState::NoticePak,
-			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, loader, ctx),
-			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, loader, ctx),
+			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, ctx),
+			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, ctx),
 			_ => SwitcherState::NoticeUnknown,
 		};
 	}

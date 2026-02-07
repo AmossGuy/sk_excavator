@@ -5,7 +5,8 @@ use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 use std::sync::Arc;
 
-use crate::file_read::{FsItemKind, ItemInfo, ItemLoader, ListingLoadResult, LoadedListing};
+use crate::file_read::{FsItemKind, ItemInfo, ListingLoadResult, LoadedListing};
+use crate::plugins::ItemLoaders;
 
 #[derive(Default)]
 pub struct FileTree {
@@ -59,14 +60,14 @@ impl FileTree {
 		}
 	}
 	
-	pub fn add_view(&mut self, ui: &mut Ui, loader: &ItemLoader<ListingLoadResult>) -> Option<Vec<ItemInfo>> {
+	pub fn add_view(&mut self, ui: &mut Ui) -> Option<Vec<ItemInfo>> {
 		if let Some(root) = &mut self.root {
 			let view = TreeView::new(ui.make_persistent_id("file tree"))
 				.fallback_context_menu(Self::context_menu);
 			
 			let ctx2 = ui.ctx().clone();
 			let (_, actions) = view.show(ui, |builder| {
-				root.build(builder, loader, &ctx2, true);
+				root.build(builder, &ctx2, true);
 			});
 			
 			let mut selection_update = None;
@@ -133,7 +134,7 @@ impl TreeNode {
 		}
 	}
 	
-	fn handle_load(&mut self, loader: &ItemLoader<ListingLoadResult>, ctx: &egui::Context) {
+	fn handle_load(&mut self, ctx: &egui::Context) {
 		let expand_handler = self.expand_handler(); // There was a lifetime issue...
 		
 		match &mut self.children {
@@ -146,6 +147,9 @@ impl TreeNode {
 				let ItemInfo::Fs { path: _, .. } = &self.source else {
 					unreachable!("Nodes with non-filesystem source shouldn't be expandable")
 				};
+				
+				let loaders = ctx.plugin_or_default::<ItemLoaders>();
+				let loader = &loaders.lock().listing_loader;
 				if let Some(result) = loader.get_or_request(&self.source, ctx) {
 					self.setup_children(result);
 				}
@@ -199,9 +203,7 @@ impl TreeNode {
 	
 	// `self` being mutable here is a tad quirky.
 	// It's only like that so `handle_load` can be called here.
-	//
-	// ...It's gotten even worse since I wrote that. It's seeming like it would be better if the ui and loading logic were separated.
-	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, loader: &ItemLoader<ListingLoadResult>, ctx: &egui::Context, default_open: bool) {
+	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, ctx: &egui::Context, default_open: bool) {
 		let id = (self.source.clone(), false);
 		let text = self.source.file_name_lossy().unwrap_or_default();
 		let is_openable = self.expand_handler().is_some();
@@ -215,7 +217,7 @@ impl TreeNode {
 		let is_open = builder.node(node);
 		
 		if is_openable && is_open {
-			self.handle_load(loader, ctx);
+			self.handle_load(ctx);
 			
 			match &mut self.children {
 				TreeChildren::Unloaded => {
@@ -228,7 +230,7 @@ impl TreeNode {
 				},
 				TreeChildren::Loaded(children) => {
 					for child in children {
-						child.build(builder, loader, ctx, false);
+						child.build(builder, ctx, false);
 					}
 				},
 				TreeChildren::Failed(error) => {

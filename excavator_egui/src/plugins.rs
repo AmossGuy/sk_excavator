@@ -1,5 +1,6 @@
 use std::thread::JoinHandle;
 use crate::{ExcavatorApp, ExcavatorMessage};
+use crate::file_read::{ItemLoader, ListingLoadResult, BytesLoadResult};
 
 #[derive(Default)]
 pub struct MessageQueue {
@@ -64,5 +65,17 @@ impl ThreadSpawner {
 				Ok(message_option) => message_option,
 				Err(e) => std::panic::resume_unwind(e),
 			})
+	}
+}
+
+#[derive(Default)]
+pub struct ItemLoaders {
+	pub listing_loader: ItemLoader<ListingLoadResult>,
+	pub bytes_loader: ItemLoader<BytesLoadResult>,
+}
+
+impl egui::Plugin for ItemLoaders {
+	fn debug_name(&self) -> &'static str {
+		"ItemLoaders (excavator)"
 	}
 }
