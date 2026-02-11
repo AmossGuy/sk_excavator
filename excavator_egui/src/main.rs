@@ -3,15 +3,16 @@
 mod file_read;
 mod file_tree;
 mod file_view;
+mod file_write;
 mod plugins;
 
-// use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
 
 use crate::file_read::{ItemInfo, BytesLoadResult, ListingLoadResult};
 use crate::file_tree::FileTree;
 use crate::file_view::FileViewSwitcher;
+use crate::file_write::FileExtractor;
 use crate::plugins::{MessageQueue, ThreadSpawner};
 
 fn main() -> eframe::Result {
@@ -37,6 +38,8 @@ struct ExcavatorApp {
 	file_tree: FileTree,
 	#[serde(skip)]
 	file_view: FileViewSwitcher,
+	#[serde(skip)]
+	extractor: FileExtractor,
 }
 
 impl eframe::App for ExcavatorApp {
@@ -52,11 +55,15 @@ impl eframe::App for ExcavatorApp {
 		
 		self.file_tree.set_root_from_path_if_different(self.file_tree_root.clone());
 		
+		self.extractor.run(ctx);
+		
 		egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
-						let dialog = rfd::FileDialog::new().set_parent(&frame);
+						let dialog = rfd::FileDialog::new()
+							.set_parent(&frame)
+							.set_title("Select directory");
 						threads.lock().spawn(ctx.clone(), move |_| {
 							let maybe_path = dialog.pick_folder();
 							maybe_path.map(|path| { ExcavatorMessage::UpdateGameDir { path } })
@@ -92,6 +99,10 @@ pub enum ExcavatorMessage {
 	UpdateGameDir {
 		path: PathBuf,
 	},
+	ExtractItem {
+		item: ItemInfo,
+		dest: PathBuf,
+	},
 	ListingLoadDone {
 		item: ItemInfo,
 		result: Arc<ListingLoadResult>,
@@ -108,11 +119,15 @@ impl ExcavatorMessage {
 			Self::UpdateGameDir { path } => {
 				app.file_tree_root = path;
 			},
+			Self::ExtractItem { item, dest } => {
+				app.extractor.submit(item, dest);
+			},
 			Self::ListingLoadDone { item, result } => {
 				app.file_tree.update_from_load(item, result);
 			},
 			Self::BytesLoadDone { path, result } => {
-				app.file_view.update_from_load(&path, result, ctx);
+				app.file_view.update_from_load(&path, Arc::clone(&result), ctx);
+				app.extractor.when_a_load_finishes(ctx, &path, result);
 			},
 		}
 	}

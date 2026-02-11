@@ -111,7 +111,7 @@ impl FileViewSwitcher {
 			SwitcherState::LoadError { item, message } => {
 				ui.label(format!(
 					"Error loading item \"{}\":\n{}",
-					item.file_name_lossy().unwrap_or_default(),
+					item.display_name_lossy().unwrap_or_default(),
 					message,
 				));
 			},

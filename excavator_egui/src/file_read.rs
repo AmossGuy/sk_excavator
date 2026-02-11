@@ -26,10 +26,21 @@ pub enum FsItemKind {
 }
 
 impl ItemInfo {
-	pub fn file_name_lossy(&self) -> Option<Cow<'_, str>> {
+	pub fn display_name_lossy(&self) -> Option<Cow<'_, str>> {
 		match self {
 			Self::Fs { path, .. } => path.file_name().map(|s| s.to_string_lossy()),
 			Self::Pak { inner_path, .. } => Some(inner_path.to_string_lossy()),
+		}
+	}
+	
+	pub fn file_name_lossy(&self) -> Option<Cow<'_, str>> {
+		match self {
+			Self::Fs { path, .. } => path.file_name().map(|s| s.to_string_lossy()),
+			Self::Pak { inner_path, .. } => {
+				// teeny bit of copy-paste from below
+				let file_name = inner_path.as_bytes().split(|b| *b == b'/' || *b == b'\\').last();
+				file_name.map(String::from_utf8_lossy)
+			},
 		}
 	}
 	

@@ -5,8 +5,9 @@ use lexical_sort::natural_lexical_cmp;
 use std::path::Path;
 use std::sync::Arc;
 
+use crate::ExcavatorMessage;
 use crate::file_read::{FsItemKind, ItemInfo, ListingLoadResult, LoadedListing};
-use crate::plugins::ItemLoaders;
+use crate::plugins::{ThreadSpawner, ItemLoaders};
 
 #[derive(Default)]
 pub struct FileTree {
@@ -106,10 +107,21 @@ impl FileTree {
 				}
 			},
 			ItemInfo::Pak { inner_path: _, outer_path: _ } => {
-				/*
-				if ui.button("Extract from archive").clicked() {
+				if ui.button("Extract from archive...").clicked() {
+					let ctx = ui.ctx();
+					let threads = ctx.plugin_or_default::<ThreadSpawner>();
+					
+					let dialog = rfd::FileDialog::new()
+						// .set_parent(&frame)
+						.set_title("Extract from archive")
+						.set_file_name(item.file_name_lossy().unwrap_or_default());
+					
+					let item = item.clone();
+					threads.lock().spawn(ctx.clone(), move |_| {
+						let outcome = dialog.save_file();
+						outcome.map(|dest| ExcavatorMessage::ExtractItem { item, dest })
+					});
 				}
-				*/
 			},
 		};
 	}
@@ -205,7 +217,7 @@ impl TreeNode {
 	// It's only like that so `handle_load` can be called here.
 	fn build(&mut self, builder: &mut TreeViewBuilder<'_, (ItemInfo, bool)>, ctx: &egui::Context, default_open: bool) {
 		let id = (self.source.clone(), false);
-		let text = self.source.file_name_lossy().unwrap_or_default();
+		let text = self.source.display_name_lossy().unwrap_or_default();
 		let is_openable = self.expand_handler().is_some();
 		
 		let node = if is_openable {
