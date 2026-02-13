@@ -1,3 +1,4 @@
+mod anb;
 mod image;
 mod st;
 
@@ -8,6 +9,7 @@ use crate::ExcavatorMessage;
 use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
 use crate::plugins::ItemLoaders;
 
+use self::anb::AnbFileView;
 use self::image::ImageFileView;
 use self::st::StFileView;
 
@@ -88,6 +90,7 @@ impl FileViewSwitcher {
 			Some(b"pak") => SwitcherState::NoticePak,
 			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, ctx),
 			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, ctx),
+			Some(b"anb") => SwitcherState::start_load::<AnbFileView>(&item, ctx),
 			_ => SwitcherState::NoticeUnknown,
 		};
 	}
