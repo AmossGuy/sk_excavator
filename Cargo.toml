@@ -2,3 +2,6 @@
 resolver = "3"
 members = ["excavator_formats", "excavator_egui"]
 default-members = ["excavator_egui"]
+
+[profile.dev.package."*"]
+opt-level = 3
