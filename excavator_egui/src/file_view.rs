@@ -25,21 +25,22 @@ enum SwitcherState {
 	#[default]
 	NoticeBlank,
 	NoticeMulti,
-	NoticeUnknown,
-	NoticePak,
+	NoticeUnknown { item: ItemInfo },
+	NoticePak { item: ItemInfo },
 	Loading {
 		item: ItemInfo,
 		when_ready: WhenReadyFunc,
 	},
 	LoadError {
 		item: ItemInfo,
-		message: String
+		message: String,
 	},
 	View {
-		// item: ItemInfo,
+		item: ItemInfo,
 		view: Box<dyn ItemView>,
 	},
 	HexView {
+		item: ItemInfo,
 		bytes: FileBytes,
 	},
 }
@@ -51,21 +52,33 @@ trait LoadSwitch {
 }
 
 impl<T> LoadSwitch for T where T: ItemView + 'static {
-	fn when_ready(_item: ItemInfo, bytes: FileBytes, ctx: &egui::Context) -> SwitcherState {
+	fn when_ready(item: ItemInfo, bytes: FileBytes, ctx: &egui::Context) -> SwitcherState {
 		let view = Box::new(T::new(bytes, ctx));
-		SwitcherState::View { /* item, */ view }
+		SwitcherState::View { item, view }
 	}
 }
 
 struct HexLoadSwitch;
 
 impl LoadSwitch for HexLoadSwitch {
-	fn when_ready(_item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
-		SwitcherState::HexView { bytes }
+	fn when_ready(item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
+		SwitcherState::HexView { item, bytes }
 	}
 }
 
 impl SwitcherState {
+	fn get_item(&self) -> Option<&ItemInfo> {
+		match self {
+			Self::NoticeBlank | Self::NoticeMulti => None,
+			Self::NoticeUnknown { item } => Some(item),
+			Self::NoticePak { item } => Some(item),
+			Self::Loading { item, .. } => Some(item),
+			Self::LoadError { item, .. } => Some(item),
+			Self::View { item, .. } => Some(item),
+			Self::HexView { item, .. } => Some(item),
+		}
+	}
+	
 	fn start_load<T: LoadSwitch>(item: &ItemInfo, ctx: &egui::Context) -> Self {
 		let item = item.clone();
 		let when_ready: WhenReadyFunc = T::when_ready;
@@ -104,6 +117,13 @@ impl FileViewSwitcher {
 		};
 	}
 	
+	pub fn switch_same(&mut self, is_hex_editor_on: bool, ctx: &egui::Context) {
+		if let Some(item) = self.state.get_item() {
+			let item = item.clone();
+			self.switch_single(&item, is_hex_editor_on, ctx);
+		}
+	}
+	
 	fn switch_single(&mut self, item: &ItemInfo, is_hex_editor_on: bool, ctx: &egui::Context) {
 		if is_hex_editor_on {
 			self.state = SwitcherState::start_load::<HexLoadSwitch>(&item, ctx);
@@ -113,11 +133,11 @@ impl FileViewSwitcher {
 		let extension = item.extension();
 		
 		self.state = match extension {
-			Some(b"pak") => SwitcherState::NoticePak,
+			Some(b"pak") => SwitcherState::NoticePak { item: item.clone() },
 			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, ctx),
 			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, ctx),
 			Some(b"anb") => SwitcherState::start_load::<AnbFileView>(&item, ctx),
-			_ => SwitcherState::NoticeUnknown,
+			_ => SwitcherState::NoticeUnknown { item: item.clone() },
 		};
 	}
 	
@@ -134,8 +154,8 @@ impl FileViewSwitcher {
 		match &mut self.state {
 			SwitcherState::NoticeBlank => { ui.label("No files are selected."); },
 			SwitcherState::NoticeMulti => { ui.label("Multiple files are selected."); },
-			SwitcherState::NoticeUnknown => { ui.label("Unknown or unimplemented file type."); },
-			SwitcherState::NoticePak => { ui.label("Archive selected; please select one of the files inside the archive."); },
+			SwitcherState::NoticeUnknown { .. } => { ui.label("Unknown or unimplemented file type."); },
+			SwitcherState::NoticePak { .. } => { ui.label("Archive selected; please select one of the files inside the archive."); },
 			SwitcherState::Loading { .. } => { ui.spinner(); },
 			SwitcherState::LoadError { item, message } => {
 				ui.label(format!(
@@ -144,8 +164,8 @@ impl FileViewSwitcher {
 					message,
 				));
 			},
-			SwitcherState::View { /* item: _, */ view } => { return view.ui(ui); },
-			SwitcherState::HexView { bytes } => { hexedit_ui(bytes, ui); },
+			SwitcherState::View { view, .. } => { return view.ui(ui); },
+			SwitcherState::HexView { bytes, .. } => { hexedit_ui(bytes, ui); },
 		};
 		None
 	}
