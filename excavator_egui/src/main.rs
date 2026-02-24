@@ -32,7 +32,7 @@ fn main() -> eframe::Result {
 
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct ExcavatorApp {
-	file_tree_root: PathBuf,
+	file_tree_root: Option<PathBuf>,
 	is_hex_editor_on: bool,
 	
 	#[serde(skip)]
@@ -54,7 +54,9 @@ impl eframe::App for ExcavatorApp {
 		messages.lock().send_multiple(threads.lock().take_messages());
 		messages.lock().apply_all(self, ctx);
 		
-		self.file_tree.set_root_from_path_if_different(self.file_tree_root.clone());
+		if let Some(ref file_tree_root) = self.file_tree_root {
+			self.file_tree.set_root_from_path_if_different(file_tree_root.clone());
+		}
 		
 		self.extractor.run(ctx);
 		
@@ -122,7 +124,7 @@ impl ExcavatorMessage {
 	fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context) {
 		match self {
 			Self::UpdateGameDir { path } => {
-				app.file_tree_root = path;
+				app.file_tree_root = Some(path);
 			},
 			Self::ExtractItem { item, dest } => {
 				app.extractor.submit(item, dest);
