@@ -1,4 +1,5 @@
 mod anb;
+mod hex;
 mod image;
 mod st;
 
@@ -10,6 +11,7 @@ use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
 use crate::plugins::ItemLoaders;
 
 use self::anb::AnbFileView;
+use self::hex::hexedit_ui;
 use self::image::ImageFileView;
 use self::st::StFileView;
 
@@ -37,17 +39,36 @@ enum SwitcherState {
 		// item: ItemInfo,
 		view: Box<dyn ItemView>,
 	},
+	HexView {
+		bytes: FileBytes,
+	},
 }
 
 type WhenReadyFunc = fn(ItemInfo, FileBytes, &egui::Context) -> SwitcherState;
 
+trait LoadSwitch {
+	fn when_ready(item: ItemInfo, bytes: FileBytes, ctx: &egui::Context) -> SwitcherState;
+}
+
+impl<T> LoadSwitch for T where T: ItemView + 'static {
+	fn when_ready(_item: ItemInfo, bytes: FileBytes, ctx: &egui::Context) -> SwitcherState {
+		let view = Box::new(T::new(bytes, ctx));
+		SwitcherState::View { /* item, */ view }
+	}
+}
+
+struct HexLoadSwitch;
+
+impl LoadSwitch for HexLoadSwitch {
+	fn when_ready(_item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
+		SwitcherState::HexView { bytes }
+	}
+}
+
 impl SwitcherState {
-	fn start_load<T: ItemView + 'static>(item: &ItemInfo, ctx: &egui::Context) -> Self {
+	fn start_load<T: LoadSwitch>(item: &ItemInfo, ctx: &egui::Context) -> Self {
 		let item = item.clone();
-		let when_ready: WhenReadyFunc = |_item, bytes, ctx| {
-			let view = Box::new(T::new(bytes, ctx));
-			Self::View { /* item, */ view }
-		};
+		let when_ready: WhenReadyFunc = T::when_ready;
 		
 		let loaders = ctx.plugin_or_default::<ItemLoaders>();
 		let loader = &mut loaders.lock().bytes_loader;
@@ -75,15 +96,20 @@ trait ItemView {
 }
 
 impl FileViewSwitcher {
-	pub fn switch(&mut self, selection: &Vec<ItemInfo>, ctx: &egui::Context) {
+	pub fn switch(&mut self, selection: &Vec<ItemInfo>, is_hex_editor_on: bool, ctx: &egui::Context) {
 		match selection.len() {
 			0 => self.state = SwitcherState::NoticeBlank,
-			1 => self.switch_single(&selection[0], ctx),
+			1 => self.switch_single(&selection[0], is_hex_editor_on, ctx),
 			2.. => self.state = SwitcherState::NoticeMulti,
 		};
 	}
 	
-	fn switch_single(&mut self, item: &ItemInfo, ctx: &egui::Context) {
+	fn switch_single(&mut self, item: &ItemInfo, is_hex_editor_on: bool, ctx: &egui::Context) {
+		if is_hex_editor_on {
+			self.state = SwitcherState::start_load::<HexLoadSwitch>(&item, ctx);
+			return;
+		}
+		
 		let extension = item.extension();
 		
 		self.state = match extension {
@@ -119,6 +145,7 @@ impl FileViewSwitcher {
 				));
 			},
 			SwitcherState::View { /* item: _, */ view } => { return view.ui(ui); },
+			SwitcherState::HexView { bytes } => { hexedit_ui(bytes, ui); },
 		};
 		None
 	}

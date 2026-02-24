@@ -33,6 +33,7 @@ fn main() -> eframe::Result {
 #[derive(Default, serde::Serialize, serde::Deserialize)]
 struct ExcavatorApp {
 	file_tree_root: PathBuf,
+	is_hex_editor_on: bool,
 	
 	#[serde(skip)]
 	file_tree: FileTree,
@@ -73,6 +74,10 @@ impl eframe::App for ExcavatorApp {
 						ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
 					}
 				});
+				
+				ui.with_layout(egui::Layout::right_to_left(Default::default()), |ui| {
+					ui.checkbox(&mut self.is_hex_editor_on, "Hex editor")
+				});
 			});
 		});
 		
@@ -82,7 +87,7 @@ impl eframe::App for ExcavatorApp {
 				ui.take_available_space();
 				
 				if let Some(selection_update) = selection_update {
-					self.file_view.switch(&selection_update, &ui.ctx());
+					self.file_view.switch(&selection_update, self.is_hex_editor_on, &ui.ctx());
 				}
 			})
 		});
