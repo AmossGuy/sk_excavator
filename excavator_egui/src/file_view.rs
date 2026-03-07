@@ -14,6 +14,8 @@ use self::anb::AnbFileView;
 use self::hex::hexedit_ui;
 use self::image::ImageFileView;
 use self::st::StFileView;
+use excavator_formats::util_binary::{ParserStruct, ParserReflect};
+use excavator_formats::anb::AnbHeader;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {
@@ -165,7 +167,13 @@ impl FileViewSwitcher {
 				));
 			},
 			SwitcherState::View { view, .. } => { return view.ui(ui); },
-			SwitcherState::HexView { bytes, .. } => { hexedit_ui(bytes, ui); },
+			SwitcherState::HexView { bytes, item } => {
+				let parse = match item.extension() {
+					Some(b"anb") => ParserStruct::<AnbHeader>::new(bytes.as_slice(), 0).retrieve().ok().map(|x| x as &dyn ParserReflect),
+					_ => None,
+				};
+				hexedit_ui(bytes, parse, ui);
+			},
 		};
 		None
 	}

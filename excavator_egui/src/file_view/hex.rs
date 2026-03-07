@@ -2,10 +2,19 @@ use egui::Ui;
 use egui_extras::{Column, TableBuilder};
 
 use crate::file_view::FileBytes;
+use excavator_formats::util_binary::{ParserReflect, ParserReflectContext};
 
-pub fn hexedit_ui(bytes: &FileBytes, ui: &mut Ui) {
-	let column_count = 0x10;
+pub fn hexedit_ui(bytes: &FileBytes, parse: Option<&dyn ParserReflect>, ui: &mut Ui) {
+	let slice = bytes.as_slice();
 	
+	if let Some(parse) = parse {
+		ui.label(format!("root: {:?}", parse));
+		parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
+			ui.label(format!("direct subord: {:?}", subord));
+		}));
+	}
+	
+	let column_count = 0x10;
 	let text_height = egui::TextStyle::Body
 		.resolve(ui.style())
 		.size.max(ui.spacing().interact_size.y);
@@ -16,9 +25,6 @@ pub fn hexedit_ui(bytes: &FileBytes, ui: &mut Ui) {
 	for _ in 0..column_count {
 		table = table.column(Column::remainder().clip(true));
 	}
-	
-	let slice = bytes.as_slice();
-	
 	table.header(20.0, |mut table_header| {
 		for col_n in 0..column_count {
 			table_header.col(|ui| {

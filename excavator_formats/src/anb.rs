@@ -1,6 +1,6 @@
 use zerocopy::{*, byteorder::{LittleEndian, U32, U64}};
 
-use crate::util_binary::{ParserStruct, ParserStructError};
+use crate::util_binary::{ParserReflect, ParserReflectContext};
 use crate::wflz::WflzHeader;
 
 type LE = LittleEndian;
@@ -19,12 +19,11 @@ impl AnbHeader {
 	pub fn is_magic_correct(&self) -> bool {
 		self.magic == ANB_MAGIC
 	}
-	
-	pub fn get_subordinate_data<'a>(&self, file: &'a[u8]) -> Result<ParserStruct<'a, AnbDataStart>, ParserStructError> {
-		// move this logic to a pointer newtype i think
-		let offset: usize = self.data_pointer.get().try_into()
-			.map_err(|_| ParserStructError::OutOfBounds)?;
-		Ok(ParserStruct::<AnbDataStart>::new(file, offset))
+}
+
+impl ParserReflect for AnbHeader {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		context.follow_pointer::<AnbDataStart>(self.data_pointer.get() as usize);
 	}
 }
 
@@ -33,4 +32,8 @@ impl AnbHeader {
 pub struct AnbDataStart {
 	unknown: [U32<LE>; 6],
 	pub wflz: WflzHeader,
+}
+
+impl ParserReflect for AnbDataStart {
+	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
 }

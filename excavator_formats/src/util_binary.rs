@@ -1,5 +1,6 @@
 //! General functions used for parsing binary formats.
 
+use std::fmt::Debug;
 use std::io::{BufRead, Read, Seek, SeekFrom};
 use std::marker::PhantomData;
 
@@ -35,7 +36,7 @@ pub enum ParserStructError {
 	CastError(String),
 }
 
-pub struct ParserStruct<'a, T: FromBytes + KnownLayout + Immutable> {
+pub struct ParserStruct<'a, T: ?Sized> {
 	file: &'a [u8],
 	offset: usize,
 	phantom: PhantomData<&'a T>,
@@ -46,11 +47,39 @@ impl<'a, T: FromBytes + KnownLayout + Immutable> ParserStruct<'a, T> {
 		Self { file, offset, phantom: PhantomData }
 	}
 	
-	pub fn retrieve(&self) -> Result<&T, ParserStructError> {
+	pub fn retrieve(&self) -> Result<&'a T, ParserStructError> {
 		let slice = self.file.get(self.offset..)
 			.ok_or(ParserStructError::OutOfBounds)?;
 		let (retrieved, _) = T::ref_from_prefix(slice)
 			.map_err(|e| ParserStructError::CastError(e.to_string()))?;
 		Ok(retrieved)
+	}
+	
+	pub fn get_file(&self) -> &'a [u8] {
+		self.file
+	}
+	
+	pub fn get_offset(&self) -> usize {
+		self.offset
+	}
+}
+
+pub trait ParserReflect: Debug {
+	fn get_subordinates(&self, context: &mut ParserReflectContext);
+}
+
+pub struct ParserReflectContext<'a> {
+	file: &'a [u8],
+	consumer: &'a mut dyn FnMut(Result<&dyn ParserReflect, ParserStructError>),
+}
+
+impl<'a> ParserReflectContext<'a> {
+	pub fn new(file: &'a [u8], consumer: &'a mut dyn FnMut(Result<&dyn ParserReflect, ParserStructError>)) -> Self {
+		Self { file, consumer }
+	}
+	
+	pub fn follow_pointer<T: FromBytes + KnownLayout + Immutable + ParserReflect>(&mut self, pointer: usize) {
+		let parser_struct = ParserStruct::<T>::new(self.file, pointer);
+		(self.consumer)(parser_struct.retrieve().map(|x| x as &dyn ParserReflect));
 	}
 }
