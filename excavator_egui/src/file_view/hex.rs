@@ -21,41 +21,39 @@ pub fn hexedit_ui(bytes: &FileBytes, parse: Option<&dyn ParserReflect>, ui: &mut
 		.resolve(ui.style())
 		.size.max(ui.spacing().interact_size.y);
 	
-	let painter = ui.painter();
-	let highlighter = HighlightRenderer::new(painter, HighlightSettings {
-		grid_topleft: painter.clip_rect().min,
-		grid_cell_size: egui::Vec2::new(30.0, 30.0), // placeholder
-		column_count,
-	});
-	
-	for i in 0..4usize {
-		let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::DARK_GRAY];
-		let color = colors[i % colors.len()];
-		highlighter.highlight_range(i * 5, 5, color);
-	}
-	
-	/*
-	// painter test
-	painter.rect_filled(
-		egui::Rect::from_min_size(painter.clip_rect().min, egui::Vec2::new(100.0, 200.0)),
-		egui::CornerRadius::same(5),
-		egui::Color32::KHAKI,
-	);
-	*/
-	
 	let mut table = TableBuilder::new(ui);
 	table = table.striped(true);
 	
 	for _ in 0..column_count {
 		table = table.column(Column::remainder().clip(true));
 	}
-	table.header(20.0, |mut table_header| {
+	
+	let mut table = table.header(20.0, |mut table_header| {
 		for col_n in 0..column_count {
 			table_header.col(|ui| {
 				ui.strong(format!("{:X}", col_n));
 			});
 		}
-	}).body(|body| {
+	});
+	
+	let ui = table.ui_mut();
+	let available_width = ui.available_width();
+	let ui_cursor = ui.cursor();
+	let painter = ui.painter().with_clip_rect(ui_cursor);
+	
+	let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
+		grid_topleft: ui_cursor.min,
+		grid_cell_size: egui::Vec2::new(available_width / column_count as f32, text_height),
+		column_count,
+	});
+	
+	for i in 0..10usize {
+		let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::ORANGE];
+		let color = colors[i % colors.len()].gamma_multiply(0.4);
+		highlighter.highlight_range(i * 5, 5, color);
+	}
+	
+	table.body(|body| {
 		body.rows(text_height, slice.len() / column_count, |mut row| {
 			let start = row.index() * column_count;
 			let subslice = slice.get(start..(start + column_count)).unwrap_or_default();
@@ -100,7 +98,7 @@ impl<'a> HighlightRenderer<'a> {
 			
 			self.draw_segment(&HighlightSegment {
 				start: cursor,
-				length: std::cmp::min(end, next_row_start) - start,
+				length: std::cmp::min(end, next_row_start) - cursor,
 				start_cap: is_first_segment,
 				end_cap: is_last_segment,
 			}, color);
