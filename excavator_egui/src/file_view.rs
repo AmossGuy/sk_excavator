@@ -11,7 +11,7 @@ use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
 use crate::plugins::ItemLoaders;
 
 use self::anb::AnbFileView;
-use self::hex::hexedit_ui;
+use self::hex::HexFileView;
 use self::image::ImageFileView;
 use self::st::StFileView;
 use excavator_formats::util_binary::{ParserStruct, ParserReflect};
@@ -43,7 +43,7 @@ enum SwitcherState {
 	},
 	HexView {
 		item: ItemInfo,
-		bytes: FileBytes,
+		view: HexFileView,
 	},
 }
 
@@ -64,7 +64,12 @@ struct HexLoadSwitch;
 
 impl LoadSwitch for HexLoadSwitch {
 	fn when_ready(item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
-		SwitcherState::HexView { item, bytes }
+		let reflect_maker: Option<hex::ParserReflectMaker> = match item.extension() {
+			Some(b"anb") => Some(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
+			_ => None,
+		};
+		
+		SwitcherState::HexView { item, view: HexFileView::new(bytes, reflect_maker) }
 	}
 }
 
@@ -167,13 +172,7 @@ impl FileViewSwitcher {
 				));
 			},
 			SwitcherState::View { view, .. } => { return view.ui(ui); },
-			SwitcherState::HexView { bytes, item } => {
-				let parse = match item.extension() {
-					Some(b"anb") => ParserStruct::<AnbHeader>::new(bytes.as_slice(), 0).retrieve().ok().map(|x| x as &dyn ParserReflect),
-					_ => None,
-				};
-				hexedit_ui(bytes, parse, ui);
-			},
+			SwitcherState::HexView { view, .. } => { view.ui(ui); },
 		};
 		None
 	}
