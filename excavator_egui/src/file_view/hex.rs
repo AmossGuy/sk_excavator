@@ -9,23 +9,17 @@ pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
 pub struct HexFileView {
 	bytes: FileBytes,
 	reflect_maker: Option<ParserReflectMaker>,
+	dumb_scroll_offset: egui::Vec2,
 }
 
 impl HexFileView {
 	pub fn new(bytes: FileBytes, reflect_maker: Option<ParserReflectMaker>) -> Self {
-		Self { bytes, reflect_maker }
+		Self { bytes, reflect_maker, dumb_scroll_offset: Default::default() }
 	}
 	
 	pub fn ui(&mut self, ui: &mut Ui) {
 		let slice = self.bytes.as_slice();
 		let parse = self.reflect_maker.and_then(|f| f(slice));
-		
-		if let Some(parse) = parse {
-			ui.label(format!("root: {:?}", parse));
-			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
-				ui.label(format!("direct subord: {:?}", subord));
-			}));
-		}
 		
 		let column_count = 0x10;
 		let text_height = egui::TextStyle::Body
@@ -49,22 +43,52 @@ impl HexFileView {
 		
 		let ui = table.ui_mut();
 		let available_width = ui.available_width();
+		let item_spacing = ui.spacing().item_spacing;
 		let ui_cursor = ui.cursor();
 		let painter = ui.painter().with_clip_rect(ui_cursor);
 		
-		let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
-			grid_topleft: ui_cursor.min,
-			grid_cell_size: egui::Vec2::new(available_width / column_count as f32, text_height),
-			column_count,
-		});
+		/*
+		if let Some(parse) = parse {
+			ui.label(format!("root: {:?}", parse));
+			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
+				ui.label(format!("direct subord: {:?}", subord));
+			}));
+		}
+		*/
 		
+		if let Some(parse) = parse {
+			let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
+				grid_topleft: ui_cursor.min - self.dumb_scroll_offset,
+				grid_cell_size: egui::Vec2::new(available_width / column_count as f32, text_height + item_spacing.y),
+				column_count,
+			});
+			
+			highlighter.highlight_range(
+				std::ptr::from_ref(parse).addr() - slice.as_ptr().addr(),
+				std::mem::size_of_val(parse),
+				egui::Color32::DARK_BLUE.gamma_multiply(0.4),
+			);
+			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
+				if let Ok(subord) = subord {
+					highlighter.highlight_range(
+						std::ptr::from_ref(subord).addr() - slice.as_ptr().addr(),
+						std::mem::size_of_val(subord),
+						egui::Color32::DARK_GREEN.gamma_multiply(0.4),
+					);
+				}
+			}));
+			
+		}
+		
+		/*
 		for i in 0..10usize {
 			let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::ORANGE];
 			let color = colors[i % colors.len()].gamma_multiply(0.4);
 			highlighter.highlight_range(i * 5, 5, color);
 		}
+		*/
 		
-		table.body(|body| {
+		let scroll_output = table.body(|body| {
 			body.rows(text_height, slice.len() / column_count, |mut row| {
 				let start = row.index() * column_count;
 				let subslice = slice.get(start..(start + column_count)).unwrap_or_default();
@@ -73,6 +97,8 @@ impl HexFileView {
 				}
 			});
 		});
+		
+		self.dumb_scroll_offset = scroll_output.state.offset;
 	}
 }
 
@@ -106,7 +132,7 @@ impl<'a> HighlightRenderer<'a> {
 				cursor.next_multiple_of(column_count)
 			};
 			
-			let is_last_segment = end < next_row_start;
+			let is_last_segment = end <= next_row_start;
 			
 			self.draw_segment(&HighlightSegment {
 				start: cursor,
