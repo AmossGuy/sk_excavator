@@ -5,19 +5,31 @@ use crate::file_view::FileBytes;
 use excavator_formats::util_binary::{ParserReflect, ParserReflectContext};
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
+// pub type ParserReflectStructMaker = fn(&[u8], usize) -> Option<&dyn ParserReflect>;
 
 pub struct HexFileView {
 	bytes: FileBytes,
 	reflect_maker: Option<ParserReflectMaker>,
 	dumb_scroll_offset: egui::Vec2,
+	clicked_address: Option<usize>,
+	struct_debug: Option<String>,
 }
 
 impl HexFileView {
 	pub fn new(bytes: FileBytes, reflect_maker: Option<ParserReflectMaker>) -> Self {
-		Self { bytes, reflect_maker, dumb_scroll_offset: Default::default() }
+		Self {
+			bytes, reflect_maker,
+			dumb_scroll_offset: egui::Vec2::default(),
+			clicked_address: None,
+			struct_debug: None,
+		}
 	}
 	
 	pub fn ui(&mut self, ui: &mut Ui) {
+		if let Some(struct_debug) = &self.struct_debug {
+			ui.label(struct_debug);
+		}
+		
 		let slice = self.bytes.as_slice();
 		let parse = self.reflect_maker.and_then(|f| f(slice));
 		
@@ -63,21 +75,38 @@ impl HexFileView {
 				column_count,
 			});
 			
-			highlighter.highlight_range(
-				std::ptr::from_ref(parse).addr() - slice.as_ptr().addr(),
-				std::mem::size_of_val(parse),
-				egui::Color32::DARK_BLUE.gamma_multiply(0.4),
-			);
+			let clicked_address = self.clicked_address;
+			self.struct_debug = None;
+			
+			let mut highlight_struct = |r#struct, color: egui::Color32| {
+				let r#struct: &dyn ParserReflect = r#struct;
+				
+				let start = std::ptr::from_ref(r#struct).addr() - slice.as_ptr().addr();
+				let length = std::mem::size_of_val(r#struct);
+				
+				highlighter.highlight_range(start, length, color.gamma_multiply(0.4));
+				
+				if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
+					self.struct_debug = Some(format!("{:?}", r#struct));
+					/*
+					let clicked_struct = r#struct;
+					egui::containers::Popup::new(
+						ui.id().with("struct popup").with(std::ptr::from_ref(clicked_struct).addr()),
+						ui.ctx().clone(),
+						egui::containers::PopupAnchor::PointerFixed,
+						ui.layer_id(),
+					).open(true).show(|ui| ui.label(format!("{:?}", clicked_struct)));
+					*/
+				}
+			};
+			
+			highlight_struct(parse, egui::Color32::DARK_BLUE);
+			
 			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
 				if let Ok(subord) = subord {
-					highlighter.highlight_range(
-						std::ptr::from_ref(subord).addr() - slice.as_ptr().addr(),
-						std::mem::size_of_val(subord),
-						egui::Color32::DARK_GREEN.gamma_multiply(0.4),
-					);
+					highlight_struct(subord, egui::Color32::DARK_GREEN);
 				}
 			}));
-			
 		}
 		
 		/*
@@ -90,10 +119,21 @@ impl HexFileView {
 		
 		let scroll_output = table.body(|body| {
 			body.rows(text_height, slice.len() / column_count, |mut row| {
-				let start = row.index() * column_count;
-				let subslice = slice.get(start..(start + column_count)).unwrap_or_default();
-				for byte in subslice {
-					row.col(|ui| { ui.label(format!("{:02X}", byte)); });
+				let row_start = row.index() * column_count;
+				let subslice = slice.get(row_start..(row_start + column_count)).unwrap_or_default();
+				for (column_index, byte) in subslice.iter().enumerate() {
+					row.col(|ui| {
+						ui.label(format!("{:02X}", byte));
+						
+						let clicked = ui.interact(
+							egui::Rect::EVERYTHING,
+							ui.id().with("hexedit click"),
+							egui::Sense::CLICK,
+						).clicked();
+						if clicked {
+							self.clicked_address = Some(row_start + column_index);
+						}
+					});
 				}
 			});
 		});

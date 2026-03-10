@@ -70,16 +70,16 @@ pub trait ParserReflect: Debug {
 
 pub struct ParserReflectContext<'a> {
 	file: &'a [u8],
-	consumer: &'a mut dyn FnMut(Result<&dyn ParserReflect, ParserStructError>),
+	consumer: &'a mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>),
 }
 
 impl<'a> ParserReflectContext<'a> {
-	pub fn new(file: &'a [u8], consumer: &'a mut dyn FnMut(Result<&dyn ParserReflect, ParserStructError>)) -> Self {
+	pub fn new(file: &'a [u8], consumer: &'a mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>)) -> Self {
 		Self { file, consumer }
 	}
 	
-	pub fn follow_pointer<T: FromBytes + KnownLayout + Immutable + ParserReflect>(&mut self, pointer: usize) {
+	pub fn follow_pointer<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'static>(&mut self, pointer: usize) {
 		let parser_struct = ParserStruct::<T>::new(self.file, pointer);
-		(self.consumer)(parser_struct.retrieve().map(|x| x as &dyn ParserReflect));
+		(self.consumer)(parser_struct.retrieve().map(|x| x as &'a dyn ParserReflect));
 	}
 }
