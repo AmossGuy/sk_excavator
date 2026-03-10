@@ -5,7 +5,6 @@ use crate::file_view::FileBytes;
 use excavator_formats::util_binary::{ParserReflect, ParserReflectContext};
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
-// pub type ParserReflectStructMaker = fn(&[u8], usize) -> Option<&dyn ParserReflect>;
 
 pub struct HexFileView {
 	bytes: FileBytes,
@@ -59,15 +58,6 @@ impl HexFileView {
 		let ui_cursor = ui.cursor();
 		let painter = ui.painter().with_clip_rect(ui_cursor);
 		
-		/*
-		if let Some(parse) = parse {
-			ui.label(format!("root: {:?}", parse));
-			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
-				ui.label(format!("direct subord: {:?}", subord));
-			}));
-		}
-		*/
-		
 		if let Some(parse) = parse {
 			let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
 				grid_topleft: ui_cursor.min - self.dumb_scroll_offset,
@@ -88,15 +78,6 @@ impl HexFileView {
 				
 				if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
 					self.struct_debug = Some(format!("{:?}", r#struct));
-					/*
-					let clicked_struct = r#struct;
-					egui::containers::Popup::new(
-						ui.id().with("struct popup").with(std::ptr::from_ref(clicked_struct).addr()),
-						ui.ctx().clone(),
-						egui::containers::PopupAnchor::PointerFixed,
-						ui.layer_id(),
-					).open(true).show(|ui| ui.label(format!("{:?}", clicked_struct)));
-					*/
 				}
 			};
 			
