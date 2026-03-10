@@ -68,18 +68,25 @@ pub trait ParserReflect: Debug {
 	fn get_subordinates(&self, context: &mut ParserReflectContext);
 }
 
-pub struct ParserReflectContext<'a> {
+pub struct ParserReflectContext<'a, 'b> {
 	file: &'a [u8],
-	consumer: &'a mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>),
+	consumer: &'b mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>),
 }
 
-impl<'a> ParserReflectContext<'a> {
-	pub fn new(file: &'a [u8], consumer: &'a mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>)) -> Self {
+impl<'a, 'b> ParserReflectContext<'a, 'b> {
+	pub fn new(file: &'a [u8], consumer: &'b mut dyn FnMut(Result<&'a dyn ParserReflect, ParserStructError>)) -> Self {
 		Self { file, consumer }
 	}
 	
-	pub fn follow_pointer<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'static>(&mut self, pointer: usize) {
-		let parser_struct = ParserStruct::<T>::new(self.file, pointer);
-		(self.consumer)(parser_struct.retrieve().map(|x| x as &'a dyn ParserReflect));
+	pub fn file(&self) -> &'a [u8] {
+		self.file
+	}
+	
+	pub fn ingest<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'a>(&mut self, pstruct: ParserStruct<'a, T>) {
+		(self.consumer)(pstruct.retrieve().map(|x| x as &'a dyn ParserReflect));
+	}
+	
+	pub fn follow_pointer<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'a>(&mut self, pointer: usize) {
+		self.ingest(ParserStruct::<T>::new(self.file, pointer));
 	}
 }

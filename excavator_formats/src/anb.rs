@@ -35,5 +35,7 @@ pub struct AnbDataStart {
 }
 
 impl ParserReflect for AnbDataStart {
-	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		self.wflz.get_subordinates(context);
+	}
 }

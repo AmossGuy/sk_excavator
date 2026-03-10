@@ -1,5 +1,6 @@
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
+use std::collections::VecDeque;
 
 use crate::file_view::FileBytes;
 use excavator_formats::util_binary::{ParserReflect, ParserReflectContext};
@@ -81,22 +82,23 @@ impl HexFileView {
 				}
 			};
 			
-			highlight_struct(parse, egui::Color32::DARK_BLUE);
+			let mut structs_to_highlight = VecDeque::from([parse]);
+			let mut i: usize = 0;
 			
-			parse.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
-				if let Ok(subord) = subord {
-					highlight_struct(subord, egui::Color32::DARK_GREEN);
-				}
-			}));
+			while let Some(current_struct) = structs_to_highlight.pop_front() {
+				let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::ORANGE];
+				let color = colors[i % colors.len()];
+				highlight_struct(current_struct, color);
+				
+				current_struct.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
+					if let Ok(subord) = subord {
+						structs_to_highlight.push_back(subord);
+					}
+				}));
+				
+				i += 1;
+			}
 		}
-		
-		/*
-		for i in 0..10usize {
-			let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::ORANGE];
-			let color = colors[i % colors.len()].gamma_multiply(0.4);
-			highlighter.highlight_range(i * 5, 5, color);
-		}
-		*/
 		
 		let scroll_output = table.body(|body| {
 			body.rows(text_height, slice.len() / column_count, |mut row| {

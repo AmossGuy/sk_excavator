@@ -1,6 +1,5 @@
-use zerocopy::{*, byteorder::{LittleEndian, U32}};
-
-type LE = LittleEndian;
+use zerocopy::{*, LittleEndian as LE};
+use crate::util_binary::{ParserReflect, ParserReflectContext, ParserStruct};
 
 const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
 
@@ -8,12 +7,38 @@ const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
 #[repr(C)]
 pub struct WflzHeader {
 	pub magic: [u8; 4],
-	compressed_size: U32<LE>,
-	decompressed_size: U32<LE>,
+	pub compressed_size: U32<LE>,
+	pub decompressed_size: U32<LE>,
 }
 
 impl WflzHeader {
 	pub fn is_magic_correct(&self) -> bool {
 		self.magic == WFLZ_MAGIC
+	}
+	
+	pub fn first_block<'a>(&self, file: &'a [u8]) -> ParserStruct<'a, WflzBlock> {
+		let self_offset = std::ptr::from_ref(self).addr() - file.as_ptr().addr();
+		let after_offset = self_offset + std::mem::size_of::<Self>();
+		ParserStruct::new(file, after_offset)
+	}
+}
+
+impl ParserReflect for WflzHeader {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		context.ingest(self.first_block(context.file()));
+	}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct WflzBlock {
+	backref_dist: U16<LE>,
+	backref_length: u8,
+	literals_length: u8,
+}
+
+impl ParserReflect for WflzBlock {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		// todo!();
 	}
 }
