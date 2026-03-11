@@ -39,6 +39,26 @@ pub struct WflzBlock {
 
 impl ParserReflect for WflzBlock {
 	fn get_subordinates(&self, context: &mut ParserReflectContext) {
-		// todo!();
+		let self_offset = std::ptr::from_ref(self).addr() - context.file().as_ptr().addr();
+		let after_offset = self_offset + std::mem::size_of::<Self>();
+		
+		let literals = ParserStruct::<[u8]>::new(context.file(), after_offset).retrieve_with_len(self.literals_length.into());
+		context.bullshit(literals);
+		
+		// todo: get next block if there is one
 	}
 }
+
+/*
+struct SliceThing<'a>(&'a [u8], usize);
+
+impl<'a> ParserReflect for SliceThing<'a> {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {}
+}
+
+impl<'a> std::fmt::Debug for SliceThing<'a> {
+	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+		self.0.fmt(f)
+	}
+}
+*/

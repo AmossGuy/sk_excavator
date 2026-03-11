@@ -69,8 +69,10 @@ impl HexFileView {
 			let clicked_address = self.clicked_address;
 			self.struct_debug = None;
 			
-			let mut highlight_struct = |r#struct, color: egui::Color32| {
-				let r#struct: &dyn ParserReflect = r#struct;
+			let struct_debug_cell = std::cell::RefCell::new(&mut self.struct_debug);
+			
+			let highlight_struct = |r#struct, color: egui::Color32| {
+				let r#struct: &dyn std::fmt::Debug = r#struct;
 				
 				let start = std::ptr::from_ref(r#struct).addr() - slice.as_ptr().addr();
 				let length = std::mem::size_of_val(r#struct);
@@ -78,7 +80,7 @@ impl HexFileView {
 				highlighter.highlight_range(start, length, color.gamma_multiply(0.4));
 				
 				if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
-					self.struct_debug = Some(format!("{:?}", r#struct));
+					**struct_debug_cell.borrow_mut() = Some(format!("{:?}", r#struct));
 				}
 			};
 			
@@ -93,6 +95,18 @@ impl HexFileView {
 				current_struct.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
 					if let Ok(subord) = subord {
 						structs_to_highlight.push_back(subord);
+					}
+				}, &mut |slice_s| {
+					if let Ok(slice_s) = slice_s {
+						i += 1;
+						let start = slice_s.as_ptr().addr() - slice.as_ptr().addr();
+						let length = slice_s.len();
+						let color = colors[i % colors.len()];
+						
+						highlighter.highlight_range(start, length, color);
+						if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
+							**struct_debug_cell.borrow_mut() = Some(format!("{:?}", slice_s));
+						}
 					}
 				}));
 				
