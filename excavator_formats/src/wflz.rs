@@ -1,5 +1,5 @@
 use zerocopy::{*, LittleEndian as LE};
-use crate::util_binary::{ParserReflect, ParserReflectContext, ParserStruct};
+use crate::util_binary::{ParserReflect, ParserReflectContext, ParserStruct, StructRole};
 
 const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
 
@@ -45,20 +45,13 @@ impl ParserReflect for WflzBlock {
 		let literals = ParserStruct::<[u8]>::new(context.file(), after_offset).retrieve_with_len(self.literals_length.into());
 		context.bullshit(literals);
 		
-		// todo: get next block if there is one
+		if !(self.backref_dist == 0 && self.backref_length == 0 && self.literals_length == 0) {
+			let next_block = ParserStruct::<WflzBlock>::new(context.file(), after_offset + usize::from(self.literals_length));
+			context.ingest(next_block);
+		}
+	}
+	
+	fn role(&self) -> StructRole {
+		StructRole::CompressionBlock
 	}
 }
-
-/*
-struct SliceThing<'a>(&'a [u8], usize);
-
-impl<'a> ParserReflect for SliceThing<'a> {
-	fn get_subordinates(&self, context: &mut ParserReflectContext) {}
-}
-
-impl<'a> std::fmt::Debug for SliceThing<'a> {
-	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-		self.0.fmt(f)
-	}
-}
-*/

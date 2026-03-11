@@ -75,8 +75,20 @@ impl<'a, T: FromBytes + KnownLayout + Immutable + ?Sized> ParserStruct<'a, T> {
 	}
 }
 
+#[derive(Default, Copy, Clone)]
+pub enum StructRole {
+	#[default]
+	Unspecified,
+	CompressionBlock,
+	CompressionLiterals,
+}
+
 pub trait ParserReflect: Debug {
 	fn get_subordinates(&self, context: &mut ParserReflectContext);
+	
+	fn role(&self) -> StructRole {
+		StructRole::default()
+	}
 }
 
 pub struct ParserReflectContext<'a, 'b> {

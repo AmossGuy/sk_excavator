@@ -3,7 +3,7 @@ use egui_extras::{Column, TableBuilder};
 use std::collections::VecDeque;
 
 use crate::file_view::FileBytes;
-use excavator_formats::util_binary::{ParserReflect, ParserReflectContext};
+use excavator_formats::util_binary::{ParserReflect, ParserReflectContext, StructRole};
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
 
@@ -88,8 +88,7 @@ impl HexFileView {
 			let mut i: usize = 0;
 			
 			while let Some(current_struct) = structs_to_highlight.pop_front() {
-				let colors = [egui::Color32::DARK_RED, egui::Color32::DARK_GREEN, egui::Color32::DARK_BLUE, egui::Color32::ORANGE];
-				let color = colors[i % colors.len()];
+				let color = whoa_colors(current_struct.role());
 				highlight_struct(current_struct, color);
 				
 				current_struct.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
@@ -101,9 +100,9 @@ impl HexFileView {
 						i += 1;
 						let start = slice_s.as_ptr().addr() - slice.as_ptr().addr();
 						let length = slice_s.len();
-						let color = colors[i % colors.len()];
+						let color = whoa_colors(StructRole::CompressionLiterals);
 						
-						highlighter.highlight_range(start, length, color);
+						highlighter.highlight_range(start, length, color.gamma_multiply(0.4));
 						if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
 							**struct_debug_cell.borrow_mut() = Some(format!("{:?}", slice_s));
 						}
@@ -136,6 +135,14 @@ impl HexFileView {
 		});
 		
 		self.dumb_scroll_offset = scroll_output.state.offset;
+	}
+}
+
+fn whoa_colors(role: StructRole) -> egui::Color32 {
+	match role {
+		StructRole::CompressionBlock => egui::Color32::DARK_GREEN,
+		StructRole::CompressionLiterals => egui::Color32::ORANGE,
+		_ => egui::Color32::DARK_GRAY,
 	}
 }
 
