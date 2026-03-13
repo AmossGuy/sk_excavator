@@ -5,7 +5,7 @@ pub mod anb;
 pub mod pak;
 pub mod st;
 pub mod util_binary;
-mod wflz;
+pub mod wflz;
 
 use std::ffi::OsStr;
 use std::path::Path;
