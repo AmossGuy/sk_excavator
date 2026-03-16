@@ -76,21 +76,26 @@ impl ParserReflect for WflzBlock {
 
 pub struct WflzDecompressor<'a> {
 	file: &'a [u8],
+	start: usize,
 	cursor: usize,
 	decompressed_data: Vec<u8>,
+}
+
+pub struct WflzDecompressResult {
+	pub data: Box<[u8]>,
+	pub compressed_size: usize,
 }
 
 impl<'a> WflzDecompressor<'a> {
 	pub fn new(file: &'a [u8], header_offset: usize) -> Result<Self, ParserStructError> {
 		let header = ParserStruct::<WflzHeader>::new(file, header_offset).retrieve()?;
 		
-		let cursor = header.first_block(file).get_offset();
+		let start = header.first_block(file).get_offset(); let cursor = start;
 		let decompressed_data = Vec::with_capacity(header.decompressed_size.get() as usize);
-		Ok(Self { file, cursor, decompressed_data })
+		Ok(Self { file, start, cursor, decompressed_data })
 	}
 	
 	fn decompress_block(&mut self, block: &'a WflzBlock) -> Result<Option<ParserStruct<'a, WflzBlock>>, ParserStructError> {
-		//
 		let backref_slice_start = self.decompressed_data.len().saturating_sub(usize::from(block.backref_dist));
 		let backref_slice_end = std::cmp::min(
 			backref_slice_start.saturating_add(usize::from(block.backref_length)),
@@ -104,7 +109,7 @@ impl<'a> WflzDecompressor<'a> {
 		Ok(block.next_block(self.file))
 	}
 	
-	pub fn decompress_all(mut self) -> Result<Box<[u8]>, ParserStructError> {
+	pub fn decompress_all(mut self) -> Result<WflzDecompressResult, ParserStructError> {
 		loop {
 			let current_block = ParserStruct::<WflzBlock>::new(self.file, self.cursor).retrieve()?;
 			if let Some(next_block) = self.decompress_block(current_block)? {
@@ -113,6 +118,10 @@ impl<'a> WflzDecompressor<'a> {
 				break;
 			}
 		}
-		Ok(Box::from(self.decompressed_data))
+		
+		Ok(WflzDecompressResult {
+			data: Box::from(self.decompressed_data),
+			compressed_size: self.cursor - self.start,
+		})
 	}
 }
