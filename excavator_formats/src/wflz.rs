@@ -112,7 +112,6 @@ impl<'a> WflzDecompressor<'a> {
 			if remaining_backref > backref_range.len() {
 				// I feel like Range should be Copy if its Idx is. Perhaps I'll make a pull request for that.
 				self.decompressed_data.extend_from_within(backref_range.clone());
-				println!("{} {}", remaining_backref, backref_range.len());
 				remaining_backref -= backref_range.len();
 			} else {
 				self.decompressed_data.extend_from_within(backref_range.start .. backref_range.start + remaining_backref);
