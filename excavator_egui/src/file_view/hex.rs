@@ -26,6 +26,10 @@ impl HexFileView {
 	}
 	
 	pub fn ui(&mut self, ui: &mut Ui) {
+		if let Some(clicked_address) = &self.clicked_address {
+			ui.label(format!("Selected address: 0x{:X}", clicked_address));
+		}
+		
 		if let Some(struct_debug) = &self.struct_debug {
 			ui.label(struct_debug);
 		}
@@ -59,16 +63,20 @@ impl HexFileView {
 		let ui_cursor = ui.cursor();
 		let painter = ui.painter().with_clip_rect(ui_cursor);
 		
+		let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
+			grid_topleft: ui_cursor.min - self.dumb_scroll_offset,
+			grid_cell_size: egui::Vec2::new(available_width / column_count as f32, text_height + item_spacing.y),
+			column_count,
+		});
+		
+		if let Some(clicked_address) = self.clicked_address {
+			highlighter.highlight_range(clicked_address, 1, ui.visuals().selection.bg_fill);
+		}
+		
 		if let Some(parse) = parse {
-			let highlighter = HighlightRenderer::new(&painter, HighlightSettings {
-				grid_topleft: ui_cursor.min - self.dumb_scroll_offset,
-				grid_cell_size: egui::Vec2::new(available_width / column_count as f32, text_height + item_spacing.y),
-				column_count,
-			});
-			
 			let clicked_address = self.clicked_address;
-			self.struct_debug = None;
 			
+			self.struct_debug = None;
 			let struct_debug_cell = std::cell::RefCell::new(&mut self.struct_debug);
 			
 			let highlight_struct = |r#struct, color: egui::Color32| {
