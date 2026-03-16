@@ -101,7 +101,24 @@ impl<'a> WflzDecompressor<'a> {
 			backref_slice_start.saturating_add(usize::from(block.backref_length)),
 			self.decompressed_data.len()
 		);
-		self.decompressed_data.extend_from_within(backref_slice_start..backref_slice_end);
+		let backref_range = backref_slice_start..backref_slice_end;
+		
+		let mut remaining_backref = usize::from(block.backref_length) + 4;
+		loop {
+			if backref_range.len() == 0 {
+				break;
+			}
+			
+			if remaining_backref > backref_range.len() {
+				// I feel like Range should be Copy if its Idx is. Perhaps I'll make a pull request for that.
+				self.decompressed_data.extend_from_within(backref_range.clone());
+				println!("{} {}", remaining_backref, backref_range.len());
+				remaining_backref -= backref_range.len();
+			} else {
+				self.decompressed_data.extend_from_within(backref_range.start .. backref_range.start + remaining_backref);
+				break;
+			}
+		}
 		
 		let literals_slice = block.literals(self.file)?;
 		self.decompressed_data.extend(literals_slice);
