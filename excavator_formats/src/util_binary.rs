@@ -111,7 +111,19 @@ impl<'a, 'b> ParserReflectContext<'a, 'b> {
 	}
 	
 	pub fn ingest2<T: ParserReflect + 'a>(&mut self, thing: Result<&'a T, ParserStructError>) {
-		(self.consumer)(thing.map(|x| x as &'a dyn ParserReflect));
+		self.ingest2_dyn(thing.map(|x| x as &'a dyn ParserReflect));
+	}
+	
+	pub fn ingest2_dyn(&mut self, thing: Result<&'a dyn ParserReflect, ParserStructError>) {
+		match thing {
+			Ok(thing) => {
+				(self.consumer)(Ok(thing));
+				thing.get_subordinates(self);
+			},
+			Err(e) => {
+				(self.consumer)(Err(e));
+			},
+		};
 	}
 	
 	pub fn ingest<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'a>(&mut self, pstruct: ParserStruct<'a, T>) {

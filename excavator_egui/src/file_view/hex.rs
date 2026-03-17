@@ -1,9 +1,8 @@
 use egui::Ui;
 use egui_extras::{Column, TableBuilder};
-use std::collections::VecDeque;
 
 use crate::file_view::FileBytes;
-use excavator_formats::util_binary::{ParserReflect, ParserReflectContext, StructRole};
+use excavator_formats::util_binary::{ParserReflect, ParserReflectContext, ParserStructError, StructRole};
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
 
@@ -79,7 +78,7 @@ impl HexFileView {
 			self.struct_debug = None;
 			let struct_debug_cell = std::cell::RefCell::new(&mut self.struct_debug);
 			
-			let highlight_struct = |r#struct, color: egui::Color32| {
+			let highlight_struct = |r#struct: &dyn ParserReflect, color: egui::Color32| {
 				let r#struct: &dyn std::fmt::Debug = r#struct;
 				
 				let start = std::ptr::from_ref(r#struct).addr() - slice.as_ptr().addr();
@@ -92,33 +91,34 @@ impl HexFileView {
 				}
 			};
 			
-			let mut structs_to_highlight = VecDeque::from([parse]);
-			let mut i: usize = 0;
+			let i = std::cell::RefCell::<usize>::new(0);
 			
-			while let Some(current_struct) = structs_to_highlight.pop_front() {
-				let color = whoa_colors(current_struct.role(), i);
-				highlight_struct(current_struct, color);
-				
-				current_struct.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
-					if let Ok(subord) = subord {
-						structs_to_highlight.push_back(subord);
+			let mut closure_1 = |struct_s: Result<&dyn ParserReflect, ParserStructError>| {
+				if let Ok(struct_s) = struct_s {
+					let color = whoa_colors(struct_s.role(), *i.borrow());
+					highlight_struct(struct_s, color);
+					*i.borrow_mut() += 1;
+				}
+			};
+			
+			let mut closure_2 = |slice_s: Result<&[u8], ParserStructError>| {
+				if let Ok(slice_s) = slice_s {
+					let start = slice_s.as_ptr().addr() - slice.as_ptr().addr();
+					let length = slice_s.len();
+					let color = whoa_colors(StructRole::CompressionLiterals, *i.borrow());
+					
+					highlighter.highlight_range(start, length, color);
+					if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
+						**struct_debug_cell.borrow_mut() = Some(format!("{:?}", slice_s));
 					}
-				}, &mut |slice_s| {
-					if let Ok(slice_s) = slice_s {
-						i += 1;
-						let start = slice_s.as_ptr().addr() - slice.as_ptr().addr();
-						let length = slice_s.len();
-						let color = whoa_colors(StructRole::CompressionLiterals, i);
-						
-						highlighter.highlight_range(start, length, color);
-						if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
-							**struct_debug_cell.borrow_mut() = Some(format!("{:?}", slice_s));
-						}
-					}
-				}));
-				
-				i += 1;
-			}
+					
+					*i.borrow_mut() += 1;
+				}
+			};
+			
+			let mut reflector = ParserReflectContext::new(slice, &mut closure_1, &mut closure_2);
+			
+			reflector.ingest2_dyn(Ok(parse));
 		}
 		
 		let scroll_output = table.body(|body| {
