@@ -43,7 +43,7 @@ impl HexFileView {
 			.size.max(ui.spacing().interact_size.y);
 		
 		let mut table = TableBuilder::new(ui);
-		table = table.striped(true);
+		table = table.striped(false);
 		
 		for _ in 0..column_count {
 			table = table.column(Column::remainder().clip(true));
@@ -85,7 +85,7 @@ impl HexFileView {
 				let start = std::ptr::from_ref(r#struct).addr() - slice.as_ptr().addr();
 				let length = std::mem::size_of_val(r#struct);
 				
-				highlighter.highlight_range(start, length, color.gamma_multiply(0.4));
+				highlighter.highlight_range(start, length, color);
 				
 				if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
 					**struct_debug_cell.borrow_mut() = Some(format!("{:?}", r#struct));
@@ -96,7 +96,7 @@ impl HexFileView {
 			let mut i: usize = 0;
 			
 			while let Some(current_struct) = structs_to_highlight.pop_front() {
-				let color = whoa_colors(current_struct.role());
+				let color = whoa_colors(current_struct.role(), i);
 				highlight_struct(current_struct, color);
 				
 				current_struct.get_subordinates(&mut ParserReflectContext::new(slice, &mut |subord| {
@@ -108,9 +108,9 @@ impl HexFileView {
 						i += 1;
 						let start = slice_s.as_ptr().addr() - slice.as_ptr().addr();
 						let length = slice_s.len();
-						let color = whoa_colors(StructRole::CompressionLiterals);
+						let color = whoa_colors(StructRole::CompressionLiterals, i);
 						
-						highlighter.highlight_range(start, length, color.gamma_multiply(0.4));
+						highlighter.highlight_range(start, length, color);
 						if clicked_address.is_some_and(|a| (start..start+length).contains(&a)) {
 							**struct_debug_cell.borrow_mut() = Some(format!("{:?}", slice_s));
 						}
@@ -146,11 +146,17 @@ impl HexFileView {
 	}
 }
 
-fn whoa_colors(role: StructRole) -> egui::Color32 {
-	match role {
-		StructRole::CompressionBlock => egui::Color32::DARK_GREEN,
-		StructRole::CompressionLiterals => egui::Color32::ORANGE,
-		_ => egui::Color32::DARK_GRAY,
+fn whoa_colors(role: StructRole, i: usize) -> egui::Color32 {
+	let (color, zebra) = match role {
+		StructRole::CompressionBlock => (egui::Color32::DARK_GREEN, false),
+		StructRole::CompressionLiterals => (egui::Color32::ORANGE, false),
+		_ => (egui::Color32::DARK_GRAY, true),
+	};
+	
+	if zebra {
+		color.gamma_multiply([0.3, 0.5][i % 2])
+	} else {
+		color.gamma_multiply(0.4)
 	}
 }
 
@@ -162,7 +168,7 @@ struct HighlightSettings {
 
 struct HighlightRenderer<'a> {
 	painter: &'a egui::Painter,
-	settings: HighlightSettings
+	settings: HighlightSettings,
 }
 
 impl<'a> HighlightRenderer<'a> {
@@ -209,11 +215,20 @@ impl<'a> HighlightRenderer<'a> {
 		let grid_cell_size = self.settings.grid_cell_size;
 		let column_count = self.settings.column_count;
 		
+		let mut rect = egui::Rect::from_min_size(
+			grid_topleft + egui::Vec2::new((segment.start % column_count) as f32 * grid_cell_size.x, (segment.start / column_count) as f32 * grid_cell_size.y),
+			egui::Vec2::new(grid_cell_size.x * segment.length as f32, grid_cell_size.y),
+		);
+		
+		if segment.start_cap {
+			rect.min.x += 2.0;
+		}
+		if segment.end_cap {
+			rect.max.x -= 2.0;
+		}
+		
 		self.painter.rect_filled(
-			egui::Rect::from_min_size(
-				grid_topleft + egui::Vec2::new((segment.start % column_count) as f32 * grid_cell_size.x, (segment.start / column_count) as f32 * grid_cell_size.y),
-				egui::Vec2::new(grid_cell_size.x * segment.length as f32, grid_cell_size.y),
-			),
+			rect,
 			egui::CornerRadius {
 				nw: if segment.start_cap { corner_radius } else { 0 },
 				ne: if segment.end_cap { corner_radius } else { 0 },
