@@ -150,7 +150,7 @@ fn whoa_colors(role: StructRole, i: usize) -> egui::Color32 {
 	let (color, zebra) = match role {
 		StructRole::CompressionBlock => (egui::Color32::DARK_GREEN, false),
 		StructRole::CompressionLiterals => (egui::Color32::ORANGE, false),
-		_ => (egui::Color32::DARK_GRAY, true),
+		_ => (egui::Color32::DARK_GRAY, /* true */ false), // zebra looking good would need structs to be sorted beforehand
 	};
 	
 	if zebra {

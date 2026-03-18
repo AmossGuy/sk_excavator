@@ -19,8 +19,7 @@ pub struct AnbHeader {
 	unknown_14: U32<LE>,
 	unknown_18: U32<LE>,
 	unknown_1C: U32<LE>,
-	pub frame_info_1_pointer: U32<LE>,
-	unknown_24: U32<LE>,
+	pub frame_info_1_pointer: U64<LE>,
 	unknown_28: U32<LE>,
 	unknown_2C: U32<LE>,
 	unknown_30: U32<LE>,
@@ -49,11 +48,11 @@ impl ParserReflect for AnbHeader {
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct AnbFrameInfo1Header {
-	unknown_00: U32<LE>,
+	unknown_00: U32<LE>, // possibly a pointer, but it points to the second half of our current version of AnbHeader, meaning that that needs to be split to reflect the format correctly
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
 	unknown_0C: U32<LE>,
-	unknown_10: U32<LE>,
+	pointer_table_pointer: U32<LE>,
 	unknown_14: U32<LE>,
 	unknown_18: U32<LE>,
 	frame_count: U32<LE>,
@@ -61,14 +60,30 @@ pub struct AnbFrameInfo1Header {
 
 impl ParserReflect for AnbFrameInfo1Header {
 	fn get_subordinates(&self, context: &mut ParserReflectContext) {
-		let self_offset = std::ptr::from_ref(self).addr() - context.file().as_ptr().addr();
-		let after_offset = self_offset + std::mem::size_of::<Self>();
-		
-		for i in 0..(self.frame_count.get() as usize) {
-			let entry_offset = after_offset + std::mem::size_of::<AnbFrameInfo1Entry>() * i;
-			context.follow_pointer::<AnbFrameInfo1Entry>(entry_offset);
-		}
+		frame_info_1_pointer_table(context, self.pointer_table_pointer.get() as usize, self.frame_count.get() as usize);
 	}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+struct PointerTableEntry<T> {
+	pointer: U64<LE>,
+	phantom: std::marker::PhantomData<for<'a> fn(&'a [u8]) -> &'a T>,
+}
+
+impl<T: FromBytes + KnownLayout + Immutable + ParserReflect + 'static> ParserReflect for PointerTableEntry<T> {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		context.follow_pointer::<T>(self.pointer.get() as usize);
+	}
+}
+
+fn frame_info_1_pointer_table(context: &mut ParserReflectContext, start_offset: usize, frame_count: usize) {
+	let mut offset = start_offset;
+	for _i in 0..frame_count {
+		context.follow_pointer::<PointerTableEntry<AnbFrameInfo1Entry>>(offset);
+		offset += std::mem::size_of::<PointerTableEntry<AnbFrameInfo1Entry>>();
+	}
+	context.follow_pointer::<PointerTableEntry<AnbFrameInfo1Final>>(offset);
 }
 
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
@@ -92,6 +107,22 @@ pub struct AnbFrameInfo1Entry {
 }
 
 impl ParserReflect for AnbFrameInfo1Entry {
+	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct AnbFrameInfo1Final {
+	unknown_00: U32<LE>,
+	unknown_04: U32<LE>,
+	unknown_08: U32<LE>,
+	unknown_0C: U32<LE>,
+	unknown_10: U32<LE>,
+	unknown_14: U32<LE>,
+}
+
+impl ParserReflect for AnbFrameInfo1Final {
 	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
 }
 
