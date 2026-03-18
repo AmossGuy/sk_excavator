@@ -171,8 +171,13 @@ impl FileViewSwitcher {
 					message,
 				));
 			},
-			SwitcherState::View { view, .. } => { return view.ui(ui); },
-			SwitcherState::HexView { view, .. } => { view.ui(ui); },
+			SwitcherState::View { item, view } => {
+				let message = ui.push_id(("item view", item), |ui| view.ui(ui)).inner;
+				return message;
+			},
+			SwitcherState::HexView { item, view } => {
+				ui.push_id(("item hex view", item), |ui| view.ui(ui));
+			},
 		};
 		None
 	}
