@@ -97,9 +97,8 @@ pub struct AnbFrameInfo1Entry {
 	unknown_10: U32<LE>,
 	unknown_14: U32<LE>,
 	unknown_18: U32<LE>,
-	unknown_1C: U32<LE>,
-	unknown_20: U32<LE>,
-	unknown_24: U32<LE>,
+	entry_secondary_count: U32<LE>,
+	entry_secondary_pointer: U64<LE>,
 	unknown_28: U32<LE>,
 	unknown_2C: U32<LE>,
 	unknown_30: U32<LE>,
@@ -107,6 +106,38 @@ pub struct AnbFrameInfo1Entry {
 }
 
 impl ParserReflect for AnbFrameInfo1Entry {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		frame_info_1_secondary_pointer_table(context, self.entry_secondary_pointer.get() as usize, self.entry_secondary_count.get() as usize);
+	}
+}
+
+fn frame_info_1_secondary_pointer_table(context: &mut ParserReflectContext, start_offset: usize, count: usize) {
+	let mut offset = start_offset;
+	for _i in 0..count {
+		context.follow_pointer::<PointerTableEntry<AnbFrameInfo1EntrySecondary>>(offset);
+		offset += std::mem::size_of::<PointerTableEntry<AnbFrameInfo1EntrySecondary>>();
+	}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct AnbFrameInfo1EntrySecondary {
+	unknown_00: U32<LE>,
+	unknown_04: U32<LE>,
+	unknown_08: U32<LE>,
+	unknown_0C: U32<LE>,
+	unknown_10: U32<LE>,
+	unknown_14: U32<LE>,
+	unknown_18: U32<LE>,
+	unknown_1C: U32<LE>,
+	unknown_20: U32<LE>,
+	unknown_24: U32<LE>,
+	unknown_28: U32<LE>,
+	unknown_2C: U32<LE>,
+}
+
+impl ParserReflect for AnbFrameInfo1EntrySecondary {
 	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
 }
 
