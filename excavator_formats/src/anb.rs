@@ -21,9 +21,8 @@ pub struct AnbHeader {
 	unknown_1C: U32<LE>,
 	pub frame_info_1_pointer: U64<LE>,
 	unknown_28: U32<LE>,
-	unknown_2C: U32<LE>,
-	unknown_30: U32<LE>,
-	unknown_34: U32<LE>,
+	pub frame_info_2_count: U32<LE>,
+	pub frame_info_2_pointer: U64<LE>,
 	unknown_38: U32<LE>,
 	unknown_3C: U32<LE>,
 	unknown_40: U32<LE>,
@@ -40,7 +39,20 @@ impl AnbHeader {
 impl ParserReflect for AnbHeader {
 	fn get_subordinates(&self, context: &mut ParserReflectContext) {
 		context.follow_pointer::<AnbFrameInfo1Header>(self.frame_info_1_pointer.get() as usize);
+		frame_info_2_pointer_table(context, self.frame_info_2_pointer.get() as usize, self.frame_info_2_count.get() as usize);
 		context.follow_pointer::<AnbDataStart>(self.data_pointer.get() as usize);
+	}
+}
+
+fn frame_info_2_pointer_table(context: &mut ParserReflectContext, start_offset: usize, count: usize) {
+	let mut offset = start_offset;
+	for i in 0..count {
+		// either that first entry isn't a pointer, or something's wrong with my interpretation of something else
+		// idk i'm just guessing how this format works
+		if i != 0 {
+			context.follow_pointer::<PointerTableEntry<AnbFrameInfo2Entry>>(offset);
+		}
+		offset += std::mem::size_of::<PointerTableEntry<AnbFrameInfo2Entry>>();
 	}
 }
 
@@ -154,6 +166,74 @@ pub struct AnbFrameInfo1Final {
 }
 
 impl ParserReflect for AnbFrameInfo1Final {
+	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct AnbFrameInfo2Entry {
+	unknown_00: U32<LE>,
+	entry_secondary_count: U32<LE>,
+	entry_secondary_pointer: U64<LE>,
+	unknown_10: U32<LE>,
+	unknown_14: U32<LE>,
+	unknown_18: U32<LE>,
+	unknown_1C: U32<LE>,
+}
+
+impl ParserReflect for AnbFrameInfo2Entry {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		frame_info_2_secondary_pointer_table(context, self.entry_secondary_pointer.get() as usize, self.entry_secondary_count.get() as usize);
+	}
+}
+
+fn frame_info_2_secondary_pointer_table(context: &mut ParserReflectContext, start_offset: usize, count: usize) {
+	let mut offset = start_offset;
+	for i in 0..count {
+		if i != 0 {
+			context.follow_pointer::<PointerTableEntry<AnbFrameInfo2EntrySecondary>>(offset);
+		}
+		offset += std::mem::size_of::<PointerTableEntry<AnbFrameInfo2EntrySecondary>>();
+	}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct AnbFrameInfo2EntrySecondary {
+	unknown_00: U32<LE>,
+	unknown_04: U32<LE>,
+	unknown_08: U32<LE>,
+	unknown_0C: U32<LE>,
+	unknown_10: U32<LE>,
+	unknown_14: U32<LE>,
+	entry_tertiary_pointer: U64<LE>
+}
+
+impl ParserReflect for AnbFrameInfo2EntrySecondary {
+	fn get_subordinates(&self, context: &mut ParserReflectContext) {
+		context.follow_pointer::<AnbFrameInfo2EntryTertiary>(self.entry_tertiary_pointer.get() as usize);
+	}
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+pub struct AnbFrameInfo2EntryTertiary {
+	unknown_00: U32<LE>,
+	unknown_04: U32<LE>,
+	unknown_08: U32<LE>,
+	unknown_0C: U32<LE>,
+	sprite_width: U32<LE>,
+	sprite_height: U32<LE>,
+	unknown_18: U32<LE>,
+	unknown_1C: U32<LE>,
+	unknown_20: U32<LE>,
+	unknown_24: U32<LE>,
+}
+
+impl ParserReflect for AnbFrameInfo2EntryTertiary {
 	fn get_subordinates(&self, _context: &mut ParserReflectContext) {}
 }
 
