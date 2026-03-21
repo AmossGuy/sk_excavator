@@ -1,7 +1,7 @@
 use zerocopy::{*, byteorder::{LittleEndian, U32, U64}};
 
-use crate::util_binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError};
-use crate::wflz::WflzHeader;
+use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError};
+use super::wflz::WflzHeader;
 
 type LE = LittleEndian;
 

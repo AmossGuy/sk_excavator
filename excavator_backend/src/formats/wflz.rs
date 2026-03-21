@@ -1,5 +1,5 @@
 use zerocopy::{*, LittleEndian as LE};
-use crate::util_binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError, StructRole};
+use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError, StructRole};
 
 const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
 

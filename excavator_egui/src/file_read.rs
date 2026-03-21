@@ -235,7 +235,7 @@ impl LoadableData for ListingLoadResult {
 						.map_err(|e| e.to_string())?;
 					let mut reader = BufReader::new(file);
 					
-					let index = excavator_formats::pak::PakIndex::create_index(&mut reader)
+					let index = excavator_backend::formats::pak::PakIndex::create_index(&mut reader)
 						.map_err(|e| e.to_string())?;
 					
 					let contents = index.files.iter()
@@ -294,7 +294,7 @@ pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<
 		},
 		ItemInfo::Pak { inner_path, .. } => {
 			let mut cursor = Cursor::new(bytes);
-			let index = excavator_formats::pak::PakIndex::create_index(&mut cursor)
+			let index = excavator_backend::formats::pak::PakIndex::create_index(&mut cursor)
 				.map_err(|e| e.to_string())?;
 			
 			let entry = index.files.iter().find(|entry| &entry.0 == inner_path)

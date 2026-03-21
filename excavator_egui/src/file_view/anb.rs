@@ -2,9 +2,9 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
-use excavator_formats::anb::{AnbHeader, AnbDataStart, get_the_stupid_sprite_size};
-use excavator_formats::util_binary::{ParserStruct, ParserStructError};
-use excavator_formats::wflz::WflzDecompressor;
+use excavator_backend::formats::anb::{AnbHeader, AnbDataStart, get_the_stupid_sprite_size};
+use excavator_backend::formats::binary::{ParserStruct, ParserStructError};
+use excavator_backend::formats::wflz::WflzDecompressor;
 
 pub struct AnbFileView {
 	bytes: FileBytes,

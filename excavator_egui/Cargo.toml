@@ -9,7 +9,7 @@ eframe = { version = "0.33.3", features = ["persistence"] }
 egui = "0.33.3"
 egui_extras = "0.33.3"
 egui_ltreeview = { version = "0.6.1", features = ["persistence"] }
-excavator_formats = { version = "0.1.0", path = "../excavator_formats" }
+excavator_backend = { version = "0.1.0", path = "../excavator_backend" }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 lexical-sort = "0.3.1"
 rfd = "0.17.2"

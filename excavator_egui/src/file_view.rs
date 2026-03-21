@@ -14,8 +14,8 @@ use self::anb::AnbFileView;
 use self::hex::HexFileView;
 use self::image::ImageFileView;
 use self::st::StFileView;
-use excavator_formats::util_binary::{ParserStruct, ParserReflect};
-use excavator_formats::anb::AnbHeader;
+use excavator_backend::formats::binary::{ParserStruct, ParserReflect};
+use excavator_backend::formats::anb::AnbHeader;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {

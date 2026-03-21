@@ -1,11 +1,6 @@
 #![forbid(unsafe_code)]
 
-pub mod anb;
-// pub mod level;
-pub mod pak;
-pub mod st;
-pub mod util_binary;
-pub mod wflz;
+pub mod formats;
 
 use std::ffi::OsStr;
 use std::path::Path;

@@ -1133,6 +1133,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "excavator_backend"
+version = "0.1.0"
+dependencies = [
+ "binrw",
+ "zerocopy",
+]
+
+[[package]]
 name = "excavator_egui"
 version = "0.1.0"
 dependencies = [
@@ -1141,20 +1149,12 @@ dependencies = [
  "egui",
  "egui_extras",
  "egui_ltreeview",
- "excavator_formats",
+ "excavator_backend",
  "image",
  "lexical-sort",
  "rfd",
  "self_cell",
  "serde",
-]
-
-[[package]]
-name = "excavator_formats"
-version = "0.1.0"
-dependencies = [
- "binrw",
- "zerocopy",
 ]
 
 [[package]]

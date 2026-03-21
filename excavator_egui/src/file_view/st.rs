@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use crate::ExcavatorMessage;
 use crate::file_view::FileBytes;
-use excavator_formats::st::{read_st_header, read_st_cell};
+use excavator_backend::formats::st::{read_st_header, read_st_cell};
 
 pub struct StFileView {
 	bytes: FileBytes,

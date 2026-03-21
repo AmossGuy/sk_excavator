@@ -2,7 +2,7 @@ use egui::Ui;
 use egui_extras::{Column, TableBuilder};
 
 use crate::file_view::FileBytes;
-use excavator_formats::util_binary::{ParserReflect, ParserReflectContext, ParserStructError, StructRole};
+use excavator_backend::formats::binary::{ParserReflect, ParserReflectContext, ParserStructError, StructRole};
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
 

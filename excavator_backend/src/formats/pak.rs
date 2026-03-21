@@ -3,7 +3,7 @@ use std::io::{BufRead, Seek, SeekFrom};
 
 use binrw::{BinRead, BinResult, BinWrite};
 
-use super::util_binary::{read_pointers, seek_absolute};
+use super::binary::{read_pointers, seek_absolute};
 
 /// The header at the beginning of a `.bin` archive.
 #[derive(BinRead, BinWrite, Copy, Clone, Debug)]

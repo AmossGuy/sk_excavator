@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["excavator_formats", "excavator_egui"]
+members = ["excavator_backend", "excavator_egui"]
 default-members = ["excavator_egui"]
 
 [profile.dev.package."*"]
