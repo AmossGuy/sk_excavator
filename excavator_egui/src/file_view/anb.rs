@@ -2,13 +2,13 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
-use excavator_formats::anb::{AnbHeader, AnbDataStart};
+use excavator_formats::anb::{AnbHeader, AnbDataStart, get_the_stupid_sprite_size};
 use excavator_formats::util_binary::{ParserStruct, ParserStructError};
 use excavator_formats::wflz::WflzDecompressor;
 
 pub struct AnbFileView {
 	bytes: FileBytes,
-	texture: Result<SizedTextureHandle, ParserStructError>,
+	texture: Result<SizedTextureHandle, anyhow::Error>,
 	data_compressed_size: usize,
 	data_decompressed_size: usize,
 }
@@ -28,7 +28,19 @@ impl ItemView for AnbFileView {
 			data_compressed_size = decompressed.compressed_size;
 			data_decompressed_size = decompressed.data.len();
 			
-			Ok(data_to_texture(decompressed.data, format!("{:?} - frame 0", bytes.source_item()), ctx))
+			let sprite_size = get_the_stupid_sprite_size(file)?;
+			let sprite_size_usize = [sprite_size[0] as usize, sprite_size[1] as usize];
+			
+			if sprite_size_usize[0] * sprite_size_usize[1] * 4 != decompressed.data.len() {
+				anyhow::bail!(
+					"wrong sprite size info: w{} * h{} * 4 == {} != {}",
+					sprite_size_usize[0], sprite_size_usize[1],
+					sprite_size_usize[0] * sprite_size_usize[1] * 4,
+					decompressed.data.len(),
+				);
+			}
+			
+			Ok(data_to_texture(decompressed.data, sprite_size_usize, format!("{:?} - frame 0", bytes.source_item()), ctx))
 		})();
 		
 		Self { bytes, texture, data_compressed_size, data_decompressed_size }
@@ -84,15 +96,12 @@ impl SizedTextureHandle {
 	}
 }
 
-fn data_to_texture(data: Box<[u8]>, texture_name: String, ctx: &egui::Context) -> SizedTextureHandle {
-	// obvious placeholder test stuff
-	let size_guess = (data.len() / 4).isqrt();
-	
-	let egui_image = egui::ColorImage::from_rgba_unmultiplied([size_guess; 2], &data[..(size_guess as usize).pow(2) * 4]);
+fn data_to_texture(data: Box<[u8]>, size: [usize; 2], texture_name: String, ctx: &egui::Context) -> SizedTextureHandle {
+	let egui_image = egui::ColorImage::from_rgba_unmultiplied(size, &data);
 	let handle = ctx.load_texture(texture_name, egui_image, egui::TextureOptions::NEAREST);
 	
 	SizedTextureHandle {
 		handle,
-		size: egui::Vec2::splat(size_guess as f32),
+		size: egui::Vec2::new(size[0] as f32, size[1] as f32),
 	}
 }

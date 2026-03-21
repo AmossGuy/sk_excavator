@@ -36,6 +36,14 @@ pub enum ParserStructError {
 	CastError(String),
 }
 
+impl std::fmt::Display for ParserStructError {
+	fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+		Debug::fmt(self, f) // another thing i'll get back to later
+	}
+}
+
+impl std::error::Error for ParserStructError {}
+
 pub struct ParserStruct<'a, T: ?Sized> {
 	file: &'a [u8],
 	offset: usize,
