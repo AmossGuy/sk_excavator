@@ -14,6 +14,8 @@ use self::anb::AnbFileView;
 use self::hex::HexFileView;
 use self::image::ImageFileView;
 use self::st::StFileView;
+
+use excavator_backend::formats::FileFormat;
 use excavator_backend::formats::binary::{ParserStruct, ParserReflect};
 use excavator_backend::formats::anb::AnbHeader;
 
@@ -64,8 +66,8 @@ struct HexLoadSwitch;
 
 impl LoadSwitch for HexLoadSwitch {
 	fn when_ready(item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
-		let reflect_maker: Option<hex::ParserReflectMaker> = match item.extension() {
-			Some(b"anb") => Some(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
+		let reflect_maker: Option<hex::ParserReflectMaker> = match FileFormat::from_filename(item.filename()) {
+			Some(FileFormat::Anb) => Some(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
 			_ => None,
 		};
 		
@@ -137,13 +139,11 @@ impl FileViewSwitcher {
 			return;
 		}
 		
-		let extension = item.extension();
-		
-		self.state = match extension {
-			Some(b"pak") => SwitcherState::NoticePak { item: item.clone() },
-			Some(b"stb" | b"stl" | b"stm") => SwitcherState::start_load::<StFileView>(&item, ctx),
-			Some(b"png") => SwitcherState::start_load::<ImageFileView>(&item, ctx),
-			Some(b"anb") => SwitcherState::start_load::<AnbFileView>(&item, ctx),
+		self.state = match FileFormat::from_filename(item.filename()) {
+			Some(FileFormat::Pak) => SwitcherState::NoticePak { item: item.clone() },
+			Some(FileFormat::Stb | FileFormat::Stl | FileFormat::Stm) => SwitcherState::start_load::<StFileView>(&item, ctx),
+			Some(FileFormat::Image(::image::ImageFormat::Png)) => SwitcherState::start_load::<ImageFileView>(&item, ctx),
+			Some(FileFormat::Anb) => SwitcherState::start_load::<AnbFileView>(&item, ctx),
 			_ => SwitcherState::NoticeUnknown { item: item.clone() },
 		};
 	}

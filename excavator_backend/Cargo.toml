@@ -5,4 +5,5 @@ edition = "2024"
 
 [dependencies]
 binrw = "0.14.1"
+image = { version = "0.25.9", default-features = false, features = ["png"] }
 zerocopy = { version = "0.8.39", features = ["derive"] }

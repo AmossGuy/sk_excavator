@@ -11,7 +11,7 @@ const ANB_MAGIC: [u8; 4] = *b"YCSN";
 #[repr(C)]
 #[allow(non_snake_case)]
 pub struct AnbHeader {
-	pub magic: [u8; 4],
+	magic: [u8; 4],
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
 	unknown_0C: U32<LE>,
@@ -19,10 +19,10 @@ pub struct AnbHeader {
 	unknown_14: U32<LE>,
 	unknown_18: U32<LE>,
 	unknown_1C: U32<LE>,
-	pub frame_info_1_pointer: U64<LE>,
+	frame_info_1_pointer: U64<LE>,
 	unknown_28: U32<LE>,
-	pub frame_info_2_count: U32<LE>,
-	pub frame_info_2_pointer: U64<LE>,
+	frame_info_2_count: U32<LE>,
+	frame_info_2_pointer: U64<LE>,
 	unknown_38: U32<LE>,
 	unknown_3C: U32<LE>,
 	unknown_40: U32<LE>,
@@ -31,7 +31,7 @@ pub struct AnbHeader {
 }
 
 impl AnbHeader {
-	pub fn is_magic_correct(&self) -> bool {
+	fn is_magic_correct(&self) -> bool {
 		self.magic == ANB_MAGIC
 	}
 }
@@ -59,7 +59,7 @@ fn frame_info_2_pointer_table(context: &mut ParserReflectContext, start_offset: 
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo1Header {
+struct AnbFrameInfo1Header {
 	unknown_00: U32<LE>, // possibly a pointer, but it points to the second half of our current version of AnbHeader, meaning that that needs to be split to reflect the format correctly
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -101,7 +101,7 @@ fn frame_info_1_pointer_table(context: &mut ParserReflectContext, start_offset: 
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo1Entry {
+struct AnbFrameInfo1Entry {
 	unknown_00: U32<LE>,
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -134,7 +134,7 @@ fn frame_info_1_secondary_pointer_table(context: &mut ParserReflectContext, star
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo1EntrySecondary {
+struct AnbFrameInfo1EntrySecondary {
 	unknown_00: U32<LE>,
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -156,7 +156,7 @@ impl ParserReflect for AnbFrameInfo1EntrySecondary {
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo1Final {
+struct AnbFrameInfo1Final {
 	unknown_00: U32<LE>,
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -172,7 +172,7 @@ impl ParserReflect for AnbFrameInfo1Final {
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo2Entry {
+struct AnbFrameInfo2Entry {
 	unknown_00: U32<LE>,
 	entry_secondary_count: U32<LE>,
 	entry_secondary_pointer: U64<LE>,
@@ -201,7 +201,7 @@ fn frame_info_2_secondary_pointer_table(context: &mut ParserReflectContext, star
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo2EntrySecondary {
+struct AnbFrameInfo2EntrySecondary {
 	unknown_00: U32<LE>,
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -220,7 +220,7 @@ impl ParserReflect for AnbFrameInfo2EntrySecondary {
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
-pub struct AnbFrameInfo2EntryTertiary {
+struct AnbFrameInfo2EntryTertiary {
 	unknown_00: U32<LE>,
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
@@ -252,9 +252,9 @@ impl ParserReflect for AnbDataStart {
 
 /*
 #[derive(Debug)]
-pub struct AnbBlock {
-	pub magic: [u8; 4], // always FF FF FF 00
-	pub length: U32<LE>,
+struct AnbBlock {
+	magic: [u8; 4], // always FF FF FF 00
+	length: U32<LE>,
 }
 
 impl ParserReflect for AnbBlock {

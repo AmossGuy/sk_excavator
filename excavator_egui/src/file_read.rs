@@ -33,26 +33,14 @@ impl ItemInfo {
 		}
 	}
 	
-	pub fn file_name_lossy(&self) -> Option<Cow<'_, str>> {
+	pub fn filename(&self) -> &[u8] {
 		match self {
-			Self::Fs { path, .. } => path.file_name().map(|s| s.to_string_lossy()),
-			Self::Pak { inner_path, .. } => {
-				// teeny bit of copy-paste from below
-				let file_name = inner_path.as_bytes().split(|b| *b == b'/' || *b == b'\\').last();
-				file_name.map(String::from_utf8_lossy)
+			Self::Fs { path, .. } => {
+				path.file_name().unwrap_or_default().as_encoded_bytes()
 			},
-		}
-	}
-	
-	// Returning a slice of u8 is for the sake of having a shared type in both cases.
-	// It's fine since we only need to handle ASCII extensions.
-	pub fn extension(&self) -> Option<&[u8]> {
-		match self {
-			Self::Fs { path, .. } => path.extension().map(|e| e.as_encoded_bytes()),
 			Self::Pak { inner_path, .. } => {
 				// A simple, good-enough implementation
-				let file_name = inner_path.as_bytes().split(|b| *b == b'/' || *b == b'\\').last();
-				file_name.and_then(|f| f.split(|b| *b == b'.').last())
+				inner_path.as_bytes().split(|b| *b == b'/' || *b == b'\\').last().unwrap_or_default()
 			},
 		}
 	}

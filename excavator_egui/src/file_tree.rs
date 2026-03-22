@@ -8,6 +8,7 @@ use std::sync::Arc;
 use crate::ExcavatorMessage;
 use crate::file_read::{FsItemKind, ItemInfo, ListingLoadResult, LoadedListing};
 use crate::plugins::{ThreadSpawner, ItemLoaders};
+use excavator_backend::formats::FileFormat;
 
 #[derive(Default)]
 pub struct FileTree {
@@ -114,7 +115,7 @@ impl FileTree {
 					let dialog = rfd::FileDialog::new()
 						// .set_parent(&frame)
 						.set_title("Extract from archive")
-						.set_file_name(item.file_name_lossy().unwrap_or_default());
+						.set_file_name(String::from_utf8_lossy(item.filename()));
 					
 					let item = item.clone();
 					threads.lock().spawn(ctx.clone(), move |_| {
@@ -136,8 +137,8 @@ impl TreeNode {
 		match &self.source {
 			ItemInfo::Fs { kind, .. } => match kind {
 				FsItemKind::Directory => Some(ExpandHandler::Directory),
-				FsItemKind::File => match self.source.extension() {
-					Some(b"pak") => Some(ExpandHandler::PakArchive),
+				FsItemKind::File => match FileFormat::from_filename(self.source.filename()) {
+					Some(FileFormat::Pak) => Some(ExpandHandler::PakArchive),
 					_ => None,
 				}
 				_ => None,

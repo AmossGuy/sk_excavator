@@ -4,7 +4,7 @@ use std::io::Cursor;
 
 use crate::ExcavatorMessage;
 use crate::file_view::FileBytes;
-use excavator_backend::formats::st::{read_st_header, read_st_cell};
+use excavator_backend::formats::{FileFormat, st::{read_st_header, read_st_cell}};
 
 pub struct StFileView {
 	bytes: FileBytes,
@@ -13,7 +13,7 @@ pub struct StFileView {
 
 impl super::ItemView for StFileView {
 	fn new(bytes: FileBytes, _ctx: &egui::Context) -> Self where Self: Sized {
-		let is_stl = bytes.source_item().extension() == Some(b"stl");
+		let is_stl = FileFormat::from_filename(bytes.source_item().filename()) == Some(FileFormat::Stl);
 		Self { bytes, is_stl }
 	}
 	
