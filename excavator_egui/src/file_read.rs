@@ -2,15 +2,15 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::File;
-use std::io::{BufReader, Cursor, Read};
+use std::io::Read;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
-use self_cell::self_cell;
 use serde::{Deserialize, Serialize};
 
 use crate::ExcavatorMessage;
 use crate::plugins::ThreadSpawner;
+use excavator_backend::formats::pak::PakParser;
 
 #[derive(Clone, Debug, Eq, PartialEq, Hash, Deserialize, Serialize)]
 pub enum ItemInfo {
@@ -106,29 +106,18 @@ pub type BytesLoadResult = Result<Box<[u8]>, Box<str>>;
 
 pub struct FileBytes {
 	source_item: ItemInfo,
-	cell: FileBytesCell,
+	inner: excavator_backend::io::FileBytes,
 }
 
 impl FileBytes {
 	pub fn as_slice(&self) -> &[u8] {
-		self.cell.borrow_dependent().0
+		self.inner.as_ref()
 	}
 	
 	pub fn source_item(&self) -> &ItemInfo {
 		&self.source_item
 	}
 }
-
-self_cell!(
-	struct FileBytesCell {
-		owner: Arc<BytesLoadResult>,
-		#[covariant]
-		dependent: FileBytesDep,
-	}
-);
-
-// the self_cell macro uses very simplistic parsing that requires the dependent to be a struct
-struct FileBytesDep<'a>(&'a [u8]);
 
 pub struct ItemLoader<T: Send + Sync + 'static> {
 	load_items: Arc<Mutex<HashMap<PathBuf, LoadState<T>>>>,
@@ -219,21 +208,20 @@ impl LoadableData for ListingLoadResult {
 				let extension = path.extension().map(|ex| ex.as_encoded_bytes());
 				
 				if extension == Some(b"pak") {
-					let file = File::open(&path)
+					// bad. fix it when we make the parser thing read from files
+					let mut file = File::open(&path)
 						.map_err(|e| e.to_string())?;
-					let mut reader = BufReader::new(file);
+					let mut file_contents = Vec::new();
+					file.read_to_end(&mut file_contents).map_err(|e| e.to_string())?;
+					drop(file);
 					
-					let index = excavator_backend::formats::pak::PakIndex::create_index(&mut reader)
-						.map_err(|e| e.to_string())?;
-					
-					let contents = index.files.iter()
-						.map(|entry| {
-							PakEntry {
-								name: entry.0.clone(),
-							}
-						})
-						.collect();
-					Ok(LoadedListing::Pak(contents))
+					let aaaaaaaa = excavator_backend::io::FileBytes::glue_new(Arc::new(Ok(file_contents.into_boxed_slice())), ..);
+					let mut parser = PakParser::new(aaaaaaaa).map_err(|e| e.to_string())?;
+					Ok(LoadedListing::Pak(
+						parser.files().map_err(|e| e.to_string())?
+							.map(|r| r.map(|(_, name)| PakEntry { name: CString::new(name).unwrap() }))
+							.collect::<Result<_, _>>().map_err(|e| e.to_string())?
+					))
 				} else {
 					Err("extension not known archive type".into())
 				}
@@ -266,37 +254,28 @@ impl LoadableData for BytesLoadResult {
 }
 
 pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<FileBytes, String> {
-	let bytes = load_result.as_ref().as_ref()
-		.map_err(|e| e.to_string())?;
-	
 	match item {
 		ItemInfo::Fs { .. } => {
 			Ok(FileBytes {
 				source_item: item.clone(),
-				cell: FileBytesCell::new(load_result, |load_result| {
-					// so like if we've gotten this far we've already checked the result is ok
-					let slice = &load_result.as_ref().as_ref().unwrap();
-					FileBytesDep(slice)
-				}),
+				inner: excavator_backend::io::FileBytes::glue_new(load_result, ..),
 			})
 		},
 		ItemInfo::Pak { inner_path, .. } => {
-			let mut cursor = Cursor::new(bytes);
-			let index = excavator_backend::formats::pak::PakIndex::create_index(&mut cursor)
-				.map_err(|e| e.to_string())?;
+			let aaaaaaaa = excavator_backend::io::FileBytes::glue_new(load_result, ..);
+			let mut parser = PakParser::new(aaaaaaaa).map_err(|e| e.to_string())?;
 			
-			let entry = index.files.iter().find(|entry| &entry.0 == inner_path)
-				.ok_or("file not found in archive")?;
-			let start = entry.1.data_start as usize;
-			let length = entry.1.data_length as usize;
+			let index = parser.files().map_err(|e| e.to_string())?
+				.find_map(|r| match r {
+					Ok((index, name)) => if name == inner_path.as_bytes() { Some(Ok(index)) } else { None },
+					Err(e) => Some(Err(e)),
+				})
+				.ok_or("no such file in pak")?
+				.map_err(|e| e.to_string())?;
 			
 			Ok(FileBytes {
 				source_item: item.clone(),
-				cell: FileBytesCell::new(load_result, |load_result| {
-					// so like if we've gotten this far we've already checked the result is ok
-					let slice = &load_result.as_ref().as_ref().unwrap()[start..start+length];
-					FileBytesDep(slice)
-				}),
+				inner: parser.archived_file_by_index(index as u32).map_err(|e| e.to_string())?,
 			})
 		},
 	}

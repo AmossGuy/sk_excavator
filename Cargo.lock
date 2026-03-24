@@ -524,6 +524,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bstr"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63044e1ae8e69f3b5a92c736ca6269b8d12fa7efe39bf34ddb06d102cf0e2cab"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
 name = "bumpalo"
 version = "3.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1137,7 +1147,9 @@ name = "excavator_backend"
 version = "0.1.0"
 dependencies = [
  "binrw",
+ "bstr",
  "image",
+ "yoke",
  "zerocopy",
 ]
 
@@ -1154,7 +1166,6 @@ dependencies = [
  "image",
  "lexical-sort",
  "rfd",
- "self_cell",
  "serde",
 ]
 
@@ -2747,12 +2758,6 @@ dependencies = [
  "smithay-client-toolkit 0.19.2",
  "tiny-skia",
 ]
-
-[[package]]
-name = "self_cell"
-version = "1.2.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b12e76d157a900eb52e81bc6e9f3069344290341720e9178cde2407113ac8d89"
 
 [[package]]
 name = "serde"
