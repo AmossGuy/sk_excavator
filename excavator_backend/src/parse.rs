@@ -1,12 +1,19 @@
-use crate::io::FileBytes;
 use bstr::BString;
 use std::fmt;
+use std::io::{BufRead, Seek, SeekFrom};
 use std::marker::PhantomData;
+use std::mem::size_of;
 use zerocopy::FromBytes;
 
 // TODO: make errors more specific
 pub struct ParseError;
 pub type ParseResult<T> = Result<T, ParseError>;
+
+impl From<std::io::Error> for ParseError {
+	fn from(_value: std::io::Error) -> Self {
+		Self
+	}
+}
 
 impl fmt::Display for ParseError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -14,93 +21,118 @@ impl fmt::Display for ParseError {
 	}
 }
 
-pub struct ParseReader<L: ParseLogger = ()> {
-	bytes: FileBytes,
+pub struct ParseReader<R: BufRead + Seek, L: ParseLogger = ()> {
+	reader: R,
 	logger: L,
 }
 
-// right now we're loading in a whole file at once as handling it as a byte slice, but i'm writing these apis so they can work for reading the file on the fly as well, if we want to change it to that
-impl<L: ParseLogger> ParseReader<L> {
-	pub fn new(bytes: FileBytes, logger: L) -> Self {
-		Self { bytes, logger }
+impl<R: BufRead + Seek, L: ParseLogger> ParseReader<R, L> {
+	pub fn new(reader: R, logger: L) -> Self {
+		Self { reader, logger }
 	}
 	
-	pub fn read_struct<T: FromBytes>(&mut self, offset: impl TryInto<usize>) -> ParseResult<T> {
-		self.read_struct_continued(offset).map(|(t, _)| t)
+	pub fn cursor(&mut self, offset: u64) -> ParseResult<ParseCursor<'_, R, L>> {
+		self.reader.seek(SeekFrom::Start(offset))?;
+		Ok(ParseCursor { parse_reader: self })
 	}
 	
-	pub fn read_struct_continued<T: FromBytes>(&mut self, offset: impl TryInto<usize>) -> ParseResult<(T, ParseContinue<'_>)> {
-		let offset = offset.try_into().map_err(|_| ParseError)?;
-		
-		let slice = self.bytes.get(offset..).ok_or(ParseError)?;
-		match T::read_from_prefix(slice) {
-			Ok((r#struct, _)) => {
-				Ok((r#struct, ParseContinue::new(self.bytes.clone(), offset + std::mem::size_of::<T>())))
-			},
-			Err(_) => Err(ParseError),
-		}
+	pub fn read_struct<T: FromBytes>(&mut self, offset: u64) -> ParseResult<T> {
+		self.cursor(offset)?.read_struct::<T>()
 	}
 	
-	pub fn read_struct_array<T: FromBytes>(&mut self, offset: impl TryInto<usize>, entry_count: impl TryInto<usize>) -> ParseResult<impl Iterator<Item = ParseResult<T>>> {
-		let offset = offset.try_into().map_err(|_| ParseError)?;
-		let entry_count = entry_count.try_into().map_err(|_| ParseError)?;
-		
-		Ok(ReadStructArray {
-			slice: self.bytes.get(offset..).ok_or(ParseError)?,
-			remaining_count: entry_count,
-			phantom: PhantomData,
-		})
+	pub fn read_struct_array<T: FromBytes>(&mut self, offset: u64, entry_count: u64) -> ParseResult<ReadStructArray<'_, T, R, L>> {
+		Ok(ReadStructArray::new(self.cursor(offset)?, entry_count))
 	}
-	
-	pub fn read_null_terminated_string(&mut self, offset: impl TryInto<usize>) -> ParseResult<BString> {
-		let offset = offset.try_into().map_err(|_| ParseError)?;
-		let slice = self.bytes.get(offset..).ok_or(ParseError)?;
-		// TODO: This doesn't return an error when there's no null terminator
-		Ok(slice.iter().take_while(|&&x| x != 0).copied().collect())
+
+	pub fn read_null_terminated_string(&mut self, offset: u64) -> ParseResult<BString> {
+		self.cursor(offset)?.read_null_terminated_string()
 	}
 }
 
-pub struct ParseContinue<'a> {
-	cropped_bytes: ParseResult<FileBytes>,
-	// this api will make more sense when it's backed by a reader
-	phantom: PhantomData<&'a [u8]>,
+pub struct ParseCursor<'a, R: BufRead + Seek, L: ParseLogger = ()> {
+	parse_reader: &'a mut ParseReader<R, L>,
 }
 
-// Idea: Call this struct ParseCursor and make the current ParseReader methods sugar for creating a cursor and calling a corresponding method on it.
-// For the .pak parsing I'm working on right this second, though, we only need one thing.
-impl<'a> ParseContinue<'a> {
-	fn new(bytes: FileBytes, offset: usize) -> Self {
-		Self {
-			cropped_bytes: bytes.cropped(offset..),
-			phantom: PhantomData,
-		}
+impl<'a, R: BufRead + Seek, L: ParseLogger> ParseCursor<'a, R, L> {
+	fn reader(&mut self) -> &mut R {
+		&mut self.parse_reader.reader
 	}
 	
-	pub fn archived_file(self, length: impl TryInto<usize>) -> ParseResult<FileBytes> {
-		let length = length.try_into().map_err(|_| ParseError)?;
-		self.cropped_bytes?.cropped(0..length)
+	pub fn read_struct<T: FromBytes>(&mut self) -> ParseResult<T> {
+		Ok(T::read_from_io(self.reader())?)
+	}
+	
+	pub fn read_null_terminated_string(&mut self) -> ParseResult<BString> {
+		let mut buf = Vec::new();
+		self.reader().read_until(0, &mut buf)?;
+		if buf.last() != Some(&0) { return Err(ParseError); } // Make sure we found the null terminator
+		buf.pop(); // Remove the null terminator
+		Ok(buf.into())
+	}
+	
+	pub fn stream_position(&mut self) -> std::io::Result<u64> {
+		self.reader().stream_position()
 	}
 }
 
-struct ReadStructArray<'a, T: FromBytes> {
-	slice: &'a [u8],
-	remaining_count: usize,
+pub struct ReadStructArray<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger = ()> {
+	cursor: ParseCursor<'a, R, L>,
+	remaining_count: u64,
 	phantom: PhantomData<fn() -> T>,
 }
 
-impl<'a, T: FromBytes> Iterator for ReadStructArray<'a, T> {
+impl<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger> ReadStructArray<'a, T, R, L> {
+	pub fn new(cursor: ParseCursor<'a, R, L>, remaining_count: u64) -> Self {
+		Self { cursor, remaining_count, phantom: PhantomData }
+	}
+	
+	// This is quibbling, but I don't want to artificially limit what you can pass in when usize is 32-bit
+	pub fn nth_u64(&mut self, n: u64) -> Option<ParseResult<T>> {
+		if self.remaining_count <= n { self.remaining_count = 0; return None; }
+		self.remaining_count -= n;
+		
+		// This would just be `n * size_of::<T>()` if there weren't three different number types involved and I wasn't being careful with error handling.
+		let Some(bytes_to_skip) = (|| {
+			let (size_of_t, n) = (i64::try_from(size_of::<T>()).ok()?, i64::try_from(n).ok()?);
+			size_of_t.checked_mul(n)
+		})() else {
+			// When I get to adding error info, EOF makes the most sense here I think
+			return Some(Err(ParseError));
+		};
+		// That was six lines for one multiplication. Amazing. I refuse to resort to a conversion that isn't checked properly!
+		
+		let seek_result = self.cursor.parse_reader.reader.seek_relative(bytes_to_skip);
+		if let Err(e) = seek_result { return Some(Err(e.into())); }
+		
+		self.next()
+	}
+}
+
+impl<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger> Iterator for ReadStructArray<'a, T, R, L> {
 	type Item = ParseResult<T>;
 	
 	fn next(&mut self) -> Option<ParseResult<T>> {
 		if self.remaining_count == 0 { return None; }
+		self.remaining_count -= 1;
 		
-		match T::read_from_prefix(self.slice) {
-			Ok((r#struct, remainder)) => { 
-				self.slice = remainder;
-				self.remaining_count -= 1;
-				Some(Ok(r#struct))
-			},
-			Err(_) => Some(Err(ParseError)),
+		let read_result = self.cursor.read_struct::<T>();
+		if read_result.is_err() { self.remaining_count = 0; } // Stop the iterator if there's an error
+		Some(read_result)
+	}
+	
+	// This function's basically only here for completeness. It's a bit silly. Use `nth_u64`.
+	fn nth(&mut self, n: usize) -> Option<ParseResult<T>> {
+		// This conversion could only fail if usize was bigger than u64. For the foreseeable future, that will never come up in practice, but I have to write something for that case anyway.
+		match n.try_into() {
+			Ok(n_u64) => self.nth_u64(n_u64),
+			Err(_) => { self.remaining_count = 0; None },
+		}
+	}
+	
+	fn size_hint(&self) -> (usize, Option<usize>) {
+		match self.remaining_count {
+			0 => (0, Some(0)),
+			1.. => (1, self.remaining_count.try_into().ok())
 		}
 	}
 }

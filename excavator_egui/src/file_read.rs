@@ -2,7 +2,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::ffi::CString;
 use std::fs::File;
-use std::io::Read;
+use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 
@@ -208,15 +208,11 @@ impl LoadableData for ListingLoadResult {
 				let extension = path.extension().map(|ex| ex.as_encoded_bytes());
 				
 				if extension == Some(b"pak") {
-					// bad. fix it when we make the parser thing read from files
-					let mut file = File::open(&path)
+					let file = File::open(&path)
 						.map_err(|e| e.to_string())?;
-					let mut file_contents = Vec::new();
-					file.read_to_end(&mut file_contents).map_err(|e| e.to_string())?;
-					drop(file);
+					let bufreader = BufReader::new(file);
 					
-					let aaaaaaaa = excavator_backend::io::FileBytes::glue_new(Arc::new(Ok(file_contents.into_boxed_slice())), ..);
-					let mut parser = PakParser::new(aaaaaaaa).map_err(|e| e.to_string())?;
+					let mut parser = PakParser::new(bufreader, ()).map_err(|e| e.to_string())?;
 					Ok(LoadedListing::Pak(
 						parser.files().map_err(|e| e.to_string())?
 							.map(|r| r.map(|(_, name)| PakEntry { name: CString::new(name).unwrap() }))
@@ -262,20 +258,31 @@ pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<
 			})
 		},
 		ItemInfo::Pak { inner_path, .. } => {
-			let aaaaaaaa = excavator_backend::io::FileBytes::glue_new(load_result, ..);
-			let mut parser = PakParser::new(aaaaaaaa).map_err(|e| e.to_string())?;
+			// "so like if we've gotten this far we've already checked the result is ok" (regarding the unwrap)
+			let cursor = std::io::Cursor::new(Result::as_ref(&load_result).unwrap());
+			let mut parser = PakParser::new(cursor, ()).map_err(|e| e.to_string())?;
 			
-			let index = parser.files().map_err(|e| e.to_string())?
-				.find_map(|r| match r {
-					Ok((index, name)) => if name == inner_path.as_bytes() { Some(Ok(index)) } else { None },
-					Err(e) => Some(Err(e)),
-				})
-				.ok_or("no such file in pak")?
-				.map_err(|e| e.to_string())?;
+			let mut files_iter = parser.files().map_err(|_| "error reading pak listing")?;
+			// Iterate through the list of files to find the one with the filename we're looking for
+			let index = loop {
+				let Some(result) = files_iter.next() else {
+					return Err("no such file in pak".into());
+				};
+				let Ok((i, name)) = result else {
+					return Err("error reading pak listing".into())
+				};
+				if name == inner_path.as_bytes() {
+					break i;
+				}
+			};
+			drop(files_iter);
+			
+			let (file_pos, file_size) = parser.file_position_size(index).map_err(|_| "error reading pak entry")?;
+			let range = (file_pos as usize)..((file_pos+file_size) as usize);
 			
 			Ok(FileBytes {
 				source_item: item.clone(),
-				inner: parser.archived_file_by_index(index as u32).map_err(|e| e.to_string())?,
+				inner: excavator_backend::io::FileBytes::glue_new(load_result, range),
 			})
 		},
 	}

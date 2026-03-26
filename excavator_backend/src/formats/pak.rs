@@ -1,15 +1,16 @@
-use crate::parse::{ParseError, ParseReader, ParseResult};
+use crate::parse::{ParseLogger, ParseReader, ParseError, ParseResult};
 use bstr::BString;
+use std::io::{BufRead, Seek};
 use zerocopy::{*, byteorder::{LittleEndian as LE, U32, U64}};
 
-pub struct PakParser {
-	reader: ParseReader,
+pub struct PakParser<R: BufRead + Seek, L: ParseLogger = ()> {
+	reader: ParseReader<R, L>,
 	header: PakHeader,
 }
 
-impl PakParser {
-	pub fn new(bytes: crate::io::FileBytes) -> ParseResult<Self> {
-		let mut reader = ParseReader::new(bytes, ());
+impl<R: BufRead + Seek, L: ParseLogger> PakParser<R, L> {	
+	pub fn new(reader: R, logger: L) -> ParseResult<Self> {
+		let mut reader = ParseReader::new(reader, logger);
 		let header = reader.read_struct::<PakHeader>(0)?;
 		Ok(Self { reader, header })
 	}
@@ -28,7 +29,7 @@ impl PakParser {
 	
 	pub fn files(&mut self) -> ParseResult<impl Iterator<Item = ParseResult<(u32, BString)>>> {
 		let name_pointers = self.reader
-			.read_struct_array::<U64<LE>>(self.name_table_offset(), self.file_count())?
+			.read_struct_array::<U64<LE>>(self.name_table_offset(), self.file_count().into())?
 			.collect::<Result<Vec<_>, _>>()?;
 		
 		Ok(name_pointers.into_iter().zip(0u32..).map(|(pointer, i)| {
@@ -37,13 +38,13 @@ impl PakParser {
 		}))
 	}
 	
-	pub fn archived_file_by_index(&mut self, index: u32) -> ParseResult<crate::io::FileBytes> {
-		let file_pointer = self.reader
-			.read_struct_array::<U64<LE>>(self.data_table_offset(), self.file_count())?
-			.nth(index as usize).ok_or(ParseError)??;
-		
-		let (file_header, continued) = self.reader.read_struct_continued::<PakEntryHeader>(file_pointer.get())?;
-		continued.archived_file(file_header.file_size.get())
+	pub fn file_position_size(&mut self, index: u32) -> ParseResult<(u64, u64)> {
+		let data_entry_offset = self.reader
+			.read_struct_array::<U64<LE>>(self.data_table_offset(), self.file_count().into())?
+			.nth_u64(index.into()).ok_or(ParseError)??.get();
+		let mut cursor = self.reader.cursor(data_entry_offset)?;
+		let entry_header = cursor.read_struct::<PakEntryHeader>()?;
+		Ok((cursor.stream_position()?, entry_header.file_size.get()))
 	}
 }
 
