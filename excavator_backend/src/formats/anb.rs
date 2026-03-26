@@ -1,4 +1,5 @@
 use zerocopy::{*, byteorder::{LittleEndian, U32, U64}};
+use zerocopy_derive::*;
 
 use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError};
 use super::wflz::WflzHeader;

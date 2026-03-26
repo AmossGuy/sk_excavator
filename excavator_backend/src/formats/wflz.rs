@@ -1,4 +1,5 @@
 use zerocopy::{*, LittleEndian as LE};
+use zerocopy_derive::*;
 use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError, StructRole};
 
 const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";

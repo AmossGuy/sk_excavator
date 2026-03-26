@@ -1,7 +1,8 @@
 use crate::parse::{ParseLogger, ParseReader, ParseError, ParseResult};
 use bstr::BString;
 use std::io::{BufRead, Seek};
-use zerocopy::{*, byteorder::{LittleEndian as LE, U32, U64}};
+use zerocopy::byteorder::{LittleEndian as LE, U32, U64};
+use zerocopy_derive::*;
 
 pub struct PakParser<R: BufRead + Seek, L: ParseLogger = ()> {
 	reader: ParseReader<R, L>,

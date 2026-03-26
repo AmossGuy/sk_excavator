@@ -1151,6 +1151,7 @@ dependencies = [
  "image",
  "yoke",
  "zerocopy",
+ "zerocopy-derive",
 ]
 
 [[package]]
