@@ -3,21 +3,31 @@ use egui_extras::{Column, TableBuilder};
 
 use crate::file_view::FileBytes;
 use excavator_backend::formats::binary::{ParserReflect, ParserReflectContext, ParserStructError, StructRole};
+use excavator_backend::parse::{FullParseLogger, ParseLogger};
+use excavator_backend::rust_lapper::Lapper;
 
 pub type ParserReflectMaker = fn(&[u8]) -> Option<&dyn ParserReflect>;
 
 pub struct HexFileView {
 	bytes: FileBytes,
-	reflect_maker: Option<ParserReflectMaker>,
+	analysis: TempAnalysisInfo,
 	dumb_scroll_offset: egui::Vec2,
 	clicked_address: Option<usize>,
 	struct_debug: Option<String>,
 }
 
+// only to keep the outdated code i haven't QUITE gotten around to replacing working
+// it'll disappear once anb's updated to the new system
+pub enum TempAnalysisInfo {
+	None,
+	Old(ParserReflectMaker),
+	New(Lapper<u64, ()>),
+}
+
 impl HexFileView {
-	pub fn new(bytes: FileBytes, reflect_maker: Option<ParserReflectMaker>) -> Self {
+	pub fn new(bytes: FileBytes, analysis: TempAnalysisInfo) -> Self {
 		Self {
-			bytes, reflect_maker,
+			bytes, analysis,
 			dumb_scroll_offset: egui::Vec2::default(),
 			clicked_address: None,
 			struct_debug: None,
@@ -34,7 +44,6 @@ impl HexFileView {
 		}
 		
 		let slice = self.bytes.as_slice();
-		let parse = self.reflect_maker.and_then(|f| f(slice));
 		
 		let column_count = 0x10;
 		let text_height = egui::TextStyle::Body
@@ -72,7 +81,7 @@ impl HexFileView {
 			highlighter.highlight_range(clicked_address, 1, ui.visuals().selection.bg_fill);
 		}
 		
-		if let Some(parse) = parse {
+		if !(matches!(self.analysis, TempAnalysisInfo::None)) {
 			let clicked_address = self.clicked_address;
 			
 			self.struct_debug = None;
@@ -116,9 +125,17 @@ impl HexFileView {
 				}
 			};
 			
-			let mut reflector = ParserReflectContext::new(slice, &mut closure_1, &mut closure_2);
-			
-			reflector.ingest2_dyn(Ok(parse));
+			if let TempAnalysisInfo::Old(f) = &self.analysis {
+				if let Some(parse) = f(slice) {
+					let mut reflector = ParserReflectContext::new(slice, &mut closure_1, &mut closure_2);
+					reflector.ingest2_dyn(Ok(parse))
+				}
+			} else if let TempAnalysisInfo::New(lapper) = &self.analysis {
+				// Why am I even using Lapper if I can't be arsed to write code that does the thing I wanted to use it for!?
+				for interval in lapper.iter() {
+					highlighter.highlight_range(interval.start as usize, (interval.stop - interval.start) as usize, egui::Color32::DARK_GRAY.gamma_multiply(0.4))
+				}
+			}
 		}
 		
 		let scroll_output = table.body(|body| {

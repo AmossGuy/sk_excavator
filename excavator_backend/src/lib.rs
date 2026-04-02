@@ -2,6 +2,7 @@
 
 pub mod formats;
 pub mod io;
-mod parse;
+pub mod parse;
 
 pub use bstr;
+pub use rust_lapper;

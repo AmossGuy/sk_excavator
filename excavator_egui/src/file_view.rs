@@ -11,13 +11,15 @@ use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
 use crate::plugins::ItemLoaders;
 
 use self::anb::AnbFileView;
-use self::hex::HexFileView;
+use self::hex::{HexFileView, TempAnalysisInfo};
 use self::image::ImageFileView;
 use self::st::StFileView;
 
 use excavator_backend::formats::FileFormat;
 use excavator_backend::formats::binary::{ParserStruct, ParserReflect};
 use excavator_backend::formats::anb::AnbHeader;
+use excavator_backend::parse::FullParseLogger;
+use excavator_backend::formats::pak::PakParser;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {
@@ -66,12 +68,21 @@ struct HexLoadSwitch;
 
 impl LoadSwitch for HexLoadSwitch {
 	fn when_ready(item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
-		let reflect_maker: Option<hex::ParserReflectMaker> = match FileFormat::from_filename(item.filename()) {
-			Some(FileFormat::Anb) => Some(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
-			_ => None,
+		let analysis = match FileFormat::from_filename(item.filename()) {
+			Some(FileFormat::Anb) => TempAnalysisInfo::Old(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
+			Some(FileFormat::Pak) => {
+				let cursor = std::io::Cursor::new(bytes.as_slice());
+				if let Ok(mut parser) = PakParser::new(cursor, FullParseLogger::new()) {
+					parser.parse_all();
+					TempAnalysisInfo::New(parser.collect_log())
+				} else {
+					TempAnalysisInfo::None
+				}
+			},
+			_ => TempAnalysisInfo::None,
 		};
 		
-		SwitcherState::HexView { item, view: HexFileView::new(bytes, reflect_maker) }
+		SwitcherState::HexView { item, view: HexFileView::new(bytes, analysis) }
 	}
 }
 

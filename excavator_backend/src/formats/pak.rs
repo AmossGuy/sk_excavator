@@ -4,12 +4,12 @@ use std::io::{BufRead, Seek};
 use zerocopy::byteorder::{LittleEndian as LE, U32, U64};
 use zerocopy_derive::*;
 
-pub struct PakParser<R: BufRead + Seek, L: ParseLogger = ()> {
+pub struct PakParser<R: BufRead + Seek, L: ParseLogger<R> = ()> {
 	reader: ParseReader<R, L>,
 	header: PakHeader,
 }
 
-impl<R: BufRead + Seek, L: ParseLogger> PakParser<R, L> {	
+impl<R: BufRead + Seek, L: ParseLogger<R>> PakParser<R, L> {	
 	pub fn new(reader: R, logger: L) -> ParseResult<Self> {
 		let mut reader = ParseReader::new(reader, logger);
 		let header = reader.read_struct::<PakHeader>(0)?;
@@ -46,6 +46,21 @@ impl<R: BufRead + Seek, L: ParseLogger> PakParser<R, L> {
 		let mut cursor = self.reader.cursor(data_entry_offset)?;
 		let entry_header = cursor.read_struct::<PakEntryHeader>()?;
 		Ok((cursor.stream_position()?, entry_header.file_size.get()))
+	}
+	
+	pub fn parse_all(&mut self) {
+		let files: Result<Vec<_>, _> = self.files().map(|iter| iter.collect());
+		if let Ok(files) = files {
+			for result in files {
+				if let Ok((i, _)) = result {
+					let _ = self.file_position_size(i);
+				}
+			}
+		}
+	}
+	
+	pub fn collect_log(self) -> L::Out {
+		self.reader.collect_log()
 	}
 }
 

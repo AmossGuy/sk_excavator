@@ -1149,6 +1149,7 @@ dependencies = [
  "binrw",
  "bstr",
  "image",
+ "rust-lapper",
  "yoke",
  "zerocopy",
  "zerocopy-derive",
@@ -2680,6 +2681,15 @@ dependencies = [
  "serde",
  "serde_derive",
  "unicode-ident",
+]
+
+[[package]]
+name = "rust-lapper"
+version = "1.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2274b9cc4f205bc0945b7be3e4fc1a102b0b7119ba6482faaedb9c4f76dde5d1"
+dependencies = [
+ "num-traits",
 ]
 
 [[package]]
