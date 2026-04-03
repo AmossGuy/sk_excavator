@@ -259,6 +259,7 @@ pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<
 		},
 		ItemInfo::Pak { inner_path, .. } => {
 			// "so like if we've gotten this far we've already checked the result is ok" (regarding the unwrap)
+			// wait did i remove that check?! it crashed right here when i tested an error case
 			let cursor = std::io::Cursor::new(Result::as_ref(&load_result).unwrap());
 			let mut parser = PakParser::new(cursor).map_err(|e| e.to_string())?;
 			

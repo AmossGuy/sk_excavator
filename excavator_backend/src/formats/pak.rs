@@ -42,7 +42,7 @@ impl<R: BufRead + Seek> PakParser<R> {
 	pub fn file_position_size(&mut self, index: u32) -> ParseResult<(u64, u64)> {
 		let data_entry_offset = self.reader
 			.read_struct_array::<U64<LE>>(self.data_table_offset(), self.file_count().into())?
-			.nth_u64(index.into()).ok_or(ParseError)??.get();
+			.nth_u64(index.into()).ok_or(ParseError::IndexOutOfBounds)??.get();
 		let mut cursor = self.reader.cursor(data_entry_offset)?;
 		let entry_header = cursor.read_struct::<PakEntryHeader>()?;
 		Ok((cursor.stream_position()?, entry_header.file_size.get()))

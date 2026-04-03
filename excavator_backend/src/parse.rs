@@ -1,25 +1,37 @@
 use bstr::BString;
-use std::fmt;
+use std::{error, fmt, io};
 use std::io::{BufRead, Seek, SeekFrom};
 use std::marker::PhantomData;
 use std::mem::size_of;
 use zerocopy::FromBytes;
 
-// TODO: make errors more specific
-pub struct ParseError;
-pub type ParseResult<T> = Result<T, ParseError>;
-
-impl From<std::io::Error> for ParseError {
-	fn from(_value: std::io::Error) -> Self {
-		Self
-	}
+#[non_exhaustive]
+#[derive(Debug)]
+pub enum ParseError {
+	Io(io::Error),
+	IndexOutOfBounds,
+	WrongMagic { expected: BString, found: BString },
 }
 
 impl fmt::Display for ParseError {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		"file parsing error (todo: add more info)".fmt(f)
+		match self {
+			Self::Io(e) => e.fmt(f),
+			Self::IndexOutOfBounds => write!(f, "index out of bounds"),
+			Self::WrongMagic { expected, found } => write!(f, "expected magic {expected:?}, found {found:?}"),
+		}
 	}
 }
+
+impl error::Error for ParseError {}
+
+impl From<io::Error> for ParseError {
+	fn from(value: io::Error) -> Self {
+		Self::Io(value)
+	}
+}
+
+pub type ParseResult<T> = Result<T, ParseError>;
 
 pub struct ParseReader<R: BufRead + Seek> {
 	reader: R,
@@ -65,9 +77,14 @@ impl<'a, R: BufRead + Seek> ParseCursor<'a, R> {
 	pub fn read_null_terminated_string(&mut self) -> ParseResult<BString> {
 		let mut buf = Vec::new();
 		self.reader().read_until(0, &mut buf)?;
-		if buf.last() != Some(&0) { return Err(ParseError); } // Make sure we found the null terminator
-		buf.pop(); // Remove the null terminator
-		Ok(buf.into())
+		
+		// Remove the null terminator
+		if buf.pop() == Some(0) {
+			Ok(buf.into())
+		} else {
+			// If the buffer didn't end with null, that means read_until hit the end of the file
+			Err(io::Error::from(io::ErrorKind::UnexpectedEof).into())
+		}
 	}
 	
 	pub fn stream_position(&mut self) -> std::io::Result<u64> {
@@ -96,8 +113,9 @@ impl<'a, T: FromBytes, R: BufRead + Seek> ReadStructArray<'a, T, R> {
 			let (size_of_t, n) = (i64::try_from(size_of::<T>()).ok()?, i64::try_from(n).ok()?);
 			size_of_t.checked_mul(n)
 		})() else {
-			// When I get to adding error info, EOF makes the most sense here I think
-			return Some(Err(ParseError));
+			// We only go down this path if the numbers are bigger than the largest possible filesize
+			// ...So, call it EOF.
+			return Some(Err(io::Error::from(io::ErrorKind::UnexpectedEof).into()));
 		};
 		// That was six lines for one multiplication. Amazing. I refuse to resort to a conversion that isn't checked properly!
 		

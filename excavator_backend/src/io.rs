@@ -1,8 +1,6 @@
 use std::sync::Arc;
 use yoke::Yoke;
 
-// I don't know exactly what the error type(s) should look like in the end yet
-pub use crate::parse::{ParseError, ParseResult};
 
 // need to refurbish excavator_egui::file_read::ItemLoader before we can make this not silly
 type GlueBytesLoadResult = Result<Box<[u8]>, Box<str>>;
@@ -22,11 +20,11 @@ impl FileBytes {
 		Self { yoke }
 	}
 	
-	pub fn cropped(self, range: impl std::slice::SliceIndex<[u8], Output = [u8]>) -> ParseResult<Self> {
+	pub fn cropped(self, range: impl std::slice::SliceIndex<[u8], Output = [u8]>) -> Option<Self> {
 		let yoke_result = self.yoke.try_map_project(|bytes, _| {
-			bytes.get(range).ok_or(ParseError)
+			bytes.get(range).ok_or(())
 		});
-		yoke_result.map(|yoke| Self { yoke })
+		yoke_result.ok().map(|yoke| Self { yoke })
 	}
 }
 
