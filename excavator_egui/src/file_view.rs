@@ -1,5 +1,4 @@
 mod anb;
-mod hex;
 mod image;
 mod st;
 
@@ -11,15 +10,10 @@ use crate::file_read::{BytesLoadResult, FileBytes, ItemInfo};
 use crate::plugins::ItemLoaders;
 
 use self::anb::AnbFileView;
-use self::hex::{HexFileView, TempAnalysisInfo};
 use self::image::ImageFileView;
 use self::st::StFileView;
 
 use excavator_backend::formats::FileFormat;
-use excavator_backend::formats::binary::{ParserStruct, ParserReflect};
-use excavator_backend::formats::anb::AnbHeader;
-use excavator_backend::parse::FullParseLogger;
-use excavator_backend::formats::pak::PakParser;
 
 #[derive(Default)]
 pub struct FileViewSwitcher {
@@ -45,10 +39,6 @@ enum SwitcherState {
 		item: ItemInfo,
 		view: Box<dyn ItemView>,
 	},
-	HexView {
-		item: ItemInfo,
-		view: HexFileView,
-	},
 }
 
 type WhenReadyFunc = fn(ItemInfo, FileBytes, &egui::Context) -> SwitcherState;
@@ -64,29 +54,8 @@ impl<T> LoadSwitch for T where T: ItemView + 'static {
 	}
 }
 
-struct HexLoadSwitch;
-
-impl LoadSwitch for HexLoadSwitch {
-	fn when_ready(item: ItemInfo, bytes: FileBytes, _ctx: &egui::Context) -> SwitcherState {
-		let analysis = match FileFormat::from_filename(item.filename()) {
-			Some(FileFormat::Anb) => TempAnalysisInfo::Old(|slice| ParserStruct::<AnbHeader>::new(slice, 0).retrieve().ok().map(|x| x as &dyn ParserReflect)),
-			Some(FileFormat::Pak) => {
-				let cursor = std::io::Cursor::new(bytes.as_slice());
-				if let Ok(mut parser) = PakParser::new(cursor, FullParseLogger::new()) {
-					parser.parse_all();
-					TempAnalysisInfo::New(parser.collect_log())
-				} else {
-					TempAnalysisInfo::None
-				}
-			},
-			_ => TempAnalysisInfo::None,
-		};
-		
-		SwitcherState::HexView { item, view: HexFileView::new(bytes, analysis) }
-	}
-}
-
 impl SwitcherState {
+	#[expect(dead_code)] // Maybe it'll come in handy later? IDK I really just want to shut up the warnings about the unused item fields
 	fn get_item(&self) -> Option<&ItemInfo> {
 		match self {
 			Self::NoticeBlank | Self::NoticeMulti => None,
@@ -95,7 +64,6 @@ impl SwitcherState {
 			Self::Loading { item, .. } => Some(item),
 			Self::LoadError { item, .. } => Some(item),
 			Self::View { item, .. } => Some(item),
-			Self::HexView { item, .. } => Some(item),
 		}
 	}
 	
@@ -129,27 +97,15 @@ trait ItemView {
 }
 
 impl FileViewSwitcher {
-	pub fn switch(&mut self, selection: &Vec<ItemInfo>, is_hex_editor_on: bool, ctx: &egui::Context) {
+	pub fn switch(&mut self, selection: &Vec<ItemInfo>, ctx: &egui::Context) {
 		match selection.len() {
 			0 => self.state = SwitcherState::NoticeBlank,
-			1 => self.switch_single(&selection[0], is_hex_editor_on, ctx),
+			1 => self.switch_single(&selection[0], ctx),
 			2.. => self.state = SwitcherState::NoticeMulti,
 		};
 	}
 	
-	pub fn switch_same(&mut self, is_hex_editor_on: bool, ctx: &egui::Context) {
-		if let Some(item) = self.state.get_item() {
-			let item = item.clone();
-			self.switch_single(&item, is_hex_editor_on, ctx);
-		}
-	}
-	
-	fn switch_single(&mut self, item: &ItemInfo, is_hex_editor_on: bool, ctx: &egui::Context) {
-		if is_hex_editor_on {
-			self.state = SwitcherState::start_load::<HexLoadSwitch>(&item, ctx);
-			return;
-		}
-		
+	fn switch_single(&mut self, item: &ItemInfo, ctx: &egui::Context) {
 		self.state = match FileFormat::from_filename(item.filename()) {
 			Some(FileFormat::Pak) => SwitcherState::NoticePak { item: item.clone() },
 			Some(FileFormat::Stb | FileFormat::Stl | FileFormat::Stm) => SwitcherState::start_load::<StFileView>(&item, ctx),
@@ -185,9 +141,6 @@ impl FileViewSwitcher {
 			SwitcherState::View { item, view } => {
 				let message = ui.push_id(("item view", item), |ui| view.ui(ui)).inner;
 				return message;
-			},
-			SwitcherState::HexView { item, view } => {
-				ui.push_id(("item hex view", item), |ui| view.ui(ui));
 			},
 		};
 		None

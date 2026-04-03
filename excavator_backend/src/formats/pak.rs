@@ -1,17 +1,17 @@
-use crate::parse::{ParseLogger, ParseReader, ParseError, ParseResult};
+use crate::parse::{ParseReader, ParseError, ParseResult};
 use bstr::BString;
 use std::io::{BufRead, Seek};
 use zerocopy::byteorder::{LittleEndian as LE, U32, U64};
 use zerocopy_derive::*;
 
-pub struct PakParser<R: BufRead + Seek, L: ParseLogger<R> = ()> {
-	reader: ParseReader<R, L>,
+pub struct PakParser<R: BufRead + Seek> {
+	reader: ParseReader<R>,
 	header: PakHeader,
 }
 
-impl<R: BufRead + Seek, L: ParseLogger<R>> PakParser<R, L> {	
-	pub fn new(reader: R, logger: L) -> ParseResult<Self> {
-		let mut reader = ParseReader::new(reader, logger);
+impl<R: BufRead + Seek> PakParser<R> {	
+	pub fn new(reader: R) -> ParseResult<Self> {
+		let mut reader = ParseReader::new(reader);
 		let header = reader.read_struct::<PakHeader>(0)?;
 		Ok(Self { reader, header })
 	}
@@ -57,10 +57,6 @@ impl<R: BufRead + Seek, L: ParseLogger<R>> PakParser<R, L> {
 				}
 			}
 		}
-	}
-	
-	pub fn collect_log(self) -> L::Out {
-		self.reader.collect_log()
 	}
 }
 

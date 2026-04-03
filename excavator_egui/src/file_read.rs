@@ -212,7 +212,7 @@ impl LoadableData for ListingLoadResult {
 						.map_err(|e| e.to_string())?;
 					let bufreader = BufReader::new(file);
 					
-					let mut parser = PakParser::new(bufreader, ()).map_err(|e| e.to_string())?;
+					let mut parser = PakParser::new(bufreader).map_err(|e| e.to_string())?;
 					Ok(LoadedListing::Pak(
 						parser.files().map_err(|e| e.to_string())?
 							.map(|r| r.map(|(_, name)| PakEntry { name: CString::new(name).unwrap() }))
@@ -260,7 +260,7 @@ pub fn slice_item(load_result: Arc<BytesLoadResult>, item: &ItemInfo) -> Result<
 		ItemInfo::Pak { inner_path, .. } => {
 			// "so like if we've gotten this far we've already checked the result is ok" (regarding the unwrap)
 			let cursor = std::io::Cursor::new(Result::as_ref(&load_result).unwrap());
-			let mut parser = PakParser::new(cursor, ()).map_err(|e| e.to_string())?;
+			let mut parser = PakParser::new(cursor).map_err(|e| e.to_string())?;
 			
 			let mut files_iter = parser.files().map_err(|_| "error reading pak listing")?;
 			// Iterate through the list of files to find the one with the filename we're looking for

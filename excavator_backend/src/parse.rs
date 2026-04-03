@@ -1,6 +1,3 @@
-mod logger;
-pub use logger::*;
-
 use bstr::BString;
 use std::fmt;
 use std::io::{BufRead, Seek, SeekFrom};
@@ -24,63 +21,50 @@ impl fmt::Display for ParseError {
 	}
 }
 
-pub struct ParseReader<R: BufRead + Seek, L: ParseLogger<R> = ()> {
+pub struct ParseReader<R: BufRead + Seek> {
 	reader: R,
-	logger: L,
 }
 
-impl<R: BufRead + Seek, L: ParseLogger<R>> ParseReader<R, L> {
-	pub fn new(reader: R, logger: L) -> Self {
-		Self { reader, logger }
+impl<R: BufRead + Seek> ParseReader<R> {
+	pub fn new(reader: R) -> Self {
+		Self { reader }
 	}
 	
-	pub fn cursor(&mut self, offset: u64) -> ParseResult<ParseCursor<'_, R, L>> {
+	pub fn cursor(&mut self, offset: u64) -> ParseResult<ParseCursor<'_, R>> {
 		self.reader.seek(SeekFrom::Start(offset))?;
-		let cur = self.logger.cursor(offset);
-		Ok(ParseCursor { parse_reader: self, cur })
+		Ok(ParseCursor { parse_reader: self })
 	}
 	
 	pub fn read_struct<T: FromBytes>(&mut self, offset: u64) -> ParseResult<T> {
 		self.cursor(offset)?.read_struct::<T>()
 	}
 	
-	pub fn read_struct_array<T: FromBytes>(&mut self, offset: u64, entry_count: u64) -> ParseResult<ReadStructArray<'_, T, R, L>> {
+	pub fn read_struct_array<T: FromBytes>(&mut self, offset: u64, entry_count: u64) -> ParseResult<ReadStructArray<'_, T, R>> {
 		Ok(ReadStructArray::new(self.cursor(offset)?, entry_count))
 	}
 
 	pub fn read_null_terminated_string(&mut self, offset: u64) -> ParseResult<BString> {
 		self.cursor(offset)?.read_null_terminated_string()
 	}
-	
-	pub fn collect_log(self) -> L::Out {
-		self.logger.collect()
-	}
 }
 
-pub struct ParseCursor<'a, R: BufRead + Seek, L: ParseLogger<R> = ()> {
-	parse_reader: &'a mut ParseReader<R, L>,
-	cur: L::Cur,
+pub struct ParseCursor<'a, R: BufRead + Seek> {
+	parse_reader: &'a mut ParseReader<R>,
 }
 
-impl<'a, R: BufRead + Seek, L: ParseLogger<R>> ParseCursor<'a, R, L> {
+impl<'a, R: BufRead + Seek> ParseCursor<'a, R> {
 	fn reader(&mut self) -> &mut R {
 		&mut self.parse_reader.reader
 	}
 	
-	fn log_segment(&mut self) {
-		self.parse_reader.logger.segment(&mut self.parse_reader.reader, &mut self.cur);
-	}
-	
 	pub fn read_struct<T: FromBytes>(&mut self) -> ParseResult<T> {
 		let r#struct = T::read_from_io(self.reader())?;
-		self.log_segment();
 		Ok(r#struct)
 	}
 	
 	pub fn read_null_terminated_string(&mut self) -> ParseResult<BString> {
 		let mut buf = Vec::new();
 		self.reader().read_until(0, &mut buf)?;
-		self.log_segment();
 		if buf.last() != Some(&0) { return Err(ParseError); } // Make sure we found the null terminator
 		buf.pop(); // Remove the null terminator
 		Ok(buf.into())
@@ -91,14 +75,14 @@ impl<'a, R: BufRead + Seek, L: ParseLogger<R>> ParseCursor<'a, R, L> {
 	}
 }
 
-pub struct ReadStructArray<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger<R> = ()> {
-	cursor: ParseCursor<'a, R, L>,
+pub struct ReadStructArray<'a, T: FromBytes, R: BufRead + Seek> {
+	cursor: ParseCursor<'a, R>,
 	remaining_count: u64,
 	phantom: PhantomData<fn() -> T>,
 }
 
-impl<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger<R>> ReadStructArray<'a, T, R, L> {
-	pub fn new(cursor: ParseCursor<'a, R, L>, remaining_count: u64) -> Self {
+impl<'a, T: FromBytes, R: BufRead + Seek> ReadStructArray<'a, T, R> {
+	pub fn new(cursor: ParseCursor<'a, R>, remaining_count: u64) -> Self {
 		Self { cursor, remaining_count, phantom: PhantomData }
 	}
 	
@@ -124,7 +108,7 @@ impl<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger<R>> ReadStructArray<'a,
 	}
 }
 
-impl<'a, T: FromBytes, R: BufRead + Seek, L: ParseLogger<R>> Iterator for ReadStructArray<'a, T, R, L> {
+impl<'a, T: FromBytes, R: BufRead + Seek> Iterator for ReadStructArray<'a, T, R> {
 	type Item = ParseResult<T>;
 	
 	fn next(&mut self) -> Option<ParseResult<T>> {
