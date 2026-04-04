@@ -113,8 +113,9 @@ impl<R: Read> WflzReader<R> {
 	
 	fn read_backref(&mut self, dist: u16, length: u8) -> Result<(), WflzReadError> {
 		let (dist, length) = (usize::from(dist), usize::from(length));
+		let length = length + std::mem::size_of::<WflzBlock>();
 		
-		let _ = self.data.get(self.write_index).ok_or(WflzReadError::BiggerThanExpected)?;
+		let _ = self.data.get(self.write_index..).ok_or(WflzReadError::BiggerThanExpected)?;
 		
 		let offset = self.write_index.checked_sub(dist)
 			.ok_or(WflzReadError::InvalidBackref)?;
@@ -126,7 +127,7 @@ impl<R: Read> WflzReader<R> {
 		//
 		// The arithmetic can't overflow since these numbers are converted from smaller types
 		// (...unless you compile this with 16-bit usize for some reason)
-		let _ = slice.get(dist + length).ok_or(WflzReadError::BiggerThanExpected)?;
+		let _ = slice.get(dist + length - 1).ok_or(WflzReadError::BiggerThanExpected)?;
 		for i in 0..length {
 			slice[dist + i] = slice[i];
 		}
