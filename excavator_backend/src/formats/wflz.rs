@@ -1,144 +1,150 @@
+use std::{error, fmt, io};
+use std::io::Read;
 use zerocopy::{*, LittleEndian as LE};
 use zerocopy_derive::*;
-use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError, StructRole};
 
-const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
+pub const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";
 
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
-pub struct WflzHeader {
-	pub magic: [u8; 4],
-	pub compressed_size: U32<LE>,
-	pub decompressed_size: U32<LE>,
+struct WflzHeader {
+	magic: [u8; 4],
+	compressed_size: U32<LE>,
+	decompressed_size: U32<LE>,
+	// Since this first block is part of the header, it does not count towards compressed_size.
+	// The literal bytes specified by it, however, do count.
+	// This means that compressed_size is always exactly 4 less than you might expect.
+	first_block: WflzBlock,
 }
 
-impl WflzHeader {
-	pub fn is_magic_correct(&self) -> bool {
-		self.magic == WFLZ_MAGIC
-	}
-	
-	pub fn first_block<'a>(&self, file: &'a [u8]) -> ParserStruct<'a, WflzBlock> {
-		let self_offset = std::ptr::from_ref(self).addr() - file.as_ptr().addr();
-		let after_offset = self_offset + std::mem::size_of::<Self>();
-		ParserStruct::new(file, after_offset)
-	}
-}
-
-impl ParserReflect for WflzHeader {
-	fn get_subordinates(&self, context: &mut ParserReflectContext) {
-		context.ingest(self.first_block(context.file()));
-	}
-}
-
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
-pub struct WflzBlock {
+struct WflzBlock {
 	backref_dist: U16<LE>,
 	backref_length: u8,
 	literals_length: u8,
 }
 
 impl WflzBlock {
-	// Gotta make a ParserSlice type or something
-	pub fn literals<'a>(&self, file: &'a [u8]) -> Result<&'a [u8], ParserStructError> {
-		let self_offset = std::ptr::from_ref(self).addr() - file.as_ptr().addr();
-		let literals_offset = self_offset + std::mem::size_of::<Self>();
-		
-		ParserStruct::<[u8]>::new(file, literals_offset).retrieve_with_len(usize::from(self.literals_length))
-	}
-	
-	pub fn next_block<'a>(&self, file: &'a [u8]) -> Option<ParserStruct<'a, WflzBlock>> {
-		if self.backref_dist == 0 && self.backref_length == 0 && self.literals_length == 0 {
-			return None;
-		}
-		
-		let self_offset = std::ptr::from_ref(self).addr() - file.as_ptr().addr();
-		let next_offset = self_offset + std::mem::size_of::<Self>() + usize::from(self.literals_length);
-		
-		Some(ParserStruct::new(file, next_offset))
+	fn is_terminator(&self) -> bool {
+		self.as_bytes().iter().all(|&x| x == 0)
 	}
 }
 
-impl ParserReflect for WflzBlock {
-	fn get_subordinates(&self, context: &mut ParserReflectContext) {
-		let file = context.file();
-		
-		context.bullshit(self.literals(file));
-		
-		if let Some(next_block) = self.next_block(file) {
-			context.ingest(next_block);
+#[derive(Debug)]
+pub enum WflzReadError {
+	Io(io::Error),
+	WrongMagic,
+	InvalidBackref,
+	BiggerThanExpected,
+}
+
+impl fmt::Display for WflzReadError {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Io(e) => e.fmt(f),
+			Self::WrongMagic => write!(f, "wrong wflz magic"),
+			Self::InvalidBackref => write!(f, "invalid wflz backref"),
+			Self::BiggerThanExpected => write!(f, "wflz decompression result too big"),
 		}
 	}
-	
-	fn role(&self) -> StructRole {
-		StructRole::CompressionBlock
+}
+
+impl error::Error for WflzReadError {}
+
+impl From<io::Error> for WflzReadError {
+	fn from(value: io::Error) -> Self {
+		Self::Io(value)
 	}
 }
 
-pub struct WflzDecompressor<'a> {
-	file: &'a [u8],
-	start: usize,
-	cursor: usize,
-	decompressed_data: Vec<u8>,
+pub fn decompress<R: Read>(reader: &mut R) -> Result<Box<[u8]>, WflzReadError> {
+	let mut wflz = WflzReader::new(reader)?;
+	wflz.decompress_all()?;
+	Ok(wflz.data)
 }
 
-pub struct WflzDecompressResult {
-	pub data: Box<[u8]>,
-	pub compressed_size: usize,
+struct WflzReader<R: Read> {
+	reader: R,
+	data: Box<[u8]>,
+	write_index: usize,
 }
 
-impl<'a> WflzDecompressor<'a> {
-	pub fn new(file: &'a [u8], header_offset: usize) -> Result<Self, ParserStructError> {
-		let header = ParserStruct::<WflzHeader>::new(file, header_offset).retrieve()?;
+impl<R: Read> WflzReader<R> {
+	fn new(mut reader: R) -> Result<Self, WflzReadError> {
+		let header = WflzHeader::read_from_io(&mut reader)?;
+		let WflzHeader { magic, compressed_size, decompressed_size, first_block } = header;
+		let (compressed_size, decompressed_size) = (compressed_size.get(), decompressed_size.get());
 		
-		let start = header.first_block(file).get_offset(); let cursor = start;
-		let decompressed_data = Vec::with_capacity(header.decompressed_size.get() as usize);
-		Ok(Self { file, start, cursor, decompressed_data })
+		if magic != WFLZ_MAGIC {
+			return Err(WflzReadError::WrongMagic);
+		} else if first_block.backref_dist != 0 || first_block.backref_length != 0 {
+			return Err(WflzReadError::InvalidBackref);
+		}
+		
+		let decompressed_size_usize = usize::try_from(decompressed_size).unwrap_or(usize::MAX);
+		let mut this = Self {
+			reader,
+			data: vec![0; decompressed_size_usize].into_boxed_slice(),
+			write_index: 0,
+		};
+		
+		this.read_literals(first_block.literals_length)?;
+		
+		Ok(this)
 	}
 	
-	fn decompress_block(&mut self, block: &'a WflzBlock) -> Result<Option<ParserStruct<'a, WflzBlock>>, ParserStructError> {
-		let backref_slice_start = self.decompressed_data.len().saturating_sub(usize::from(block.backref_dist));
-		let backref_slice_end = std::cmp::min(
-			backref_slice_start.saturating_add(usize::from(block.backref_length)),
-			self.decompressed_data.len()
-		);
-		let backref_range = backref_slice_start..backref_slice_end;
-		
-		let mut remaining_backref = usize::from(block.backref_length) + 4;
+	fn decompress_all(&mut self) -> Result<(), WflzReadError> {
 		loop {
-			if backref_range.len() == 0 {
+			let block = self.read_block()?;
+			if block.is_terminator() {
 				break;
 			}
-			
-			if remaining_backref > backref_range.len() {
-				// I feel like Range should be Copy if its Idx is. Perhaps I'll make a pull request for that.
-				self.decompressed_data.extend_from_within(backref_range.clone());
-				remaining_backref -= backref_range.len();
-			} else {
-				self.decompressed_data.extend_from_within(backref_range.start .. backref_range.start + remaining_backref);
-				break;
-			}
+			self.read_backref(block.backref_dist.get(), block.backref_length)?;
+			self.read_literals(block.literals_length)?;
 		}
-		
-		let literals_slice = block.literals(self.file)?;
-		self.decompressed_data.extend(literals_slice);
-		
-		Ok(block.next_block(self.file))
+		Ok(())
 	}
 	
-	pub fn decompress_all(mut self) -> Result<WflzDecompressResult, ParserStructError> {
-		loop {
-			let current_block = ParserStruct::<WflzBlock>::new(self.file, self.cursor).retrieve()?;
-			if let Some(next_block) = self.decompress_block(current_block)? {
-				self.cursor = next_block.get_offset();
-			} else {
-				break;
-			}
+	fn read_block(&mut self) -> Result<WflzBlock, WflzReadError> {
+		let block = WflzBlock::read_from_io(&mut self.reader)?;
+		Ok(block)
+	}
+	
+	fn read_backref(&mut self, dist: u16, length: u8) -> Result<(), WflzReadError> {
+		let (dist, length) = (usize::from(dist), usize::from(length));
+		
+		let _ = self.data.get(self.write_index).ok_or(WflzReadError::BiggerThanExpected)?;
+		
+		let offset = self.write_index.checked_sub(dist)
+			.ok_or(WflzReadError::InvalidBackref)?;
+		let mut slice = self.data.get_mut(offset..)
+			.ok_or(WflzReadError::BiggerThanExpected)?;
+		
+		// The bounds checks inside the loop get optimized out thanks to the one at the top
+		// Loop unrolling and autovectorization also kicks in, which seems good
+		//
+		// The arithmetic can't overflow since these numbers are converted from smaller types
+		// (...unless you compile this with 16-bit usize for some reason)
+		let _ = slice.get(dist + length).ok_or(WflzReadError::BiggerThanExpected)?;
+		for i in 0..length {
+			slice[dist + i] = slice[i];
 		}
 		
-		Ok(WflzDecompressResult {
-			data: Box::from(self.decompressed_data),
-			compressed_size: self.cursor - self.start,
-		})
+		self.write_index += length;
+		Ok(())
+	}
+	
+	fn read_literals(&mut self, length: u8) -> Result<(), WflzReadError> {
+		let length = usize::from(length);
+		
+		let buf = self.data.get_mut(self.write_index..)
+			.and_then(|x| x.get_mut(..length))
+			.ok_or(WflzReadError::BiggerThanExpected)?;
+		
+		self.reader.read_exact(buf)?;
+		
+		self.write_index += length;
+		Ok(())
 	}
 }

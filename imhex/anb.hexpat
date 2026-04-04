@@ -11,7 +11,7 @@ struct DataBlock {
     std::mem::Bytes<size> content;
     
     if (magic != "\xff\xff\xff\x00") {
-        std::print("wrong data block magic: {}", magic);
+        std::print("wrong data block magic: {} @ {}", magic, $);
     }
 };
 
@@ -129,7 +129,7 @@ struct Header {
     u32 unknown_14;
     u32 unknown_18;
     u32 unknown_1C;
-    OuterThingPointer *pointer[1]: u64;
+    OuterThingPointer *pointer: u64;
     
     if (magic != "YCSN") {
         std::print("wrong file magic: {}", magic);

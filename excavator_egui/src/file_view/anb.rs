@@ -2,9 +2,7 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
-use excavator_backend::formats::anb::{AnbHeader, AnbDataStart, get_the_stupid_sprite_size};
-use excavator_backend::formats::binary::{ParserStruct, ParserStructError};
-use excavator_backend::formats::wflz::WflzDecompressor;
+use excavator_backend::formats::anb::{self, AnbHeader, AnbDataStart, get_the_stupid_sprite_size};
 
 pub struct AnbFileView {
 	bytes: FileBytes,
@@ -21,26 +19,21 @@ impl ItemView for AnbFileView {
 		let mut data_decompressed_size = 0;
 		
 		let texture = (|| {
-			let anb_header = ParserStruct::<AnbHeader>::new(file, 0).retrieve()?;
-			let wflz_header_offset = anb_header.data_pointer.get() as usize + std::mem::size_of::<u32>() * 6; // there's the AnbDataStart struct but this is lazy hacked code
-			
-			let decompressed = WflzDecompressor::new(file, wflz_header_offset)?.decompress_all()?;
-			data_compressed_size = decompressed.compressed_size;
-			data_decompressed_size = decompressed.data.len();
+			let decompressed = anb::decompress_the_wflz(file)?;
 			
 			let sprite_size = get_the_stupid_sprite_size(file)?;
 			let sprite_size_usize = [sprite_size[0] as usize, sprite_size[1] as usize];
 			
-			if sprite_size_usize[0] * sprite_size_usize[1] * 4 != decompressed.data.len() {
+			if sprite_size_usize[0] * sprite_size_usize[1] * 4 != decompressed.len() {
 				anyhow::bail!(
 					"wrong sprite size info: w{} * h{} * 4 == {} != {}",
 					sprite_size_usize[0], sprite_size_usize[1],
 					sprite_size_usize[0] * sprite_size_usize[1] * 4,
-					decompressed.data.len(),
+					decompressed.len(),
 				);
 			}
 			
-			Ok(data_to_texture(decompressed.data, sprite_size_usize, format!("{:?} - frame 0", bytes.source_item()), ctx))
+			Ok(data_to_texture(decompressed, sprite_size_usize, format!("{:?} - frame 0", bytes.source_item()), ctx))
 		})();
 		
 		Self { bytes, texture, data_compressed_size, data_decompressed_size }
@@ -49,12 +42,12 @@ impl ItemView for AnbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
 		match &self.texture {
 			Ok(texture) => {
-				let _: Result<_, ParserStructError> = (|| {
+				let _: Result<_, anyhow::Error> = (|| {
 					let file = self.bytes.as_slice();
 					
-					let anb_header = ParserStruct::<AnbHeader>::new(file, 0).retrieve()?;
-					let data_start = ParserStruct::<AnbDataStart>::new(file, anb_header.data_pointer.get() as usize).retrieve()?;
+					let data_start = anb::get_data_start(file)?;
 					
+					/*
 					egui::Grid::new("stats grid").show(ui, |ui| {
 						ui.label(format!("Compressed size from metadata: {}", data_start.wflz.compressed_size));
 						ui.label(format!("Compressed size from parser: {}", self.data_compressed_size));
@@ -64,6 +57,7 @@ impl ItemView for AnbFileView {
 						ui.label(format!("Decompressed size from parser: {}", self.data_decompressed_size));
 						ui.end_row();
 					});
+					*/
 					
 					Ok(())
 				})();

@@ -2,7 +2,6 @@ use zerocopy::{*, byteorder::{LittleEndian, U32, U64}};
 use zerocopy_derive::*;
 
 use super::binary::{ParserReflect, ParserReflectContext, ParserStruct, ParserStructError};
-use super::wflz::WflzHeader;
 
 type LE = LittleEndian;
 
@@ -242,12 +241,12 @@ impl ParserReflect for AnbFrameInfo2EntryTertiary {
 #[repr(C)]
 pub struct AnbDataStart {
 	unknown: [U32<LE>; 6],
-	pub wflz: WflzHeader,
+	// pub wflz: WflzHeader,
 }
 
 impl ParserReflect for AnbDataStart {
-	fn get_subordinates(&self, context: &mut ParserReflectContext) {
-		self.wflz.get_subordinates(context);
+	fn get_subordinates(&self, _context: &mut ParserReflectContext) {
+		// self.wflz.get_subordinates(context);
 	}
 }
 
@@ -271,14 +270,27 @@ impl ParserReflect for AnbBlock {
 }
 */
 
+pub fn decompress_the_wflz(file: &[u8]) -> Result<Box<[u8]>, anyhow::Error> {
+	let anb_header = ParserStruct::<AnbHeader>::new(file, 0).retrieve()?;
+	let wflz_header_offset = anb_header.data_pointer.get() as usize + std::mem::size_of::<u32>() * 6; // there's the AnbDataStart struct but this is lazy hacked code
+	let decompressed = super::wflz::decompress(&mut std::io::Cursor::new(&file[wflz_header_offset..]))?;
+	Ok(decompressed)
+}
+
+pub fn get_data_start(file: &[u8]) -> Result<&AnbDataStart, ParserStructError> {
+	let anb_header = ParserStruct::<AnbHeader>::new(file, 0).retrieve()?;
+	let data_start = ParserStruct::<AnbDataStart>::new(file, anb_header.data_pointer.get() as usize).retrieve()?;
+	Ok(data_start)
+}
+
 pub fn get_the_stupid_sprite_size(file: &[u8]) -> Result<[u32; 2], ParserStructError> {
 	let anb_header = ParserStruct::<AnbHeader>::new(file, 0).retrieve()?;
-	println!("anb_header.frame_info_2_pointer: {:?}", anb_header.frame_info_2_pointer);
+	// println!("anb_header.frame_info_2_pointer: {:?}", anb_header.frame_info_2_pointer);
 	let frame_info_2_entry_pointer = ParserStruct::<U64<LE>>::new(file, anb_header.frame_info_2_pointer.get() as usize + 8).retrieve()?;
-	println!("frame_info_2_entry_pointer: {:?}", frame_info_2_entry_pointer);
+	// println!("frame_info_2_entry_pointer: {:?}", frame_info_2_entry_pointer);
 	let frame_info_2_entry = ParserStruct::<AnbFrameInfo2Entry>::new(file, frame_info_2_entry_pointer.get() as usize).retrieve()?;
 	let frame_info_2_entry_secondary_pointer = ParserStruct::<U64<LE>>::new(file, frame_info_2_entry.entry_secondary_pointer.get() as usize).retrieve()?;
-	println!("frame_info_2_entry_secondary_pointer: {:?}", frame_info_2_entry_secondary_pointer);
+	// println!("frame_info_2_entry_secondary_pointer: {:?}", frame_info_2_entry_secondary_pointer);
 	// let frame_info_2_entry_secondary = ParserStruct::<AnbFrameInfo2EntrySecondary>::new(file, frame_info_2_entry_secondary_pointer.get() as usize).retrieve()?;
 	// println!("frame_info_2_entry_secondary.entry_tertiary_pointer: {:?}", frame_info_2_entry_secondary.entry_tertiary_pointer);
 	// let frame_info_2_entry_tertiary = ParserStruct::<AnbFrameInfo2EntryTertiary>::new(file, frame_info_2_entry_secondary.entry_tertiary_pointer.get() as usize).retrieve()?;
