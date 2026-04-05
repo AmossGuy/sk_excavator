@@ -74,7 +74,7 @@ impl<R: Read> WflzReader<R> {
 	fn new(mut reader: R) -> Result<Self, WflzReadError> {
 		let header = WflzHeader::read_from_io(&mut reader)?;
 		let WflzHeader { magic, compressed_size, decompressed_size, first_block } = header;
-		let (compressed_size, decompressed_size) = (compressed_size.get(), decompressed_size.get());
+		let (_compressed_size, decompressed_size) = (compressed_size.get(), decompressed_size.get());
 		
 		if magic != WFLZ_MAGIC {
 			return Err(WflzReadError::WrongMagic);
@@ -119,7 +119,7 @@ impl<R: Read> WflzReader<R> {
 		
 		let offset = self.write_index.checked_sub(dist)
 			.ok_or(WflzReadError::InvalidBackref)?;
-		let mut slice = self.data.get_mut(offset..)
+		let slice = self.data.get_mut(offset..)
 			.ok_or(WflzReadError::BiggerThanExpected)?;
 		
 		// The bounds checks inside the loop get optimized out thanks to the one at the top

@@ -8,7 +8,6 @@ anyhow = "1.0.102"
 binrw = "0.14.1"
 bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
-rust-lapper = "1.2.0"
 yoke = { version = "0.8.1", default-features = false, features = ["alloc"] }
 zerocopy = { version = "0.8.39", features = ["std"] }
 zerocopy-derive = "0.8.39"
