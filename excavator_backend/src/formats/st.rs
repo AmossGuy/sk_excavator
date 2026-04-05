@@ -1,12 +1,22 @@
-use std::io::{BufRead, Seek, SeekFrom};
+use std::io::{BufRead, Read, Seek, SeekFrom};
 
-use binrw::{BinRead, BinResult, BinWrite, NullString};
+use binrw::{BinRead, BinResult, BinWrite, Endian, NullString, VecArgs};
 
-use super::binary::read_pointers;
+// use super::binary::read_pointers;
+
+pub(crate) fn read_pointers<R: Read + Seek>(reader: &mut R, count: usize) -> BinResult<Vec<u64>> {
+	Vec::<u64>::read_options(
+		reader,
+		Endian::Little,
+		VecArgs {
+			count,
+			inner: <_>::default(),
+		},
+	)
+}
 
 #[derive(BinRead, BinWrite, Copy, Clone, Eq, PartialEq, Debug)]
 #[brw(little, magic = b"\0\0\0\0\0\0\0\0")]
-
 struct StlHeader {
 	entry_count: u32,
 	field_count: u32,

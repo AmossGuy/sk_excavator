@@ -52,7 +52,7 @@ impl<R: BufRead + Seek> ParseReader<R> {
 	}
 	
 	pub fn read_struct_array<T: FromBytes>(&mut self, offset: u64, entry_count: u64) -> ParseResult<ReadStructArray<'_, T, R>> {
-		Ok(ReadStructArray::new(self.cursor(offset)?, entry_count))
+		Ok(self.cursor(offset)?.read_struct_array(entry_count))
 	}
 
 	pub fn read_null_terminated_string(&mut self, offset: u64) -> ParseResult<BString> {
@@ -72,6 +72,10 @@ impl<'a, R: BufRead + Seek> ParseCursor<'a, R> {
 	pub fn read_struct<T: FromBytes>(&mut self) -> ParseResult<T> {
 		let r#struct = T::read_from_io(self.reader())?;
 		Ok(r#struct)
+	}
+	
+	pub fn read_struct_array<T: FromBytes>(self, entry_count: u64) -> ReadStructArray<'a, T, R> {
+		ReadStructArray::new(self, entry_count)
 	}
 	
 	pub fn read_null_terminated_string(&mut self) -> ParseResult<BString> {
@@ -152,5 +156,17 @@ impl<'a, T: FromBytes, R: BufRead + Seek> Iterator for ReadStructArray<'a, T, R>
 			0 => (0, Some(0)),
 			1.. => (1, self.remaining_count.try_into().ok())
 		}
+	}
+}
+
+pub fn check_magic(expected: impl AsRef<[u8]>, found: impl AsRef<[u8]>) -> ParseResult<()> {
+	let (expected, found) = (expected.as_ref(), found.as_ref());
+	if expected == found {
+		Ok(())
+	} else {
+		Err(ParseError::WrongMagic { 
+			expected: BString::from(expected), 
+			found: BString::from(found),
+		})
 	}
 }

@@ -1,5 +1,4 @@
 pub mod anb;
-mod binary;
 // pub mod level;
 pub mod pak;
 pub mod st;
