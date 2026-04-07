@@ -85,7 +85,7 @@ impl ParsedData {
 				
 				let reader = cursor.uncursor();
 				
-				let mut cursor = reader.cursor(attached.wflz_pointer.get())?;
+				let cursor = reader.cursor(attached.wflz_pointer.get())?;
 				let data = read_data_block(cursor)?;
 				
 				Self::FrameWflz { metadata: FrameWflzMetadata::from(&attached), data }
@@ -107,8 +107,8 @@ fn read_data_block<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>) -> ParseRe
 pub struct FrameWflzMetadata {
 	pub image_width: u32,
 	pub image_height: u32,
-	unknown_a: u32,
-	unknown_b: u32,
+	pub unknown_a: u32,
+	pub unknown_b: u32,
 }
 
 impl From<&FrameWflzAttached> for FrameWflzMetadata {
