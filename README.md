@@ -6,4 +6,4 @@ Shovel Knight modding tool, currently in a very primitive state of development. 
 * It can display the contents of certain filetypes contained in said archives:
   * .png - You're surely aware of this image format. Shovel Knight only uses these for palettes and a few assets used for OS integration.
   * .stb / .stl / .stm - A group of similar formats for tabular data. The most important use of these is the storage of all the dialogue and other text.
-  * Work is underway on reading .anb files, the main format for the game's graphics. It can display the tree structure of these files, and the underlying compression format is implemented, but I haven't hooked these two parts together just yet, so you can't actually view the graphics until I do that.
+  * .anb - The main format for the game's graphics. The way these are displayed currently is just the raw structure of the file; you can look at frames separately, but no more.
