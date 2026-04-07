@@ -94,6 +94,15 @@ impl<'a, R: BufRead + Seek> ParseCursor<'a, R> {
 	pub fn stream_position(&mut self) -> std::io::Result<u64> {
 		self.reader().stream_position()
 	}
+	
+	pub fn uncursor(self) -> &'a mut ParseReader<R> {
+		self.parse_reader
+	}
+	
+	// idk maybe this whole wrapper's silly
+	pub fn inner_reader(&mut self) -> &mut R {
+		self.reader()
+	}
 }
 
 pub struct ReadStructArray<'a, T: FromBytes, R: BufRead + Seek> {

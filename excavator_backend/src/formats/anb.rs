@@ -27,16 +27,16 @@ impl ParsedAnb {
 }
 
 pub struct ParsedAnbNode {
-	kind: u32,
-	wflz_file_offset: Option<u64>,
+	data: ParsedData,
 	children: Vec<ParseResult<Self>>,
 }
 
 impl ParsedAnbNode {
 	fn recursive_read<R: BufRead + Seek>(reader: &mut ParseReader<R>, offset: u64) -> ParseResult<Self> {
-		let raw_node = reader.read_struct::<AnbTreeNode>(offset)?;
-		let kind = raw_node.kind.get();
-		let wflz_file_offset = None; // one sec
+		let mut cursor = reader.cursor(offset)?;
+		
+		let raw_node = cursor.read_struct::<AnbTreeNode>()?;
+		let data = ParsedData::read(cursor, raw_node.kind.get())?;
 		
 		let children_pointers = reader
 			.read_struct_array::<U64<LE>>(raw_node.children_pointer.get(), raw_node.children_count.get().into())?
@@ -45,15 +45,80 @@ impl ParsedAnbNode {
 			Self::recursive_read(reader, offset.get())
 		}).collect::<Vec<_>>();
 		
-		Ok(Self { kind, wflz_file_offset, children })
+		Ok(Self { data, children })
 	}
 	
 	pub fn kind(&self) -> u32 {
-		self.kind
+		self.data.kind()
+	}
+	
+	pub fn data(&self) -> &ParsedData {
+		&self.data
 	}
 	
 	pub fn children(&self) -> impl Iterator<Item = &ParseResult<Self>> {
 		self.children.iter()
+	}
+}
+
+#[non_exhaustive]
+pub enum ParsedData {
+	FrameWflz { metadata: FrameWflzMetadata, data: Box<[u8]> },
+	Unknown { kind: u32 },
+}
+
+// gotta encapsulate ParsedData more
+pub use super::wflz::decompress as decompress_wflz;
+
+impl ParsedData {
+	fn kind(&self) -> u32 {
+		match self {
+			Self::FrameWflz { .. } => 1,
+			Self::Unknown { kind } => *kind,
+		}
+	}
+	
+	fn read<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>, kind: u32) -> ParseResult<Self> {
+		Ok(match kind {
+			1 => {
+				let attached = cursor.read_struct::<FrameWflzAttached>()?;
+				
+				let reader = cursor.uncursor();
+				
+				let mut cursor = reader.cursor(attached.wflz_pointer.get())?;
+				let data = read_data_block(cursor)?;
+				
+				Self::FrameWflz { metadata: FrameWflzMetadata::from(&attached), data }
+			},
+			_ => Self::Unknown { kind },
+		})
+	}
+}
+
+fn read_data_block<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>) -> ParseResult<Box<[u8]>> {
+	let block_header = cursor.read_struct::<AnbDataBlockHeader>()?;
+	check_magic([0xFF, 0xFF, 0xFF, 0], block_header.magic)?;
+	let mut data = vec![0; block_header.length.get() as usize].into_boxed_slice();
+	cursor.inner_reader().read_exact(&mut data)?;
+	Ok(data)
+}
+
+#[derive(Clone, Debug)]
+pub struct FrameWflzMetadata {
+	pub image_width: u32,
+	pub image_height: u32,
+	unknown_a: u32,
+	unknown_b: u32,
+}
+
+impl From<&FrameWflzAttached> for FrameWflzMetadata {
+	fn from(value: &FrameWflzAttached) -> Self {
+		Self {
+			image_width: value.image_width.get(),
+			image_height: value.image_height.get(),
+			unknown_a: value.unknown_08.get(),
+			unknown_b: value.unknown_0C.get(),
+		}
 	}
 }
 
@@ -81,8 +146,20 @@ struct AnbTreeNode {
 	// The actual information is stored directly after this struct, the format determined by the kind field
 }
 
-#[derive(Debug)]
-struct AnbDataBlock {
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+struct AnbDataBlockHeader {
 	magic: [u8; 4], // always FF FF FF 00
 	length: U32<LE>,
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+#[allow(non_snake_case)]
+struct FrameWflzAttached {
+	image_width: U32<LE>,
+	image_height: U32<LE>,
+	unknown_08: U32<LE>,
+	unknown_0C: U32<LE>,
+	wflz_pointer: U64<LE>,
 }
