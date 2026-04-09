@@ -1,5 +1,5 @@
 pub mod anb;
-// pub mod level;
+pub mod ltb;
 pub mod pak;
 pub mod st;
 mod wflz;
@@ -20,6 +20,10 @@ pub enum FileFormat {
 	// graphics
 	Anb,
 	Image(ImageFormat),
+	
+	// level data
+	Ltb,
+	Lvb,
 }
 
 impl FileFormat {
@@ -38,6 +42,8 @@ impl FileFormat {
 			b"stl" => Some(Self::Stl),
 			b"stm" => Some(Self::Stm),
 			b"anb" => Some(Self::Anb),
+			b"ltb" => Some(Self::Ltb),
+			b"lvb" => Some(Self::Lvb),
 			
 			// If it isn't one of the extensions above, see whether it's one of the extensions the image crate knows.
 			// We only return None if ImageFormat::from_extension does.

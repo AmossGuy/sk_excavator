@@ -149,3 +149,10 @@ impl<R: Read> WflzReader<R> {
 		Ok(())
 	}
 }
+
+pub fn extract_wflz_from_reader<R: Read>(reader: &mut R) -> std::io::Result<Box<[u8]>> {
+	let header = WflzHeader::read_from_io(&mut *reader)?;
+	let mut data = vec![0; header.compressed_size.get() as usize].into_boxed_slice();
+	reader.read_exact(&mut data)?;
+	Ok(data)
+}

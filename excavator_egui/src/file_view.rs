@@ -1,5 +1,6 @@
 mod anb;
 mod image;
+mod ltb;
 mod st;
 
 use std::path::PathBuf;
@@ -11,6 +12,7 @@ use crate::plugins::ItemLoaders;
 
 use self::anb::AnbFileView;
 use self::image::ImageFileView;
+use self::ltb::LtbFileView;
 use self::st::StFileView;
 
 use excavator_backend::formats::FileFormat;
@@ -111,6 +113,7 @@ impl FileViewSwitcher {
 			Some(FileFormat::Stb | FileFormat::Stl | FileFormat::Stm) => SwitcherState::start_load::<StFileView>(&item, ctx),
 			Some(FileFormat::Image(::image::ImageFormat::Png)) => SwitcherState::start_load::<ImageFileView>(&item, ctx),
 			Some(FileFormat::Anb) => SwitcherState::start_load::<AnbFileView>(&item, ctx),
+			Some(FileFormat::Ltb) => SwitcherState::start_load::<LtbFileView>(&item, ctx),
 			_ => SwitcherState::NoticeUnknown { item: item.clone() },
 		};
 	}
