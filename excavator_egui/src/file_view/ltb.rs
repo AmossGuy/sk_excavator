@@ -2,6 +2,7 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
+use excavator_backend::formats::anb::decompress_wflz;
 use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb};
 use excavator_backend::parse::ParseResult;
 
@@ -31,7 +32,11 @@ impl ItemView for LtbFileView {
 			Ok(parsed) => {
 				for (i, data) in parsed.wflz_data_iter().enumerate() {
 					match data {
-						Ok(data) => if ui.button(format!("wflz data {}", i)).clicked() {
+						Ok(data) => if ui.button(format!("wflz data {}", i)).clicked() { 'click: {
+							let Ok(data) = decompress_wflz(&mut std::io::Cursor::new(data)) else {
+								break 'click;
+							};
+							
 							let sqrt = (data.len() / 4).isqrt();
 							let size = egui::Vec2::splat(sqrt as f32);
 							let texture_name = format!("ltb thingy #{}", i);
@@ -40,7 +45,7 @@ impl ItemView for LtbFileView {
 							let handle = ui.ctx().load_texture(texture_name, egui_image, egui::TextureOptions::NEAREST);
 							
 							self.current_texture = Some(LtbViewTexture { handle, size });
-						},
+						} },
 						Err(e) => { ui.label(format!("wflz data {} error: {}", i, e)); },
 					}
 				}
