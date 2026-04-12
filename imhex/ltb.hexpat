@@ -21,12 +21,8 @@ struct Mystery6 {
     u32 unknown[5];
 };
 
-struct Mystery5 {
-    u32 unknown[2];
-};
-
 struct Mystery2 {
-    u32 unknown[20];
+    u32 unknown[19];
 };
 
 struct Mystery1 {
@@ -57,24 +53,24 @@ struct Header {
     Mystery2 *mystery2_pointer[mystery2_count] : u64;
     
     u32 unknown_40;
-    u32 mystery3_count;
-    u32 *mystery3_pointer[mystery3_count] : u64;
+    u32 chunkmap_size;
+    std::mem::Bytes<chunkmap_size * 4> *chunkmap_pointer : u64;
     
     u32 unknown_50;
-    u32 mystery4_count;
-    u16 *mystery4_pointer[mystery4_count] : u64;
+    u32 tilemap_size;
+    std::mem::Bytes<tilemap_size * 2> *tilemap_pointer : u64;
     
     u32 unknown_60;
-    u32 mystery5_count;
-    Mystery5 *mystery5_pointer[mystery5_count] : u64;
+    u32 tileset_size;
+    std::mem::Bytes<tileset_size * 8> *tileset_pointer : u64;
     
     u32 unknown_70;
     u32 mystery6_count;
     Mystery6 *mystery6_pointer[mystery6_count] : u64;
     
     u32 unknown_80;
-    u32 wflz_container_count;
-    WflzContainerPointer *wflz_containers[wflz_container_count] : u64;
+    u32 image_count;
+    WflzContainerPointer *images_pointer[image_count] : u64;
 };
 
 Header header @ 0;
