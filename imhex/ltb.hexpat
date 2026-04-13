@@ -1,28 +1,26 @@
+import std.core;
 import std.io;
 import std.mem;
 
 #pragma endian little
 
-struct WflzContainer {
-    char magic[4];
-    
-    if (magic == "WFLZ") {
-        u32 compressed_size;
-        u32 decompressed_size;
-        std::mem::Bytes<compressed_size> data;
-    }
-};
-
-struct WflzContainerPointer {
-    WflzContainer *wflz_container_pointer : u64;
+// note: despite my use of the term "image" here, this structure also stores palettes
+struct ImagePointer {
+    u32 size = parent.image_meta_pointer[std::core::array_index()].data_size;
+    std::mem::Bytes<size> *image_pointer : u64 [[inline]];
 };
 
 struct Mystery6 {
     u32 unknown[5];
 };
 
-struct Mystery2 {
-    u32 unknown[19];
+struct ImageMetadata {
+    u32 unknown_00;
+    u32 unknown_04;
+    u32 image_width;
+    u32 image_height;
+    u32 unknown_more[14];
+    u32 data_size;
 };
 
 struct Mystery1 {
@@ -49,8 +47,8 @@ struct Header {
     Mystery1 *mystery1_pointer[mystery1_count] : u64;
     
     u32 unknown_30;
-    u32 mystery2_count;
-    Mystery2 *mystery2_pointer[mystery2_count] : u64;
+    u32 image_meta_count;
+    ImageMetadata *image_meta_pointer[image_meta_count] : u64;
     
     u32 unknown_40;
     u32 chunkmap_size;
@@ -70,7 +68,7 @@ struct Header {
     
     u32 unknown_80;
     u32 image_count;
-    WflzContainerPointer *images_pointer[image_count] : u64;
+    ImagePointer *images_pointer[image_count] : u64;
 };
 
 Header header @ 0;
