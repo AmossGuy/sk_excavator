@@ -1,4 +1,5 @@
 use crate::parse::*;
+use crate::formats::anb::decompress_wflz;
 use std::io::{BufRead, Seek};
 use zerocopy::{*, LittleEndian as LE};
 use zerocopy_derive::*;
@@ -26,7 +27,7 @@ struct LtbHeaderRow {
 #[repr(C)]
 struct ImageMetadata {
 	unknown_00: U32<LE>,
-	unknown_04: U32<LE>,
+	is_compressed: U32<LE>,
 	image_width: U32<LE>,
 	image_height: U32<LE>,
 	unknown_more: [U32<LE>; 14],
@@ -81,8 +82,12 @@ pub struct ParsedImage {
 }
 
 impl ParsedImage {
-	pub fn data(&self) -> &[u8] {
-		&self.data
+	pub fn decompress(&self) -> anyhow::Result<Box<[u8]>> {
+		match self.meta.is_compressed.get() {
+			0 => Ok(self.data.clone()),
+			1 => decompress_wflz(&mut std::io::Cursor::new(&self.data)).map_err(|e| e.into()),
+			x => Err(anyhow::anyhow!("Invalid value for compression toggle: {}", x)),
+		}
 	}
 	
 	pub fn size(&self) -> [u32; 2] {
@@ -92,8 +97,8 @@ impl ParsedImage {
 	pub fn meta_debug(&self) -> String {
 		let meta = &self.meta;
 		format!(
-			"unknown a: {}, unknown b: {}, width: {}, height: {}",
-			meta.unknown_00, meta.unknown_04, meta.image_width, meta.image_height,
+			"unknown a: {}, compressed: {}, width: {}, height: {}",
+			meta.unknown_00, meta.is_compressed, meta.image_width, meta.image_height,
 		)
 	}
 }

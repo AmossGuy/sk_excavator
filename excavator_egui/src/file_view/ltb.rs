@@ -2,7 +2,6 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
-use excavator_backend::formats::anb::decompress_wflz;
 use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb};
 use excavator_backend::parse::ParseResult;
 
@@ -37,10 +36,8 @@ impl ItemView for LtbFileView {
 				for (i, ltb_image) in parsed.images().enumerate() {
 					match ltb_image {
 						Ok(ltb_image) => {
-							if ui.button(format!("wflz data {}", i)).clicked() { 'click: {
-								let data = ltb_image.data();
-								
-								let Ok(data) = decompress_wflz(&mut std::io::Cursor::new(data)) else {
+							if ui.button(format!("image data {}", i)).clicked() { 'click: {
+								let Ok(data) = ltb_image.decompress() else {
 									self.current_texture = None;
 									break 'click;
 								};
@@ -71,7 +68,7 @@ impl ItemView for LtbFileView {
 							
 							ui.label(format!("({})", ltb_image.meta_debug()));
 						},
-						Err(e) => { ui.label(format!("wflz data {} error: {}", i, e)); },
+						Err(e) => { ui.label(format!("image data {} error: {}", i, e)); },
 					}
 				}
 			},

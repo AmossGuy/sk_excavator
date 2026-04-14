@@ -16,7 +16,7 @@ struct Mystery6 {
 
 struct ImageMetadata {
     u32 unknown_00;
-    u32 unknown_04;
+    u32 is_compressed;
     u32 image_width;
     u32 image_height;
     u32 unknown_more[14];
