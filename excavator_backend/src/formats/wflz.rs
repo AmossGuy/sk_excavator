@@ -1,5 +1,5 @@
 use std::{error, fmt, io};
-use std::io::{Read, Write};
+use std::io::Read;
 use zerocopy::{*, LittleEndian as LE};
 use zerocopy_derive::*;
 
@@ -148,17 +148,4 @@ impl<R: Read> WflzReader<R> {
 		self.write_index += length;
 		Ok(())
 	}
-}
-
-pub fn extract_wflz_from_reader<R: Read>(reader: &mut R) -> std::io::Result<Box<[u8]>> {
-	const H_SIZE: usize = std::mem::size_of::<WflzHeader>();
-	
-	let header = WflzHeader::read_from_io(&mut *reader)?;
-	let mut data = vec![0; H_SIZE + header.compressed_size.get() as usize].into_boxed_slice();
-	
-	let mut data_slice: &mut [u8] = &mut data;
-	data_slice.write(header.as_bytes())?;
-	reader.read_exact(data_slice)?;
-	
-	Ok(data)
 }

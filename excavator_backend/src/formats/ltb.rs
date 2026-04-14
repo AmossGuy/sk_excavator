@@ -11,7 +11,7 @@ struct LtbHeader {
 	unknown_04: U32<LE>,
 	unknown_08: U32<LE>,
 	unknown_0C: U32<LE>,
-	entries: [LtbHeaderRow; 8],
+	rows: [LtbHeaderRow; 8],
 }
 
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
@@ -22,28 +22,47 @@ struct LtbHeaderRow {
 	entry_pointer: U64<LE>,
 }
 
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+struct ImageMetadata {
+	unknown_00: U32<LE>,
+	unknown_04: U32<LE>,
+	image_width: U32<LE>,
+	image_height: U32<LE>,
+	unknown_more: [U32<LE>; 14],
+	data_size: U32<LE>,
+}
+
 pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
 	let mut reader = ParseReader::new(reader);
 	let header = reader.read_struct::<LtbHeader>(0)?;
 	
-	let wflz_array_count = header.entries[7].entry_count.get();
-	let wflz_array_pointer = header.entries[7].entry_pointer.get();
+	let image_pointers = read_struct_array_from_row::<U64<LE>>(&mut reader, &header.rows[7])?;
+	let meta = read_struct_array_from_row::<ImageMetadata>(&mut reader, &header.rows[2])?;
 	
-	let wflz_pointers = reader
-		.read_struct_array::<U64<LE>>(wflz_array_pointer, wflz_array_count.into())?
-		.collect::<Result<Vec<_>, _>>()?;
-	
-	let wflz_data = wflz_pointers.into_iter().map(|poin| {
+	let images = std::iter::zip(image_pointers, meta).map(|(poin, meta)| {
 		let mut cursor = reader.cursor(poin.get())?;
-		Ok(super::wflz::extract_wflz_from_reader(cursor.inner_reader())?)
+		let mut data = vec![0; meta.data_size.get() as usize].into_boxed_slice();
+		cursor.inner_reader().read_exact(&mut data)?;
+		Ok(ParsedImage { data, meta })
 	}).collect::<Vec<_>>();
 	
-	Ok(ParsedLtb { header, wflz_data })
+	Ok(ParsedLtb { header, images })
+}
+
+fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> ParseResult<Vec<T>> {
+	let array_count = row.entry_count.get();
+	let array_pointer = row.entry_pointer.get();
+	
+	let vec = reader
+		.read_struct_array::<T>(array_pointer, array_count.into())?
+		.collect::<Result<Vec<_>, _>>()?;
+	Ok(vec)
 }
 
 pub struct ParsedLtb {
 	header: LtbHeader,
-	wflz_data: Vec<ParseResult<Box<[u8]>>>,
+	images: Vec<ParseResult<ParsedImage>>,
 }
 
 impl ParsedLtb {
@@ -51,7 +70,30 @@ impl ParsedLtb {
 		format!("{:?}", self.header)
 	}
 	
-	pub fn wflz_data_iter(&self) -> impl Iterator<Item = &ParseResult<Box<[u8]>>> {
-		self.wflz_data.iter()
+	pub fn images(&self) -> impl Iterator<Item = &ParseResult<ParsedImage>> {
+		self.images.iter()
+	}
+}
+
+pub struct ParsedImage {
+	data: Box<[u8]>,
+	meta: ImageMetadata,
+}
+
+impl ParsedImage {
+	pub fn data(&self) -> &[u8] {
+		&self.data
+	}
+	
+	pub fn size(&self) -> [u32; 2] {
+		[self.meta.image_width.get(), self.meta.image_height.get()]
+	}
+	
+	pub fn meta_debug(&self) -> String {
+		let meta = &self.meta;
+		format!(
+			"unknown a: {}, unknown b: {}, width: {}, height: {}",
+			meta.unknown_00, meta.unknown_04, meta.image_width, meta.image_height,
+		)
 	}
 }
