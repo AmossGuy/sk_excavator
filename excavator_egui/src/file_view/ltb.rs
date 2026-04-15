@@ -47,9 +47,8 @@ impl ItemView for LtbFileView {
 								let size_vec = egui::Vec2::new(size[0] as f32, size[1] as f32);
 								let texture_name = format!("ltb thingy #{}", i);
 								
-								// im going mad!
-								let whatever = size_usize[0] * size_usize [1] * 4;
-								// dat's why da names are bad...
+								let bytes_per_pixel = match ltb_image.paletted() { false => 4, true => 1 };
+								let whatever = size_usize[0] * size_usize [1] * bytes_per_pixel;
 								let sliceoed: Cow<'_, [u8]> = match data.get(..whatever) {
 									Some(sli) => Cow::from(sli),
 									None => {
@@ -59,7 +58,10 @@ impl ItemView for LtbFileView {
 									},
 								};
 								
-								let egui_image = egui::ColorImage::from_rgba_unmultiplied(size_usize, &sliceoed);
+								let egui_image = match ltb_image.paletted() {
+									false => egui::ColorImage::from_rgba_unmultiplied(size_usize, &sliceoed),
+									true => egui::ColorImage::from_gray(size_usize, &sliceoed),
+								};
 								let handle = ui.ctx().load_texture(texture_name, egui_image, egui::TextureOptions::NEAREST);
 								
 								let raw = Arc::from(data);
