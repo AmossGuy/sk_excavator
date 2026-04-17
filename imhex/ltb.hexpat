@@ -29,7 +29,12 @@ struct Mystery1 {
 
 struct Layer {
     char name[32];
-    u32 unknown[24];
+    u32 unknown_arr1[14];
+    u32 unknown_38;
+    u32 chunkmap_width;
+    u32 chunkmap_height;
+    u32 chunkmap_offset;
+    u32 unknown_arr2[6];
 };
 
 struct Header {

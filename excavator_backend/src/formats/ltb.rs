@@ -25,6 +25,18 @@ struct LtbHeaderRow {
 
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
+struct LayerMetadata {
+	name: [u8; 32],
+	unknown_arr1: [U32<LE>; 14],
+	unknown_38: U32<LE>,
+	chunkmap_width: U32<LE>,
+	chunkmap_height: U32<LE>,
+	chunkmap_offset: U32<LE>,
+	unknown_arr2: [U32<LE>; 6],
+}
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
 struct ImageMetadata {
 	unknown_00: U32<LE>,
 	is_compressed: U32<LE>,
@@ -48,7 +60,10 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
 		Ok(ParsedImage { data, meta })
 	}).collect::<Vec<_>>();
 	
-	Ok(ParsedLtb { header, images })
+	let layer_metadata = read_struct_array_from_row::<LayerMetadata>(&mut reader, &header.rows[0])?;
+	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3])?;
+	
+	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data })
 }
 
 fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> ParseResult<Vec<T>> {
@@ -64,6 +79,8 @@ fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRea
 pub struct ParsedLtb {
 	header: LtbHeader,
 	images: Vec<ParseResult<ParsedImage>>,
+	layer_metadata: Vec<LayerMetadata>,
+	chunkmap_data: Vec<U32<LE>>,
 }
 
 impl ParsedLtb {
@@ -73,6 +90,13 @@ impl ParsedLtb {
 	
 	pub fn images(&self) -> impl Iterator<Item = &ParseResult<ParsedImage>> {
 		self.images.iter()
+	}
+	
+	pub fn debug_layers(&self) -> impl Iterator<Item = (usize, String)> {
+		self.layer_metadata.iter().enumerate().map(|(i, layer)| {
+			let name = String::from_utf8_lossy(layer.name.split(|&x| x == 0).nth(0).unwrap_or_default());
+			(i, format!("(name: {}, width in chunks: {}, height in chunks: {})", name, layer.chunkmap_width, layer.chunkmap_height))
+		})
 	}
 }
 

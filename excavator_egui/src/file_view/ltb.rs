@@ -10,7 +10,15 @@ use std::sync::Arc;
 
 pub struct LtbFileView {
 	parsed: ParseResult<ParsedLtb>,
+	tab: Tab,
+	
 	current_texture: Option<LtbViewTexture>,
+}
+
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+enum Tab {
+	Images,
+	Tilemap,
 }
 
 impl ItemView for LtbFileView {
@@ -18,10 +26,31 @@ impl ItemView for LtbFileView {
 		let mut cursor = std::io::Cursor::new(bytes.as_slice());
 		// blocks the main thread for now, until i figure out an ergonomic system for all the threading this app ought to do
 		let parsed = parse_ltb(&mut cursor);
-		Self { parsed, current_texture: None }
+		Self { parsed, tab: Tab::Images, current_texture: None }
 	}
 	
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+		egui::TopBottomPanel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
+			for (label, value) in [("Images", Tab::Images), ("Tilemap", Tab::Tilemap)] {
+				if ui.selectable_label(self.tab == value, label).clicked() {
+					self.tab = value;
+				}
+			}
+		}));
+		
+		egui::CentralPanel::default().show_inside(ui, |ui| {
+			match self.tab {
+				Tab::Images => self.images_ui(ui),
+				Tab::Tilemap => self.tilemap_ui(ui),
+			};
+		});
+		
+		None
+	}
+}
+
+impl LtbFileView {
+	fn images_ui(&mut self, ui: &mut egui::Ui) {
 		if let Some(ref texture) = self.current_texture {
 			let e_texture = egui::load::SizedTexture {
 				id: texture.handle.id(),
@@ -76,8 +105,13 @@ impl ItemView for LtbFileView {
 			},
 			Err(e) => { ui.label(e.to_string()); },
 		}
-		
-		None
+	}
+	
+	fn tilemap_ui(&mut self, ui: &mut egui::Ui) {
+		let Ok(ref parsed) = self.parsed else { return; };
+		for (_i, layer_string) in parsed.debug_layers() {
+			ui.label(layer_string);
+		}
 	}
 }
 
