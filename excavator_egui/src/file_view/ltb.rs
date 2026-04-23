@@ -18,7 +18,8 @@ pub struct LtbFileView {
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 enum Tab {
 	Images,
-	Tilemap,
+	TilemapList,
+	TilemapDisplay
 }
 
 impl ItemView for LtbFileView {
@@ -31,7 +32,11 @@ impl ItemView for LtbFileView {
 	
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
 		egui::TopBottomPanel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
-			for (label, value) in [("Images", Tab::Images), ("Tilemap", Tab::Tilemap)] {
+			for (label, value) in [
+				("Images", Tab::Images),
+				("Tilemap list", Tab::TilemapList),
+				("Tilemap display", Tab::TilemapDisplay),
+			] {
 				if ui.selectable_label(self.tab == value, label).clicked() {
 					self.tab = value;
 				}
@@ -41,7 +46,8 @@ impl ItemView for LtbFileView {
 		egui::CentralPanel::default().show_inside(ui, |ui| {
 			match self.tab {
 				Tab::Images => self.images_ui(ui),
-				Tab::Tilemap => self.tilemap_ui(ui),
+				Tab::TilemapList => self.tilemap_ui(ui),
+				Tab::TilemapDisplay => self.tilemap_display(ui),
 			};
 		});
 		
@@ -111,6 +117,29 @@ impl LtbFileView {
 		let Ok(ref parsed) = self.parsed else { return; };
 		for (_i, layer_string) in parsed.debug_layers() {
 			ui.label(layer_string);
+		}
+	}
+	
+	fn tilemap_display(&mut self, ui: &mut egui::Ui) {
+		ui.label("grid rendering test");
+		
+		let grid_size = [3, 5];
+		let cell_size = egui::Vec2::new(100.0, 50.0);
+		let border_color = ui.visuals().text_color();
+		
+		let top_left = ui.cursor().min;
+		let (_, painter) = ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::empty());
+		
+		for row_n in 0..grid_size[0] {
+			for column_n in 0..grid_size[1] {
+				let cell_top_left = top_left + egui::Vec2::new(cell_size.x * row_n as f32, cell_size.y * column_n as f32);
+				painter.rect_stroke(
+					egui::Rect::from_min_size(cell_top_left, cell_size).shrink(1.0),
+					egui::CornerRadius::ZERO,
+					egui::Stroke::new(5.0, border_color),
+					egui::StrokeKind::Inside,
+				);
+			}
 		}
 	}
 }

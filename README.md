@@ -7,3 +7,4 @@ Shovel Knight modding tool, currently in a very primitive state of development. 
   * .png - You're surely aware of this image format. Shovel Knight only uses these for palettes and a few assets used for OS integration.
   * .stb / .stl / .stm - A group of similar formats for tabular data. The most important use of these is the storage of all the dialogue and other text.
   * .anb - The main format for the game's graphics. The way these are displayed currently is just the raw structure of the file; you can look at frames separately, but no more.
+  * CURRENTLY IN DEVELOPMENT: .ltb / .lvb - The files level data is stored in; a level is compromised of one of each type. I'm decoding the .ltb format is my current task here, and this tool displays certain portions of the data already.
