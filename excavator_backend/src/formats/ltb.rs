@@ -62,6 +62,7 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
 	
 	let layer_metadata = read_struct_array_from_row::<LayerMetadata>(&mut reader, &header.rows[0])?;
 	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3])?;
+	let chunkmap_data = chunkmap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
 	
 	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data })
 }
@@ -80,7 +81,7 @@ pub struct ParsedLtb {
 	header: LtbHeader,
 	images: Vec<ParseResult<ParsedImage>>,
 	layer_metadata: Vec<LayerMetadata>,
-	chunkmap_data: Vec<U32<LE>>,
+	chunkmap_data: Vec<u32>,
 }
 
 impl ParsedLtb {
@@ -98,6 +99,30 @@ impl ParsedLtb {
 			(i, format!("(name: {}, width in chunks: {}, height in chunks: {})", name, layer.chunkmap_width, layer.chunkmap_height))
 		})
 	}
+	
+	pub fn layer_count(&self) -> usize {
+		self.layer_metadata.len()
+	}
+	
+	pub fn tile_data_size(&self, layer: usize) -> [u32; 2] {
+		let metadata = &self.layer_metadata[layer];
+		[metadata.chunkmap_width.get(), metadata.chunkmap_height.get()]
+	}
+	
+	pub fn iterate_tile_data(&self, layer: usize) -> impl Iterator<Item = u32> {
+		let metadata = &self.layer_metadata[layer];
+		let start = metadata.chunkmap_offset.get() as usize;
+		let length = metadata.chunkmap_width.get() as usize * metadata.chunkmap_height.get() as usize;
+		self.chunkmap_data[start..start+length].iter().map(|x| *x)
+	}
+	
+	/*
+	
+	
+	pub fn iterate_tile_data(&self) -> impl Iterator<Item = u32> {
+		self.chunkmap_data.iter().map(|x| *x)
+	}
+	*/
 }
 
 pub struct ParsedImage {

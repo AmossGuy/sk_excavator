@@ -13,6 +13,7 @@ pub struct LtbFileView {
 	tab: Tab,
 	
 	current_texture: Option<LtbViewTexture>,
+	current_tilemap_layer: Option<usize>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
@@ -27,7 +28,7 @@ impl ItemView for LtbFileView {
 		let mut cursor = std::io::Cursor::new(bytes.as_slice());
 		// blocks the main thread for now, until i figure out an ergonomic system for all the threading this app ought to do
 		let parsed = parse_ltb(&mut cursor);
-		Self { parsed, tab: Tab::Images, current_texture: None }
+		Self { parsed, tab: Tab::Images, current_texture: None, current_tilemap_layer: None }
 	}
 	
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
@@ -115,28 +116,59 @@ impl LtbFileView {
 	
 	fn tilemap_ui(&mut self, ui: &mut egui::Ui) {
 		let Ok(ref parsed) = self.parsed else { return; };
-		for (_i, layer_string) in parsed.debug_layers() {
-			ui.label(layer_string);
+		for (i, layer_string) in parsed.debug_layers() {
+			ui.horizontal(|ui| {
+				ui.label(layer_string);
+				if ui.button("show").clicked() {
+					self.current_tilemap_layer = Some(i);
+					self.tab = Tab::TilemapDisplay;
+				}
+			});
 		}
 	}
 	
 	fn tilemap_display(&mut self, ui: &mut egui::Ui) {
-		ui.label("grid rendering test");
+		let Ok(ref ltb) = self.parsed else { return; };
+		let Some(layer_index) = self.current_tilemap_layer else {
+			ui.label("select layer in the tilemap list tab to view it here");
+			return;
+		};
 		
-		let grid_size = [3, 5];
-		let cell_size = egui::Vec2::new(100.0, 50.0);
+		let grid_size = ltb.tile_data_size(layer_index);
+		ui.label(format!("grid rendering test ({} by {})", grid_size[0], grid_size[1]));
+		
+		egui::ScrollArea::both().show(ui, |ui| {
+			self.tilemap_display_scrollarea(ui, layer_index);
+			ui.allocate_space(ui.available_size());
+		});
+	}
+	
+	fn tilemap_display_scrollarea(&mut self, ui: &mut egui::Ui, layer_index: usize) {
+		let Ok(ref ltb) = self.parsed else { return; };
+		
+		let grid_size = ltb.tile_data_size(layer_index);
+		let cell_size = egui::Vec2::new(50.0, 50.0);
 		let border_color = ui.visuals().text_color();
 		
 		let top_left = ui.cursor().min;
-		let (_, painter) = ui.allocate_painter(ui.available_size_before_wrap(), egui::Sense::empty());
+		let grid_area = egui::Vec2::new(grid_size[0] as f32 * cell_size.x, grid_size[1] as f32 * cell_size.y);
+		let (_, painter) = ui.allocate_painter(grid_area, egui::Sense::empty());
 		
-		for row_n in 0..grid_size[0] {
-			for column_n in 0..grid_size[1] {
+		let mut tile_iter = ltb.iterate_tile_data(layer_index);
+		for column_n in 0..grid_size[1] {
+			for row_n in 0..grid_size[0] {
+				let is_blank_chunk = tile_iter.next().unwrap() != 0;
+				
+				let stroke = match is_blank_chunk {
+					true => egui::Stroke::new(5.0, border_color),
+					false => egui::Stroke::new(1.0, border_color),
+				};
+				
 				let cell_top_left = top_left + egui::Vec2::new(cell_size.x * row_n as f32, cell_size.y * column_n as f32);
 				painter.rect_stroke(
 					egui::Rect::from_min_size(cell_top_left, cell_size).shrink(1.0),
 					egui::CornerRadius::ZERO,
-					egui::Stroke::new(5.0, border_color),
+					stroke,
 					egui::StrokeKind::Inside,
 				);
 			}
