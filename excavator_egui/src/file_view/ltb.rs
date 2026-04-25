@@ -2,7 +2,7 @@ use crate::ExcavatorMessage;
 use crate::file_read::FileBytes;
 use super::ItemView;
 
-use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb};
+use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb, CHUNK_SIZE};
 use excavator_backend::parse::ParseResult;
 
 use std::borrow::Cow;
@@ -134,7 +134,7 @@ impl LtbFileView {
 			return;
 		};
 		
-		let grid_size = ltb.tile_data_size(layer_index);
+		let grid_size = ltb.chunk_grid_size(layer_index);
 		ui.label(format!("grid rendering test ({} by {})", grid_size[0], grid_size[1]));
 		
 		egui::ScrollArea::both().show(ui, |ui| {
@@ -146,31 +146,36 @@ impl LtbFileView {
 	fn tilemap_display_scrollarea(&mut self, ui: &mut egui::Ui, layer_index: usize) {
 		let Ok(ref ltb) = self.parsed else { return; };
 		
-		let grid_size = ltb.tile_data_size(layer_index);
+		let grid_size = ltb.chunk_grid_size(layer_index);
 		let cell_size = egui::Vec2::new(50.0, 50.0);
-		let border_color = ui.visuals().text_color();
+		let tile_size = cell_size / CHUNK_SIZE as f32;
+		let color = ui.visuals().text_color();
 		
 		let top_left = ui.cursor().min;
 		let grid_area = egui::Vec2::new(grid_size[0] as f32 * cell_size.x, grid_size[1] as f32 * cell_size.y);
 		let (_, painter) = ui.allocate_painter(grid_area, egui::Sense::empty());
 		
-		let mut tile_iter = ltb.iterate_tile_data(layer_index);
+		let mut chunk_iter = ltb.iterate_chunk_offsets(layer_index);
 		for column_n in 0..grid_size[1] {
 			for row_n in 0..grid_size[0] {
-				let is_blank_chunk = tile_iter.next().unwrap() != 0;
+				let chunk_offset = chunk_iter.next().unwrap();
 				
-				let stroke = match is_blank_chunk {
-					true => egui::Stroke::new(5.0, border_color),
-					false => egui::Stroke::new(1.0, border_color),
-				};
-				
-				let cell_top_left = top_left + egui::Vec2::new(cell_size.x * row_n as f32, cell_size.y * column_n as f32);
-				painter.rect_stroke(
-					egui::Rect::from_min_size(cell_top_left, cell_size).shrink(1.0),
-					egui::CornerRadius::ZERO,
-					stroke,
-					egui::StrokeKind::Inside,
-				);
+				if chunk_offset != 0 {
+					let cell_top_left = top_left + egui::Vec2::new(cell_size.x * row_n as f32, cell_size.y * column_n as f32);
+					
+					let chunk_data = ltb.get_chunk_data(chunk_offset as usize);
+					let mut tile_iter = chunk_data.iter();
+					for column_n in 0..CHUNK_SIZE {
+						for row_n in 0..CHUNK_SIZE {
+							let tile = tile_iter.next().unwrap();
+							if *tile != 0 {
+								let tile_top_left = cell_top_left + egui::Vec2::new(tile_size.x * row_n as f32, tile_size.y * column_n as f32);
+								let rect = egui::Rect::from_min_size(tile_top_left, tile_size);
+								painter.rect_filled(rect, egui::CornerRadius::ZERO, color);
+							}
+						}
+					}
+				}
 			}
 		}
 	}

@@ -4,6 +4,9 @@ use std::io::{BufRead, Seek};
 use zerocopy::{*, LittleEndian as LE};
 use zerocopy_derive::*;
 
+pub const CHUNK_SIZE: usize = 16;
+pub const CHUNK_AREA: usize = CHUNK_SIZE.pow(2);
+
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 #[allow(non_snake_case)]
@@ -63,8 +66,10 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
 	let layer_metadata = read_struct_array_from_row::<LayerMetadata>(&mut reader, &header.rows[0])?;
 	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3])?;
 	let chunkmap_data = chunkmap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
+	let tilemap_data = read_struct_array_from_row::<U16<LE>>(&mut reader, &header.rows[4])?;
+	let tilemap_data = tilemap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
 	
-	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data })
+	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data, tilemap_data })
 }
 
 fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> ParseResult<Vec<T>> {
@@ -82,6 +87,7 @@ pub struct ParsedLtb {
 	images: Vec<ParseResult<ParsedImage>>,
 	layer_metadata: Vec<LayerMetadata>,
 	chunkmap_data: Vec<u32>,
+	tilemap_data: Vec<u16>,
 }
 
 impl ParsedLtb {
@@ -104,25 +110,21 @@ impl ParsedLtb {
 		self.layer_metadata.len()
 	}
 	
-	pub fn tile_data_size(&self, layer: usize) -> [u32; 2] {
+	pub fn chunk_grid_size(&self, layer: usize) -> [u32; 2] {
 		let metadata = &self.layer_metadata[layer];
 		[metadata.chunkmap_width.get(), metadata.chunkmap_height.get()]
 	}
 	
-	pub fn iterate_tile_data(&self, layer: usize) -> impl Iterator<Item = u32> {
+	pub fn iterate_chunk_offsets(&self, layer: usize) -> impl Iterator<Item = u32> {
 		let metadata = &self.layer_metadata[layer];
 		let start = metadata.chunkmap_offset.get() as usize;
 		let length = metadata.chunkmap_width.get() as usize * metadata.chunkmap_height.get() as usize;
-		self.chunkmap_data[start..start+length].iter().map(|x| *x)
+		self.chunkmap_data[start..start+length].iter().copied()
 	}
 	
-	/*
-	
-	
-	pub fn iterate_tile_data(&self) -> impl Iterator<Item = u32> {
-		self.chunkmap_data.iter().map(|x| *x)
+	pub fn get_chunk_data(&self, offset: usize) -> &[u16] {
+		&self.tilemap_data[offset..offset+CHUNK_AREA]
 	}
-	*/
 }
 
 pub struct ParsedImage {
