@@ -5,7 +5,7 @@ use zerocopy_derive::*;
 
 pub const ANB_MAGIC: [u8; 4] = *b"YCSN";
 
-pub fn parse_anb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedAnb> {
+pub fn parse_anb<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<ParsedAnb> {
 	let mut reader = ParseReader::new(reader);
 	let header = reader.read_struct::<AnbHeader>(0)?;
 	check_magic(ANB_MAGIC, header.magic)?;
@@ -17,22 +17,22 @@ pub fn parse_anb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedAnb> {
 }
 
 pub struct ParsedAnb {
-	root: ParseResult<ParsedAnbNode>,
+	root: anyhow::Result<ParsedAnbNode>,
 }
 
 impl ParsedAnb {
-	pub fn root(&self) -> &ParseResult<ParsedAnbNode> {
+	pub fn root(&self) -> &anyhow::Result<ParsedAnbNode> {
 		&self.root
 	}
 }
 
 pub struct ParsedAnbNode {
 	data: ParsedData,
-	children: Vec<ParseResult<Self>>,
+	children: Vec<anyhow::Result<Self>>,
 }
 
 impl ParsedAnbNode {
-	fn recursive_read<R: BufRead + Seek>(reader: &mut ParseReader<R>, offset: u64) -> ParseResult<Self> {
+	fn recursive_read<R: BufRead + Seek>(reader: &mut ParseReader<R>, offset: u64) -> anyhow::Result<Self> {
 		let mut cursor = reader.cursor(offset)?;
 		
 		let raw_node = cursor.read_struct::<AnbTreeNode>()?;
@@ -56,7 +56,7 @@ impl ParsedAnbNode {
 		&self.data
 	}
 	
-	pub fn children(&self) -> impl Iterator<Item = &ParseResult<Self>> {
+	pub fn children(&self) -> impl Iterator<Item = &anyhow::Result<Self>> {
 		self.children.iter()
 	}
 }
@@ -78,7 +78,7 @@ impl ParsedData {
 		}
 	}
 	
-	fn read<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>, kind: u32) -> ParseResult<Self> {
+	fn read<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>, kind: u32) -> anyhow::Result<Self> {
 		Ok(match kind {
 			1 => {
 				let attached = cursor.read_struct::<FrameWflzAttached>()?;
@@ -95,7 +95,7 @@ impl ParsedData {
 	}
 }
 
-fn read_data_block<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>) -> ParseResult<Box<[u8]>> {
+fn read_data_block<R: BufRead + Seek>(mut cursor: ParseCursor<'_, R>) -> anyhow::Result<Box<[u8]>> {
 	let block_header = cursor.read_struct::<AnbDataBlockHeader>()?;
 	check_magic([0xFF, 0xFF, 0xFF, 0], block_header.magic)?;
 	let mut data = vec![0; block_header.length.get() as usize].into_boxed_slice();

@@ -3,13 +3,12 @@ use crate::file_read::FileBytes;
 use super::ItemView;
 
 use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb, CHUNK_SIZE};
-use excavator_backend::parse::ParseResult;
 
 use std::borrow::Cow;
 use std::sync::Arc;
 
 pub struct LtbFileView {
-	parsed: ParseResult<ParsedLtb>,
+	parsed: anyhow::Result<ParsedLtb>,
 	tab: Tab,
 	
 	current_texture: Option<LtbViewTexture>,

@@ -49,7 +49,7 @@ struct ImageMetadata {
 	data_size: U32<LE>,
 }
 
-pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
+pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<ParsedLtb> {
 	let mut reader = ParseReader::new(reader);
 	let header = reader.read_struct::<LtbHeader>(0)?;
 	
@@ -72,7 +72,7 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> ParseResult<ParsedLtb> {
 	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data, tilemap_data })
 }
 
-fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> ParseResult<Vec<T>> {
+fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> anyhow::Result<Vec<T>> {
 	let array_count = row.entry_count.get();
 	let array_pointer = row.entry_pointer.get();
 	
@@ -84,7 +84,7 @@ fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRea
 
 pub struct ParsedLtb {
 	header: LtbHeader,
-	images: Vec<ParseResult<ParsedImage>>,
+	images: Vec<anyhow::Result<ParsedImage>>,
 	layer_metadata: Vec<LayerMetadata>,
 	chunkmap_data: Vec<u32>,
 	tilemap_data: Vec<u16>,
@@ -95,7 +95,7 @@ impl ParsedLtb {
 		format!("{:?}", self.header)
 	}
 	
-	pub fn images(&self) -> impl Iterator<Item = &ParseResult<ParsedImage>> {
+	pub fn images(&self) -> impl Iterator<Item = &anyhow::Result<ParsedImage>> {
 		self.images.iter()
 	}
 	

@@ -2,6 +2,6 @@
 
 pub mod formats;
 pub mod io;
-pub mod parse;
+mod parse;
 
 pub use bstr;

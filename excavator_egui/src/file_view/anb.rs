@@ -3,10 +3,9 @@ use crate::file_read::FileBytes;
 use super::ItemView;
 
 use excavator_backend::formats::anb::{decompress_wflz, parse_anb, ParsedAnb, ParsedAnbNode, ParsedData};
-use excavator_backend::parse::ParseResult;
 
 pub struct AnbFileView {
-	parsed: ParseResult<ParsedAnb>,
+	parsed: anyhow::Result<ParsedAnb>,
 	current_texture: Option<AnbViewTexture>,
 }
 
@@ -40,7 +39,7 @@ impl ItemView for AnbFileView {
 	}
 }
 
-fn node_ui(ui: &mut egui::Ui, index: impl std::hash::Hash + std::fmt::Display, node: &ParseResult<ParsedAnbNode>, current_texture: &mut Option<AnbViewTexture>) {
+fn node_ui(ui: &mut egui::Ui, index: impl std::hash::Hash + std::fmt::Display, node: &anyhow::Result<ParsedAnbNode>, current_texture: &mut Option<AnbViewTexture>) {
 	match node {
 		Ok(node) => {
 			egui::CollapsingHeader::new(format!("{} (kind: {})", index, node.kind()))
