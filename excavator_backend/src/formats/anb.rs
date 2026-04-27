@@ -1,6 +1,6 @@
 use crate::parse::*;
 use std::io::{BufRead, Seek};
-use zerocopy::{*, LittleEndian as LE};
+use zerocopy::{LittleEndian as LE, U32, U64};
 use zerocopy_derive::*;
 
 pub const ANB_MAGIC: [u8; 4] = *b"YCSN";

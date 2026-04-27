@@ -47,19 +47,21 @@ impl eframe::App for ExcavatorApp {
 		eframe::set_value(storage, eframe::APP_KEY, self);
 	}
 	
-	fn update(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
+	fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+		let ctx = ui.ctx().clone();
+		
 		let messages = ctx.plugin_or_default::<MessageQueue>();
 		let threads = ctx.plugin_or_default::<ThreadSpawner>();
 		messages.lock().send_multiple(threads.lock().take_messages());
-		messages.lock().apply_all(self, ctx);
+		messages.lock().apply_all(self, &ctx);
 		
 		if let Some(ref file_tree_root) = self.file_tree_root {
 			self.file_tree.set_root_from_path_if_different(file_tree_root.clone());
 		}
 		
-		self.extractor.run(ctx);
+		self.extractor.run(&ctx);
 		
-		egui::TopBottomPanel::top("menubar").show(ctx, |ui| {
+		egui::Panel::top("menubar").show_inside(ui, |ui| {
 			egui::MenuBar::new().ui(ui, |ui| {
 				ui.menu_button("File", |ui| {
 					if ui.button("Select directory...").clicked() {
@@ -78,7 +80,7 @@ impl eframe::App for ExcavatorApp {
 			});
 		});
 		
-		egui::SidePanel::left("file tree").show(ctx, |ui| {
+		egui::Panel::left("file tree").show_inside(ui, |ui| {
 			egui::ScrollArea::both().show(ui, |ui| {
 				let selection_update = self.file_tree.add_view(ui);
 				ui.take_available_space();
@@ -89,7 +91,7 @@ impl eframe::App for ExcavatorApp {
 			})
 		});
 		
-		egui::CentralPanel::default().show(ctx, |ui| {
+		egui::CentralPanel::default().show_inside(ui, |ui| {
 			if let Some(message) = self.file_view.add_view(ui) {
 				messages.lock().send(message);
 			}

@@ -1,6 +1,6 @@
 use std::{error, fmt, io};
 use std::io::Read;
-use zerocopy::{*, LittleEndian as LE};
+use zerocopy::{FromBytes, IntoBytes, LittleEndian as LE, U16, U32};
 use zerocopy_derive::*;
 
 pub const WFLZ_MAGIC: [u8; 4] = *b"WFLZ";

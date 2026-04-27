@@ -1,7 +1,7 @@
 use crate::parse::*;
 use crate::formats::anb::decompress_wflz;
 use std::io::{BufRead, Seek};
-use zerocopy::{*, LittleEndian as LE};
+use zerocopy::{FromBytes, LittleEndian as LE, U16, U32, U64};
 use zerocopy_derive::*;
 
 pub const CHUNK_SIZE: usize = 16;

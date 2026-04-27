@@ -32,7 +32,7 @@ impl ItemView for LtbFileView {
 	}
 	
 	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
-		egui::TopBottomPanel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
+		egui::Panel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
 			for (label, value) in [
 				("Images", Tab::Images),
 				("Tilemap list", Tab::TilemapList),
