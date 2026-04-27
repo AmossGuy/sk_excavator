@@ -67,7 +67,7 @@ impl LtbFileView {
 		}
 		
 		match &self.parsed {
-			Ok(parsed) => {
+			Ok(parsed) => { egui::ScrollArea::vertical().show(ui, |ui| {
 				for (i, ltb_image) in parsed.images().enumerate() {
 					match ltb_image {
 						Ok(ltb_image) => {
@@ -108,14 +108,14 @@ impl LtbFileView {
 						Err(e) => { ui.label(format!("image data {} error: {}", i, e)); },
 					}
 				}
-			},
+			}); },
 			Err(e) => { ui.label(e.to_string()); },
 		}
 	}
 	
 	fn tilemap_ui(&mut self, ui: &mut egui::Ui) {
 		let Ok(ref parsed) = self.parsed else { return; };
-		for (i, layer_string) in parsed.debug_layers() {
+		egui::ScrollArea::both().show(ui, |ui| { for (i, layer_string) in parsed.debug_layers() {
 			ui.horizontal(|ui| {
 				ui.label(layer_string);
 				if ui.button("show").clicked() {
@@ -123,7 +123,7 @@ impl LtbFileView {
 					self.tab = Tab::TilemapDisplay;
 				}
 			});
-		}
+		}});
 	}
 	
 	fn tilemap_display(&mut self, ui: &mut egui::Ui) {
