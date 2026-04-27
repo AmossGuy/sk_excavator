@@ -26,7 +26,6 @@ impl super::ItemView for StFileView {
 }
 
 impl StFileView {
-	
 	fn table_ui(&mut self, ui: &mut Ui) {
 		let data = self.bytes.as_slice();
 		let mut cursor = Cursor::new(data);
