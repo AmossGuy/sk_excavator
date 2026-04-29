@@ -39,16 +39,16 @@ pub enum MenuBarAction {
 }
 
 impl MenuAction for MenuBarAction {
-	fn name(&self, _ctx: &egui::Context) -> String {
+	fn static_name(&self) -> &'static str {
 		match self {
-			Self::SelectGamePath => "Select game path...".to_string(),
-			Self::Quit => "Quit".to_string(),
+			Self::SelectGamePath => "Select game path...",
+			Self::Quit => "Quit",
 			
-			Self::Undo => "Undo".to_string(),
-			Self::Redo => "Redo".to_string(),
-			Self::Settings => "Settings...".to_string(),
+			Self::Undo => "Undo",
+			Self::Redo => "Redo",
+			Self::Settings => "Settings...",
 			
-			Self::About => "About Shovel Knight Excavator".to_string(),
+			Self::About => "About Shovel Knight Excavator",
 		}
 	}
 	

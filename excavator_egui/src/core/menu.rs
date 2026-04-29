@@ -1,7 +1,7 @@
 use egui::KeyboardShortcut;
 
 pub trait MenuAction: 'static {
-	fn name(&self, ctx: &egui::Context) -> String;
+	fn static_name(&self) -> &'static str;
 	fn default_shortcut(&self) -> Option<KeyboardShortcut>;
 }
 
@@ -49,7 +49,7 @@ impl<A: MenuAction> MenuItem<A> {
 				});
 			},
 			Self::Action(action) => {
-				let mut button = egui::Button::new(action.name(ui.ctx()));
+				let mut button = egui::Button::new(action.static_name());
 				if let Some(shortcut) = action.default_shortcut() {
 					button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 				}
