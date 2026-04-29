@@ -35,6 +35,7 @@ impl<A: MenuAction> Menu<A> {
 pub enum MenuItem<A: MenuAction> {
 	SubMenu(Menu<A>),
 	Action(A),
+	Separator,
 }
 
 impl<A: MenuAction> MenuItem<A> {
@@ -53,6 +54,9 @@ impl<A: MenuAction> MenuItem<A> {
 					button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 				}
 				ui.add(button);
+			},
+			Self::Separator => {
+				ui.separator();
 			},
 		}
 	}

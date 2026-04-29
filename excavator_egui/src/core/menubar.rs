@@ -12,11 +12,13 @@ pub fn show_menu_bar_panel(ui: &mut egui::Ui) {
 static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 	MenuItem::SubMenu(Menu::new("File", &[
 		MenuItem::Action(MenuBarAction::SelectGamePath),
+		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
 	])),
 	MenuItem::SubMenu(Menu::new("Edit", &[
 		MenuItem::Action(MenuBarAction::Undo),
 		MenuItem::Action(MenuBarAction::Redo),
+		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Settings),
 	])),
 	MenuItem::SubMenu(Menu::new("Help", &[
