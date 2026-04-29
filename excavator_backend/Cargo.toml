@@ -7,6 +7,5 @@ edition = "2024"
 anyhow = "1.0.102"
 bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
-yoke = { version = "0.8.1", default-features = false, features = ["alloc"] }
 zerocopy = { version = "0.8.39", features = ["std"] }
 zerocopy-derive = "0.8.39"

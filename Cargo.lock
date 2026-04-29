@@ -1107,7 +1107,6 @@ dependencies = [
  "anyhow",
  "bstr",
  "image",
- "yoke",
  "zerocopy",
  "zerocopy-derive",
 ]
