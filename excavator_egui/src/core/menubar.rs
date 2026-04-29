@@ -1,5 +1,7 @@
 use egui::{Key, KeyboardShortcut, Modifiers};
+use super::app::ExcavatorApp;
 use super::menu::{Menu, MenuAction, MenuItem, RootMenu};
+use super::message::Message;
 
 pub fn show_menu_bar_panel(ui: &mut egui::Ui) {
 	egui::Panel::top("menu bar").show_inside(ui, |ui| {
@@ -26,7 +28,7 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 	])),
 ]);
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum MenuBarAction {
 	SelectGamePath,
 	Quit,
@@ -61,6 +63,20 @@ impl MenuAction for MenuBarAction {
 			Self::Undo => Some(KS::new(Mod::COMMAND, Key::Z)),
 			Self::Redo => Some(KS::new(Mod::COMMAND | Mod::SHIFT, Key::Z)),
 			_ => None,
+		}
+	}
+	
+	fn into_message(&self) -> Message {
+		Message::MenuBarAction(*self)
+	}
+}
+
+impl MenuBarAction {
+	pub fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
+		println!("menubar: {:?}", self);
+		match self {
+			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+			_ => {}, // TODO: implement all menu items
 		}
 	}
 }

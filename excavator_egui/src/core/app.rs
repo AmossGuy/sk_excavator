@@ -1,4 +1,5 @@
 use super::menubar::show_menu_bar_panel;
+use super::message::apply_messages;
 use super::settings::ExcavatorSettings;
 
 pub struct ExcavatorApp {
@@ -25,8 +26,9 @@ impl ExcavatorApp {
 
 impl eframe::App for ExcavatorApp {
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-		show_menu_bar_panel(ui);
+		apply_messages(ui.ctx(), self);
 		
+		show_menu_bar_panel(ui);
 		egui::Panel::bottom("status bar").show_inside(ui, |_ui| {
 		});
 		

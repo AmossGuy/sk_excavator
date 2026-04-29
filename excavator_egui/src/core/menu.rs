@@ -1,8 +1,10 @@
 use egui::KeyboardShortcut;
+use super::message::{Message, send_message};
 
 pub trait MenuAction: 'static {
 	fn static_name(&self) -> &'static str;
 	fn default_shortcut(&self) -> Option<KeyboardShortcut>;
+	fn into_message(&self) -> Message;
 }
 
 pub struct RootMenu<A: MenuAction> {
@@ -53,7 +55,9 @@ impl<A: MenuAction> MenuItem<A> {
 				if let Some(shortcut) = action.default_shortcut() {
 					button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 				}
-				ui.add(button);
+				if ui.add(button).clicked() {
+					send_message(ui.ctx(), action.into_message());
+				}
 			},
 			Self::Separator => {
 				ui.separator();
