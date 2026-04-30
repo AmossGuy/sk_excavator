@@ -1,9 +1,11 @@
 use super::menubar::show_menu_bar_panel;
-use super::message::apply_messages;
+use super::message::{apply_messages, show_status_bar_panel};
 use super::settings::ExcavatorSettings;
+use super::windows::WindowHolder;
 
 pub struct ExcavatorApp {
-	settings: ExcavatorSettings,
+	pub settings: ExcavatorSettings,
+	pub windows: WindowHolder,
 }
 
 impl ExcavatorApp {
@@ -20,7 +22,7 @@ impl ExcavatorApp {
 	fn new(cc: &eframe::CreationContext) -> Self {
 		let storage = cc.storage.expect("CreationContext should have storage");
 		let settings = ExcavatorSettings::load(storage);
-		Self { settings }
+		Self { settings, windows: WindowHolder::default() }
 	}
 }
 
@@ -28,9 +30,10 @@ impl eframe::App for ExcavatorApp {
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		apply_messages(ui.ctx(), self);
 		
+		self.windows.show_as_viewports(ui);
+		
 		show_menu_bar_panel(ui);
-		egui::Panel::bottom("status bar").show_inside(ui, |_ui| {
-		});
+		show_status_bar_panel(ui);
 		
 		egui::CentralPanel::default().show_inside(ui, |ui| {
 			ui.label("(awesomesauce)");

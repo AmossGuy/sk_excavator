@@ -76,6 +76,7 @@ impl MenuBarAction {
 		println!("menubar: {:?}", self);
 		match self {
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),
 			_ => {}, // TODO: implement all menu items
 		}
 	}

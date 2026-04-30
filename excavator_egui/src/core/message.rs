@@ -37,3 +37,9 @@ impl egui::Plugin for MessageQueue {
 		"MessageQueue (excavator)"
 	}
 }
+
+pub fn show_status_bar_panel(ui: &mut egui::Ui) {
+	egui::Panel::bottom("status bar").show_inside(ui, |_ui| {
+		// TODO
+	});
+}

@@ -3,6 +3,7 @@
 mod core;
 mod file_tree;
 mod file_view;
+mod misc;
 
 fn main() -> eframe::Result {
 	crate::core::app::ExcavatorApp::main()
