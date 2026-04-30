@@ -17,10 +17,6 @@ type WrappedWindow<W> = Arc<Mutex<LiveWindow<W>>>;
 type DynWrappedWindow = WrappedWindow<dyn Window>;
 
 impl WindowHolder {
-	pub fn new() -> Self {
-		Self::default()
-	}
-	
 	pub fn add(&mut self, window: impl Window) {
 		let window = Arc::new(Mutex::new(LiveWindow {
 			state: LiveWindowState::default(),
@@ -42,13 +38,12 @@ impl WindowHolder {
 		let base_id = ui.id().with("WindowHolder");
 		for (i, window_opt) in self.windows.iter_mut().enumerate() {
 			if let Some(window) = window_opt {
-				let parent_id = ui.viewport_id();
 				let viewport_id = egui::ViewportId(base_id.with(i));
 				let builder = egui::ViewportBuilder::default();
 				let window_clone = Arc::clone(window);
 				
 				ui.show_viewport_deferred(viewport_id, builder, move |ui, class| {
-					Self::viewport_callback(&window_clone, ui, class, parent_id);
+					Self::viewport_callback(&window_clone, ui, class);
 				});
 				
 				if window.lock().unwrap().state.doomed {
@@ -58,7 +53,7 @@ impl WindowHolder {
 		}
 	}
 	
-	fn viewport_callback(window_m: &DynWrappedWindow, ui: &mut egui::Ui, _class: egui::ViewportClass, parent_id: egui::ViewportId) {
+	fn viewport_callback(window_m: &DynWrappedWindow, ui: &mut egui::Ui, _class: egui::ViewportClass) {
 		let mut window = window_m.lock().unwrap();
 		let settings = window.itself.settings();
 		
