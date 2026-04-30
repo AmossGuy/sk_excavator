@@ -75,6 +75,7 @@ impl MenuBarAction {
 	pub fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
 		println!("menubar: {:?}", self);
 		match self {
+			Self::SelectGamePath => crate::misc::file_dialog::show_game_path_dialog(ctx),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),
 			_ => {}, // TODO: implement all menu items

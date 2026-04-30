@@ -4,12 +4,14 @@ use super::menubar::MenuBarAction;
 #[derive(Debug)]
 pub enum Message {
 	MenuBarAction(MenuBarAction),
+	SetGamePath(std::path::PathBuf),
 }
 
 impl Message {
 	fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
 		match self {
 			Self::MenuBarAction(action) => action.apply(ctx, app),
+			Self::SetGamePath(path) => app.settings.game_root_path = Some(path),
 		}
 	}
 }
