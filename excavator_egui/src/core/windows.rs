@@ -38,8 +38,10 @@ impl WindowHolder {
 		let base_id = ui.id().with("WindowHolder");
 		for (i, window_opt) in self.windows.iter_mut().enumerate() {
 			if let Some(window) = window_opt {
+				let settings = window.lock().unwrap().itself.settings();
+				
 				let viewport_id = egui::ViewportId(base_id.with(i));
-				let builder = egui::ViewportBuilder::default();
+				let builder = egui::ViewportBuilder::default().with_inner_size(settings.initial_size);
 				let window_clone = Arc::clone(window);
 				
 				ui.show_viewport_deferred(viewport_id, builder, move |ui, class| {
@@ -77,10 +79,11 @@ pub trait Window: Send + 'static {
 }
 
 #[derive(Clone)]
+#[non_exhaustive]
 pub struct WindowSettings {
-	show_menubar: bool,
-	show_statusbar: bool,
-	resizable: bool,
+	pub show_menubar: bool,
+	pub show_statusbar: bool,
+	pub initial_size: egui::Vec2,
 }
 
 impl Default for WindowSettings {
@@ -88,7 +91,7 @@ impl Default for WindowSettings {
 		Self {
 			show_menubar: false,
 			show_statusbar: false,
-			resizable: true,
+			initial_size: egui::Vec2::splat(300.0),
 		}
 	}
 }
