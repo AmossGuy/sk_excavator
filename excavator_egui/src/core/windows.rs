@@ -52,7 +52,6 @@ impl WindowHolder {
 				});
 				
 				if window.lock().unwrap().state.doomed {
-				// if true {
 					*window_opt = None;
 				}
 			}
