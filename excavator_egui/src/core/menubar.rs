@@ -13,7 +13,8 @@ pub fn show_menu_bar_panel(ui: &mut egui::Ui) {
 
 static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 	MenuItem::SubMenu(Menu::new("File", &[
-		MenuItem::Action(MenuBarAction::SelectGamePath),
+		MenuItem::Action(MenuBarAction::SelectGameDir),
+		MenuItem::Action(MenuBarAction::CloseGameDir),
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
 	])),
@@ -30,7 +31,9 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 
 #[derive(Copy, Clone, Debug)]
 pub enum MenuBarAction {
-	SelectGamePath,
+	SelectGameDir,
+	CloseGameDir,
+	
 	Quit,
 	
 	Undo,
@@ -43,7 +46,8 @@ pub enum MenuBarAction {
 impl MenuAction for MenuBarAction {
 	fn static_name(&self) -> &'static str {
 		match self {
-			Self::SelectGamePath => "Select game path...",
+			Self::SelectGameDir => "Select game directory...",
+			Self::CloseGameDir => "Close game directory",
 			Self::Quit => "Quit",
 			
 			Self::Undo => "Undo",
@@ -75,7 +79,8 @@ impl MenuBarAction {
 	pub fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
 		println!("menubar: {:?}", self);
 		match self {
-			Self::SelectGamePath => crate::misc::file_dialog::show_game_path_dialog(ctx),
+			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(ctx),
+			Self::CloseGameDir => app.set_game_root_path(None),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),
 			_ => {}, // TODO: implement all menu items

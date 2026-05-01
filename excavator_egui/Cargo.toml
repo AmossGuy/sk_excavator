@@ -8,7 +8,7 @@ edition = "2024"
 eframe = { version = "0.34.1", features = ["persistence"] }
 egui = "0.34.1"
 egui_extras = "0.34.1"
-egui_ltreeview = { version = "0.7.0", features = ["persistence"] }
+egui_ltreeview = "0.7.0"
 excavator_backend = { version = "0.1.0", path = "../excavator_backend" }
 rfd = "0.17.2"
 

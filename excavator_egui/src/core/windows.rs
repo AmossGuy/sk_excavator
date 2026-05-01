@@ -2,7 +2,6 @@ use std::sync::{Arc, Mutex};
 use super::menubar::show_menu_bar_panel;
 use super::message::show_status_bar_panel;
 
-#[derive(Default)]
 pub struct WindowHolder {
 	windows: Vec<Option<DynWrappedWindow>>,
 }
@@ -17,6 +16,10 @@ type WrappedWindow<W> = Arc<Mutex<LiveWindow<W>>>;
 type DynWrappedWindow = WrappedWindow<dyn Window>;
 
 impl WindowHolder {
+	pub fn new() -> Self {
+		Self { windows: Vec::new() }
+	}
+	
 	pub fn add(&mut self, window: impl Window) {
 		let window = Arc::new(Mutex::new(LiveWindow {
 			state: LiveWindowState::default(),

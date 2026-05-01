@@ -11,7 +11,7 @@ impl Message {
 	fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
 		match self {
 			Self::MenuBarAction(action) => action.apply(ctx, app),
-			Self::SetGamePath(path) => app.settings.game_root_path = Some(path),
+			Self::SetGamePath(path) => app.set_game_root_path(Some(path)),
 		}
 	}
 }

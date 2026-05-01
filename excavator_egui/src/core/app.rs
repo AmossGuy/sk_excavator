@@ -1,11 +1,13 @@
-use super::menubar::show_menu_bar_panel;
-use super::message::{apply_messages, show_status_bar_panel};
+use crate::file_tree::FileTreeView;
+use super::menubar::{MenuBarAction, show_menu_bar_panel};
+use super::message::{apply_messages, Message, send_message, show_status_bar_panel};
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
 pub struct ExcavatorApp {
-	pub settings: ExcavatorSettings,
+	settings: ExcavatorSettings,
 	pub windows: WindowHolder,
+	file_tree: Option<FileTreeView>,
 }
 
 impl ExcavatorApp {
@@ -21,8 +23,17 @@ impl ExcavatorApp {
 	
 	fn new(cc: &eframe::CreationContext) -> Self {
 		let storage = cc.storage.expect("CreationContext should have storage");
+		
 		let settings = ExcavatorSettings::load(storage);
-		Self { settings, windows: WindowHolder::default() }
+		let windows = WindowHolder::new();
+		let file_tree = Option::map(settings.game_root_path.clone(), FileTreeView::new);
+		
+		Self { settings, windows, file_tree }
+	}
+	
+	pub fn set_game_root_path(&mut self, path: Option<std::path::PathBuf>) {
+		self.settings.game_root_path = path;
+		self.file_tree = Option::map(self.settings.game_root_path.clone(), FileTreeView::new);
 	}
 }
 
@@ -36,8 +47,13 @@ impl eframe::App for ExcavatorApp {
 		show_status_bar_panel(ui);
 		
 		egui::CentralPanel::default().show_inside(ui, |ui| {
-			ui.label("(awesomesauce)");
-			ui.label(format!("game_root_path: {:?}", self.settings.game_root_path));
+			if let Some(file_tree) = &mut self.file_tree {
+				file_tree.ui(ui);
+			} else {
+				if ui.button("Select game path...").clicked() {
+					send_message(ui.ctx(), Message::MenuBarAction(MenuBarAction::SelectGameDir));
+				}
+			}
 		});
 	}
 	
