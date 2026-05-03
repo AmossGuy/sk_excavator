@@ -1,4 +1,4 @@
-use crate::core::windows::{Window, WindowSettings};
+use crate::core::windows::Window;
 
 #[derive(Default)]
 pub struct AboutWindow {}
@@ -28,10 +28,7 @@ impl Window for AboutWindow {
 		});
 	}
 	
-	fn settings(&self) -> WindowSettings {
-		WindowSettings {
-			initial_size: egui::Vec2::new(500.0, 300.0),
-			..Default::default()
-		}
+	fn initial_size(&self) -> egui::Vec2 {
+		egui::Vec2::new(500.0, 300.0)
 	}
 }

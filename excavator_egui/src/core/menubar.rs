@@ -1,12 +1,11 @@
 use egui::{Key, KeyboardShortcut, Modifiers};
 use super::app::ExcavatorApp;
 use super::menu::{Menu, MenuAction, MenuItem, RootMenu};
-use super::message::Message;
 
-pub fn show_menu_bar_panel(ui: &mut egui::Ui) {
+pub fn show_menu_bar_panel(ui: &mut egui::Ui, app: &mut ExcavatorApp, frame: &mut eframe::Frame) {
 	egui::Panel::top("menu bar").show_inside(ui, |ui| {
 		egui::MenuBar::new().ui(ui, |ui| {
-			MENU_BAR.ui(ui);
+			MENU_BAR.ui(ui, &mut |action, ctx| action.apply(app, ctx, frame));
 		});
 	});
 }
@@ -69,17 +68,13 @@ impl MenuAction for MenuBarAction {
 			_ => None,
 		}
 	}
-	
-	fn into_message(&self) -> Message {
-		Message::MenuBarAction(*self)
-	}
 }
 
 impl MenuBarAction {
-	pub fn apply(self, ctx: &egui::Context, app: &mut ExcavatorApp) {
+	pub fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
 		println!("menubar: {:?}", self);
 		match self {
-			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(ctx),
+			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(app, ctx, frame),
 			Self::CloseGameDir => app.set_game_root_path(None),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),

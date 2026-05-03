@@ -1,9 +1,7 @@
 use std::sync::{Arc, Mutex};
-use super::menubar::show_menu_bar_panel;
-use super::message::show_status_bar_panel;
 
 pub struct WindowHolder {
-	windows: Vec<Option<DynWrappedWindow>>,
+	windows: Vec<Option<WrappedDynWindow>>,
 }
 
 struct LiveWindow<W: ?Sized> {
@@ -13,7 +11,7 @@ struct LiveWindow<W: ?Sized> {
 }
 
 type WrappedWindow<W> = Arc<Mutex<LiveWindow<W>>>;
-type DynWrappedWindow = WrappedWindow<dyn Window>;
+type WrappedDynWindow = WrappedWindow<dyn Window>;
 
 impl WindowHolder {
 	pub fn new() -> Self {
@@ -28,7 +26,7 @@ impl WindowHolder {
 		self.add_dyn(window);
 	}
 	
-	fn add_dyn(&mut self, window: DynWrappedWindow) {
+	fn add_dyn(&mut self, window: WrappedDynWindow) {
 		// If windows has an entry that's None, put the new window there. Otherwise, push it at the end.
 		if let Some(slot) = self.windows.iter_mut().find(|x| x.is_none()) {
 			*slot = Some(window);
@@ -41,10 +39,10 @@ impl WindowHolder {
 		let base_id = ui.id().with("WindowHolder");
 		for (i, window_opt) in self.windows.iter_mut().enumerate() {
 			if let Some(window) = window_opt {
-				let settings = window.lock().unwrap().itself.settings();
+				let initial_size = window.lock().unwrap().itself.initial_size();
 				
 				let viewport_id = egui::ViewportId(base_id.with(i));
-				let builder = egui::ViewportBuilder::default().with_inner_size(settings.initial_size);
+				let builder = egui::ViewportBuilder::default().with_inner_size(initial_size);
 				let window_clone = Arc::clone(window);
 				
 				ui.show_viewport_deferred(viewport_id, builder, move |ui, class| {
@@ -58,12 +56,8 @@ impl WindowHolder {
 		}
 	}
 	
-	fn viewport_callback(window_m: &DynWrappedWindow, ui: &mut egui::Ui, _class: egui::ViewportClass) {
+	fn viewport_callback(window_m: &WrappedDynWindow, ui: &mut egui::Ui, _class: egui::ViewportClass) {
 		let mut window = window_m.lock().unwrap();
-		let settings = window.itself.settings();
-		
-		if settings.show_menubar { show_menu_bar_panel(ui); }
-		if settings.show_statusbar { show_status_bar_panel(ui); }
 		
 		window.itself.ui(ui);
 		
@@ -76,26 +70,8 @@ impl WindowHolder {
 pub trait Window: Send + 'static {
 	fn ui(&mut self, ui: &mut egui::Ui);
 	
-	fn settings(&self) -> WindowSettings {
-		WindowSettings::default()
-	}
-}
-
-#[derive(Clone)]
-#[non_exhaustive]
-pub struct WindowSettings {
-	pub show_menubar: bool,
-	pub show_statusbar: bool,
-	pub initial_size: egui::Vec2,
-}
-
-impl Default for WindowSettings {
-	fn default() -> Self {
-		Self {
-			show_menubar: false,
-			show_statusbar: false,
-			initial_size: egui::Vec2::splat(300.0),
-		}
+	fn initial_size(&self) -> egui::Vec2 {
+		egui::Vec2::splat(300.0)
 	}
 }
 

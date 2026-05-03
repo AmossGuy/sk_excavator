@@ -1,10 +1,8 @@
 use egui::KeyboardShortcut;
-use super::message::{Message, send_message};
 
 pub trait MenuAction: 'static {
 	fn static_name(&self) -> &'static str;
 	fn default_shortcut(&self) -> Option<KeyboardShortcut>;
-	fn into_message(&self) -> Message;
 }
 
 pub struct RootMenu<A: MenuAction> {
@@ -16,9 +14,11 @@ impl<A: MenuAction> RootMenu<A> {
 		Self { content }
 	}
 	
-	pub fn ui(&self, ui: &mut egui::Ui) {
+	pub fn ui<F>(&'static self, ui: &mut egui::Ui, action_callback: &mut F)
+		where F: FnMut(&'static A, &egui::Context),
+	{
 		for item in self.content {
-			item.ui(ui);
+			item.ui(ui, action_callback);
 		}
 	}
 }
@@ -41,12 +41,14 @@ pub enum MenuItem<A: MenuAction> {
 }
 
 impl<A: MenuAction> MenuItem<A> {
-	fn ui(&self, ui: &mut egui::Ui) {
+	fn ui<F>(&'static self, ui: &mut egui::Ui, action_callback: &mut F)
+		where F: FnMut(&'static A, &egui::Context),
+	{
 		match self {
 			Self::SubMenu(menu) => {
 				ui.menu_button(menu.name, |ui| {
 					for item in menu.content {
-						item.ui(ui);
+						item.ui(ui, action_callback);
 					}
 				});
 			},
@@ -56,7 +58,7 @@ impl<A: MenuAction> MenuItem<A> {
 					button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 				}
 				if ui.add(button).clicked() {
-					send_message(ui.ctx(), action.into_message());
+					action_callback(&action, ui.ctx());
 				}
 			},
 			Self::Separator => {

@@ -3,8 +3,6 @@ use std::path::PathBuf;
 use std::sync::mpsc::{channel, Receiver, Sender};
 
 use crate::EXECUTOR;
-use crate::core::message::{Message, send_message};
-use crate::core::menubar::MenuBarAction;
 
 use excavator_backend::io::dir::DirContents;
 
@@ -21,6 +19,12 @@ pub struct FileTreeView {
 	task: Task<()>,
 	
 	load_result: Option<std::io::Result<DirContents>>,
+}
+
+#[derive(Default)]
+#[must_use]
+pub struct FileTreeEffect {
+	pub close_clicked: bool,
 }
 
 impl FileTreeView {
@@ -43,15 +47,17 @@ impl FileTreeView {
 		})
 	}
 	
-	pub fn ui(&mut self, ui: &mut egui::Ui) {
+	pub fn ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
 		self.apply_messages();
 		
-		self.fixed_ui(ui);
+		let effect = self.fixed_ui(ui);
 		egui::Frame::group(ui.style()).show(ui, |ui| {
 			egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
 				self.scrolling_ui(ui);
 			});
 		});
+		
+		effect
 	}
 	
 	fn apply_messages(&mut self) {
@@ -67,11 +73,13 @@ impl FileTreeView {
 		}
 	}
 		
-	fn fixed_ui(&mut self, ui: &mut egui::Ui) {
+	fn fixed_ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
+		let mut effect = FileTreeEffect::default();
+		
 		let layout = egui::Layout::right_to_left(egui::Align::Min);
 		ui.scope_builder(egui::UiBuilder::new().layout(layout), |ui| {
 			if ui.button("Close").clicked() {
-				send_message(ui.ctx(), Message::MenuBarAction(MenuBarAction::CloseGameDir));
+				effect.close_clicked = true;
 			}
 			if ui.button("Reload").clicked() {
 				self.load_result = None;
@@ -83,6 +91,8 @@ impl FileTreeView {
 				.hint_text("Search...");
 			ui.add_sized(search_box_size, search_box);
 		});
+		
+		effect
 	}
 	
 	fn scrolling_ui(&mut self, ui: &mut egui::Ui) {
