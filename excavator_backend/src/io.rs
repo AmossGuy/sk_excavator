@@ -1,3 +1,5 @@
+pub mod dir;
+
 /*
 use bstr::BString;
 use std::path::PathBuf;

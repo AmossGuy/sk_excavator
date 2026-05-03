@@ -4,8 +4,14 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+# async
+async-fs = "2.2.0"
+futures-lite = { version = "2.6.1", default-features = false }
+
+# other
 anyhow = "1.0.102"
 bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
+lexical-sort = "0.3.1"
 zerocopy = { version = "0.8.39", features = ["std"] }
 zerocopy-derive = "0.8.39"
