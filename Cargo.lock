@@ -1130,6 +1130,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-executor",
+ "bstr",
  "eframe",
  "egui",
  "egui_extras",
