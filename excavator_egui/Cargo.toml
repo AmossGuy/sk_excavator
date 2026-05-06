@@ -4,20 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+excavator_backend = { path = "../excavator_backend" }
+
 # GUI
 eframe = { version = "0.34.1", features = ["persistence"] }
 egui = "0.34.1"
 egui_extras = "0.34.1"
 egui_ltreeview = "0.7.0"
-excavator_backend = { version = "0.1.0", path = "../excavator_backend" }
 rfd = "0.17.2"
 
 # async
-async-executor = { version = "1.14.0", features = ["static"] }
-futures-lite = { version = "2.6.1", default-features = false, features = ["std"] }
+async-executor = { workspace = true }
+futures-lite = { workspace = true }
 
 # miscellaneous
-anyhow = "1.0.100"
-bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
-image = { version = "0.25.9", default-features = false, features = ["png"] }
+anyhow = { workspace = true }
+bstr = { workspace = true }
+image = { workspace = true }
 serde = "1.0.228"

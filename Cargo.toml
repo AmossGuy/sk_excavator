@@ -5,3 +5,14 @@ default-members = ["excavator_egui"]
 
 [profile.dev.package."*"]
 opt-level = 3
+
+[workspace.dependencies]
+# async
+async-executor = { version = "1.14.0", features = ["static"] }
+async-fs = "2.2.0"
+futures-lite = { version = "2.6.1", default-features = false, features = ["std"] }
+
+# other
+anyhow = "1.0.102"
+bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
+image = { version = "0.25.9", default-features = false, features = ["png"] }
