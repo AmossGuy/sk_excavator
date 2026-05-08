@@ -1,20 +1,19 @@
-use crate::EXECUTOR;
 use crate::core::app::{ExcavatorApp, TaskToAppMessage};
-use rfd::AsyncFileDialog;
+use rfd::FileDialog;
 
 pub fn show_game_path_dialog(app: &mut ExcavatorApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
-	let dialog = AsyncFileDialog::new()
+	let dialog = FileDialog::new()
 		.set_title("Select game path")
-		.set_parent(frame)
-		.pick_folder();
+		.set_parent(frame);
 	
 	let sender = app.sender().clone();
 	let ctx = ctx.clone();
-	EXECUTOR.spawn(async move {
-		if let Some(handle) = dialog.await {
-			let path = handle.path().to_path_buf();
-			let _ = sender.send(TaskToAppMessage::SetRootPath(path));
-			ctx.request_repaint();
+	
+	std::thread::spawn(move || {
+		if let Some(path) = dialog.pick_folder() {
+			if sender.send(TaskToAppMessage::SetRootPath(path)).is_ok() {
+				ctx.request_repaint();
+			}
 		}
-	}).detach();
+	});
 }

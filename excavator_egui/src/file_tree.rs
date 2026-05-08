@@ -1,30 +1,26 @@
-use async_executor::Task;
-use bstr::BString;
-use std::collections::{hash_map, HashMap};
+use excavator_backend::file_tree::FileTreeBackend;
+use excavator_backend::io::{dir::DirItem, LoadState};
+use excavator_backend::request_thread::Waker;
 use std::path::PathBuf;
-use std::sync::mpsc::{channel, Receiver, Sender};
+use std::rc::Rc;
 
-use crate::EXECUTOR;
+use egui_ltreeview::{NodeBuilder, TreeViewBuilder};
 
-use excavator_backend::io::dir::{DirContents, DirItem};
+// Those type signatures are pretty bad even in abstract, but with this shorthand they're at least readable.
+type Build<'a> = TreeViewBuilder<'a, NodeId>;
+type Back = FileTreeBackend<RepaintWaker>;
 
-enum TreeLoadMessage {
-	RootComplete { result: std::io::Result<DirItem> },
-	DirComplete { path: PathBuf, result: std::io::Result<DirContents> },
+#[derive(Clone, Eq, Hash, PartialEq)]
+enum NodeId {
+	Dir(PathBuf),
+	Aux,
 }
 
 pub struct FileTreeView {
 	root_path: PathBuf,
 	search_text: String,
 	
-	receiver: Receiver<TreeLoadMessage>,
-	sender: Sender<TreeLoadMessage>,
-	
-	root: Option<std::io::Result<DirItem>>,
-	#[allow(dead_code)] // we want to keep it around just for cancel-on-drop
-	root_task: Task<()>,
-	dirs: HashMap<PathBuf, std::io::Result<DirContents>>,
-	dir_tasks: HashMap<PathBuf, Task<()>>,
+	backend: FileTreeBackend<RepaintWaker>,
 }
 
 #[derive(Default)]
@@ -33,41 +29,42 @@ pub struct FileTreeEffect {
 	pub close_clicked: bool,
 }
 
+#[derive(Clone)]
+struct RepaintWaker {
+	ctx: Option<egui::Context>,
+}
+
+impl RepaintWaker {
+	pub fn dummy() -> Self {
+		Self { ctx: None }
+	}
+	
+	pub fn new(ctx: &egui::Context) -> Self {
+		Self { ctx: Some(ctx.clone()) }
+	}
+}
+
+impl Waker for RepaintWaker {
+	fn wake(&self) {
+		if let Some(ctx) = &self.ctx {
+			ctx.request_repaint();
+		}
+	}
+}
+
 impl FileTreeView {
 	pub fn new(root_path: PathBuf) -> Self {
-		let (sender, receiver) = channel();
-		let root_task = Self::start_root_load(root_path.clone(), sender.clone());
-		
+		let backend = FileTreeBackend::new(root_path.clone(), RepaintWaker::dummy());
 		Self {
 			root_path,
 			search_text: String::new(),
-			
-			receiver,
-			sender,
-			
-			root: None,
-			root_task,
-			dirs: HashMap::new(),
-			dir_tasks: HashMap::new(),
+			backend,
 		}
 	}
 	
-	fn start_root_load(path: PathBuf, sender: Sender<TreeLoadMessage>) -> Task<()> {
-		let load = DirItem::read_single_async(path);
-		EXECUTOR.spawn(async move {
-			let _ = sender.send(TreeLoadMessage::RootComplete { result: load.await });
-		})
-	}
-	
-	fn start_dir_load(path: PathBuf, sender: Sender<TreeLoadMessage>) -> Task<()> {
-		let load = DirContents::read_async(path.clone());
-		EXECUTOR.spawn(async move {
-			let _ = sender.send(TreeLoadMessage::DirComplete { path, result: load.await });
-		})
-	}
-	
 	pub fn ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
-		self.apply_messages();
+		self.backend.replace_waker(RepaintWaker::new(ui.ctx()));
+		self.backend.update_loading();
 		
 		let effect = self.fixed_ui(ui);
 		egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -77,22 +74,6 @@ impl FileTreeView {
 		});
 		
 		effect
-	}
-	
-	fn apply_messages(&mut self) {
-		for message in self.receiver.try_iter() {
-			match message {
-				TreeLoadMessage::RootComplete { result } => {
-					self.root = Some(result);
-				},
-				TreeLoadMessage::DirComplete { path, mut result } => {
-					if let Ok(ref mut dir_contents) = result {
-						dir_contents.sort_by_name();
-					}
-					self.dirs.insert(path, result);
-				},
-			}
-		}
 	}
 		
 	fn fixed_ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
@@ -117,77 +98,51 @@ impl FileTreeView {
 	}
 	
 	fn scrolling_ui(&mut self, ui: &mut egui::Ui) {
-		match &self.root {
-			None => {
-				ui.spinner();
+		let tree = egui_ltreeview::TreeView::new(ui.id().with("TreeView"))
+			.allow_drag_and_drop(false);
+		
+		tree.show(ui, |builder| {
+			let root = Rc::clone(self.backend.request_root());
+			let backend = &mut self.backend;
+			Self::render_load_state(builder, backend, root, Self::render_dir_item);
+		});
+	}
+	
+	fn render_load_state<'a, T>(builder: &mut Build<'a>, backend: &mut Back, state: Rc<LoadState<T>>, render_loaded: impl FnOnce(&mut Build<'a>, &mut Back, &T)) {
+		match &*state {
+			LoadState::Loading => {
+				builder.node(NodeBuilder::leaf(NodeId::Aux).label_ui(|ui| { ui.spinner(); }));
 			},
-			Some(Ok(item)) => {
-				let tree = egui_ltreeview::TreeView::new(ui.id().with("TreeView"))
-					.allow_drag_and_drop(false);
-				
-				tree.show(ui, |builder| {
-					Self::render_dir_item(builder, item, &self.dirs, &mut self.dir_tasks, &self.sender);
-				});
+			LoadState::Loaded(loaded) => {
+				render_loaded(builder, backend, &loaded);
 			},
-			Some(Err(e)) => {
-				let text = egui::RichText::new(e.to_string())
-					.color(ui.visuals().error_fg_color)
-					.monospace();
-				ui.label(text);
-			}
+			LoadState::Failed(e) => {
+				builder.node(NodeBuilder::leaf(NodeId::Aux).label_ui(|ui| {
+					let text = egui::RichText::new(e.to_string())
+						.color(ui.visuals().error_fg_color)
+						.monospace();
+					ui.label(text);
+				}));
+			},
 		}
 	}
 	
-	fn render_dir_item(builder: &mut egui_ltreeview::TreeViewBuilder<BString>, item: &DirItem, dirs: &HashMap<PathBuf, std::io::Result<DirContents>>, dir_tasks: &mut HashMap<PathBuf, Task<()>>, sender: &Sender<TreeLoadMessage>) {
-		use egui_ltreeview::NodeBuilder;
-		
-		let node_id: BString = [
-			b"DIR:".as_slice(),
-			item.source_path().as_os_str().as_encoded_bytes(),
-		].into_iter().collect();
-		
+	fn render_dir_item(builder: &mut Build<'_>, backend: &mut Back, item: &DirItem) {
 		let is_dir = item.is_dir();
+		let path = item.file_path().to_path_buf();
 		
 		let node_builder_start = if is_dir { NodeBuilder::dir } else { NodeBuilder::leaf };
-		let node_builder = node_builder_start(node_id.clone()).label(item.display_name());
+		let node_builder = node_builder_start(NodeId::Dir(path.clone())).label(item.display_name());
 		
 		let is_expanded = builder.node(node_builder);
 		
-		// got lazy here, started copy-pasting
 		if is_dir && is_expanded {
-			match dirs.get(item.source_path()) {
-				None => {
-					let auxillary_id: BString = [
-						b"AUX:".as_slice(),
-						node_id.as_slice(),
-					].into_iter().collect();
-					builder.node(NodeBuilder::leaf(auxillary_id).label_ui(|ui| { ui.spinner(); }));
-					
-					match dir_tasks.entry(item.source_path().to_path_buf()) {
-						hash_map::Entry::Vacant(vacant) => {
-							vacant.insert(Self::start_dir_load(item.source_path().to_path_buf(), sender.clone()));
-						},
-						_ => {},
-					}
-				},
-				Some(Ok(contents)) => {
-					for item in contents.iter() {
-						Self::render_dir_item(builder, item, dirs, dir_tasks, sender);
-					}
-				},
-				Some(Err(e)) => {
-					let auxillary_id: BString = [
-						b"AUX:".as_slice(),
-						node_id.as_slice(),
-					].into_iter().collect();
-					builder.node(NodeBuilder::leaf(auxillary_id).label_ui(|ui| {
-						let text = egui::RichText::new(e.to_string())
-							.color(ui.visuals().error_fg_color)
-							.monospace();
-						ui.label(text);
-					}));
-				},
-			}
+			let contents = Rc::clone(backend.request_dir(path));
+			Self::render_load_state(builder, backend, contents, |bu, ba, contents| {
+				for child in contents.iter() {
+					Self::render_dir_item(bu, ba, child);
+				}
+			});
 		}
 		
 		if is_dir {
