@@ -1,18 +1,15 @@
-use excavator_backend::file_tree::FileTreeBackend;
-use excavator_backend::io::{dir::DirItem, LoadState};
+use excavator_backend::file_tree::{self, FileTreeBackend, TreeNode};
+use excavator_backend::io::LoadState;
 use excavator_backend::request_thread::Waker;
-use std::path::PathBuf;
-use std::rc::Rc;
 
 use egui_ltreeview::{NodeBuilder, TreeViewBuilder};
 
-// Those type signatures are pretty bad even in abstract, but with this shorthand they're at least readable.
-type Build<'a> = TreeViewBuilder<'a, NodeId>;
-type Back = FileTreeBackend<RepaintWaker>;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 enum NodeId {
-	Dir(PathBuf),
+	Node(file_tree::UniqueId),
 	Aux,
 }
 
@@ -64,7 +61,6 @@ impl FileTreeView {
 	
 	pub fn ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
 		self.backend.replace_waker(RepaintWaker::new(ui.ctx()));
-		self.backend.update_loading();
 		
 		let effect = self.fixed_ui(ui);
 		egui::Frame::group(ui.style()).show(ui, |ui| {
@@ -102,19 +98,27 @@ impl FileTreeView {
 			.allow_drag_and_drop(false);
 		
 		tree.show(ui, |builder| {
-			let root = Rc::clone(self.backend.request_root());
-			let backend = &mut self.backend;
-			Self::render_load_state(builder, backend, root, Self::render_dir_item);
+			let root_state = self.backend.tree_root();
+			
+			if let Some(root_node) = self.render_load_state(builder, &root_state) {
+				self.render_node(builder, &root_node);
+			}
 		});
 	}
 	
-	fn render_load_state<'a, T>(builder: &mut Build<'a>, backend: &mut Back, state: Rc<LoadState<T>>, render_loaded: impl FnOnce(&mut Build<'a>, &mut Back, &T)) {
+	#[must_use]
+	fn render_load_state<'a, 'b, T>(&mut self, builder: &mut TreeViewBuilder<'a, NodeId>, state: &'b LoadState<T>) -> Option<&'b T> {
 		match &*state {
+			LoadState::Unloaded => {
+				builder.leaf(NodeId::Aux, "(Not loaded)");
+				None
+			},
 			LoadState::Loading => {
 				builder.node(NodeBuilder::leaf(NodeId::Aux).label_ui(|ui| { ui.spinner(); }));
+				None
 			},
 			LoadState::Loaded(loaded) => {
-				render_loaded(builder, backend, &loaded);
+				Some(&loaded)
 			},
 			LoadState::Failed(e) => {
 				builder.node(NodeBuilder::leaf(NodeId::Aux).label_ui(|ui| {
@@ -123,26 +127,32 @@ impl FileTreeView {
 						.monospace();
 					ui.label(text);
 				}));
+				None
 			},
 		}
 	}
-	
-	fn render_dir_item(builder: &mut Build<'_>, backend: &mut Back, item: &DirItem) {
-		let is_dir = item.is_dir();
-		let path = item.file_path().to_path_buf();
+		
+	fn render_node<'a>(&mut self, builder: &mut TreeViewBuilder<'a, NodeId>, node: &Arc<Mutex<TreeNode>>) {
+		let node_lock = node.lock().unwrap();
+		let is_dir = node_lock.is_dir();
+		let node_id = NodeId::Node(node_lock.unique_id());
+		let display_name = node_lock.display_name();
+		let children_state = node_lock.children();
+		drop(node_lock);
+		
+		self.backend.start_load_if_unloaded(node);
 		
 		let node_builder_start = if is_dir { NodeBuilder::dir } else { NodeBuilder::leaf };
-		let node_builder = node_builder_start(NodeId::Dir(path.clone())).label(item.display_name());
+		let node_builder = node_builder_start(node_id).label(display_name);
 		
 		let is_expanded = builder.node(node_builder);
 		
 		if is_dir && is_expanded {
-			let contents = Rc::clone(backend.request_dir(path));
-			Self::render_load_state(builder, backend, contents, |bu, ba, contents| {
-				for child in contents.iter() {
-					Self::render_dir_item(bu, ba, child);
+			if let Some(children) = self.render_load_state(builder, &children_state) {
+				for child in children.iter() {
+					self.render_node(builder, child);
 				}
-			});
+			}
 		}
 		
 		if is_dir {
