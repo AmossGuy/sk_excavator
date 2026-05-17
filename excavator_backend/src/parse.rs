@@ -58,6 +58,10 @@ impl<R: BufRead + Seek> ParseReader<R> {
 	pub fn read_null_terminated_string(&mut self, offset: u64) -> ParseResult<BString> {
 		self.cursor(offset)?.read_null_terminated_string()
 	}
+	
+	pub fn take_reader(self) -> R {
+		self.reader
+	}
 }
 
 pub struct ParseCursor<'a, R: BufRead + Seek> {

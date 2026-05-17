@@ -75,6 +75,9 @@ impl eframe::App for ExcavatorApp {
 				if effect.close_clicked {
 					MenuBarAction::CloseGameDir.apply(self, ui.ctx(), frame);
 				}
+				for pls in effect.pls_app {
+					pls(self, ui.ctx(), frame);
+				}
 			} else {
 				if ui.button("Select game path...").clicked() {
 					MenuBarAction::SelectGameDir.apply(self, ui.ctx(), frame);

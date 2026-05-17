@@ -1,4 +1,4 @@
-use excavator_backend::file_tree::{self, FileTreeBackend, TreeNode};
+use excavator_backend::file_tree::{self, FileTreeBackend, TreeNode, UniqueId};
 use excavator_backend::io::LoadState;
 use excavator_backend::request_thread::Waker;
 
@@ -6,6 +6,8 @@ use egui_ltreeview::{NodeBuilder, TreeViewBuilder};
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
+
+use crate::misc::file_dialog::show_file_extract_dialog;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 enum NodeId {
@@ -24,6 +26,19 @@ pub struct FileTreeView {
 #[must_use]
 pub struct FileTreeEffect {
 	pub close_clicked: bool,
+	pub pls_app: Vec<Box<dyn FnOnce(&mut crate::core::app::ExcavatorApp, &egui::Context, &mut eframe::Frame)>>
+}
+
+impl FileTreeEffect {
+	fn combine(self, mut other: FileTreeEffect) -> Self {
+		let mut pls_app = self.pls_app;
+		pls_app.append(&mut other.pls_app);
+		
+		Self {
+			close_clicked: self.close_clicked || other.close_clicked,
+			pls_app,
+		}
+	}
 }
 
 #[derive(Clone)]
@@ -62,15 +77,15 @@ impl FileTreeView {
 	pub fn ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
 		self.backend.replace_waker(RepaintWaker::new(ui.ctx()));
 		
-		let effect = self.fixed_ui(ui);
+		let effect1 = self.fixed_ui(ui);
 		
 		ui.separator();
 		
-		egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-			self.scrolling_ui(ui);
-		});
+		let effect2 = egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+			self.scrolling_ui(ui)
+		}).inner;
 		
-		effect
+		effect1.combine(effect2)
 	}
 		
 	fn fixed_ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
@@ -98,9 +113,12 @@ impl FileTreeView {
 		effect
 	}
 	
-	fn scrolling_ui(&mut self, ui: &mut egui::Ui) {
+	fn scrolling_ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
+		let mut effect = FileTreeEffect::default();
+		
 		let tree = egui_ltreeview::TreeView::new(ui.id().with("TreeView"))
-			.allow_drag_and_drop(false);
+			.allow_drag_and_drop(false)
+			.fallback_context_menu(|a, b| Self::context_menu(&mut effect, a, b));
 		
 		tree.show(ui, |builder| {
 			let root_state = self.backend.tree_root();
@@ -109,6 +127,8 @@ impl FileTreeView {
 				self.render_node(builder, &root_node);
 			}
 		});
+		
+		effect
 	}
 	
 	#[must_use]
@@ -163,5 +183,35 @@ impl FileTreeView {
 		if is_expandable {
 			builder.close_dir();
 		}
+	}
+	
+	fn context_menu(effect: &mut FileTreeEffect, ui: &mut egui::Ui, nodes: &Vec<NodeId>) {
+		let text_size = egui::TextStyle::Body
+			.resolve(ui.style())
+			.size;
+		ui.set_width(text_size * 15.); // UGH. stupid
+		
+		let node = match nodes.len() {
+			0 => { ui.label("Nothing selected"); return; },
+			1 => &nodes[0],
+			2.. => { ui.label("Multiselect actions not yet implemented"); return; },
+		};
+		
+		match node {
+			NodeId::Node(UniqueId::Fs(path)) => {
+				if ui.button("Copy path").clicked() {
+					ui.ctx().copy_text(path.to_string_lossy().into_owned());
+				}
+			},
+			NodeId::Node(UniqueId::Pak(outer_path, inner_path)) => {
+				if ui.button("Extract from archive...").clicked() {
+					let (outer_path, inner_path) = (outer_path.clone(), inner_path.clone());
+					effect.pls_app.push(Box::new(
+						|_a, b, c| show_file_extract_dialog(outer_path, inner_path, b, c)
+					))
+				}
+			},
+			_ => {},
+		};
 	}
 }
