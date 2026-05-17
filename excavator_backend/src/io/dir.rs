@@ -2,6 +2,8 @@ use lexical_sort::natural_lexical_cmp;
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
+use crate::formats::FileFormat;
+
 #[derive(Clone)]
 pub struct DirItem {
 	file_path: PathBuf,
@@ -33,12 +35,24 @@ impl DirItem {
 		&self.file_path
 	}
 	
+	pub fn file_path_bytes(&self) -> &[u8] {
+		self.file_path.as_os_str().as_encoded_bytes()
+	}
+	
 	pub fn display_name(&self) -> Cow<'_, str> {
 		self.file_path.file_name().unwrap_or_default().to_string_lossy()
 	}
 	
 	pub fn is_dir(&self) -> bool {
 		self.file_type.is_dir()
+	}
+	
+	pub fn is_file(&self) -> bool {
+		self.file_type.is_file()
+	}
+	
+	pub fn is_pak(&self) -> bool {
+		self.is_file() && FileFormat::from_filename(self.file_path_bytes()) == Some(FileFormat::Pak)
 	}
 	
 	pub fn file_size(&self) -> u64 {

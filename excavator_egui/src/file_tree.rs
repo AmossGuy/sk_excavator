@@ -15,7 +15,7 @@ enum NodeId {
 
 pub struct FileTreeView {
 	root_path: PathBuf,
-	search_text: String,
+	// search_text: String,
 	
 	backend: FileTreeBackend<RepaintWaker>,
 }
@@ -54,7 +54,7 @@ impl FileTreeView {
 		let backend = FileTreeBackend::new(root_path.clone(), RepaintWaker::dummy());
 		Self {
 			root_path,
-			search_text: String::new(),
+			// search_text: String::new(),
 			backend,
 		}
 	}
@@ -139,20 +139,20 @@ impl FileTreeView {
 		
 	fn render_node<'a>(&mut self, builder: &mut TreeViewBuilder<'a, NodeId>, node: &Arc<Mutex<TreeNode>>) {
 		let node_lock = node.lock().unwrap();
-		let is_dir = node_lock.is_dir();
+		let is_expandable = node_lock.is_expandable();
 		let node_id = NodeId::Node(node_lock.unique_id());
 		let display_name = node_lock.display_name();
 		let children_state = node_lock.children();
 		drop(node_lock);
 		
-		self.backend.start_load_if_unloaded(node);
-		
-		let node_builder_start = if is_dir { NodeBuilder::dir } else { NodeBuilder::leaf };
-		let node_builder = node_builder_start(node_id).label(display_name);
+		let node_builder_start = if is_expandable { NodeBuilder::dir } else { NodeBuilder::leaf };
+		let node_builder = node_builder_start(node_id).label(display_name).default_open(false);
 		
 		let is_expanded = builder.node(node_builder);
 		
-		if is_dir && is_expanded {
+		if is_expandable && is_expanded {
+			self.backend.start_load_if_unloaded(node);
+			
 			if let Some(children) = self.render_load_state(builder, &children_state) {
 				for child in children.iter() {
 					self.render_node(builder, child);
@@ -160,7 +160,7 @@ impl FileTreeView {
 			}
 		}
 		
-		if is_dir {
+		if is_expandable {
 			builder.close_dir();
 		}
 	}

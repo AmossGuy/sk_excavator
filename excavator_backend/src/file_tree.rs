@@ -1,3 +1,4 @@
+use bstr::BString;
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, Weak};
 
@@ -42,10 +43,19 @@ impl<W: Waker> FileTreeBackend<W> {
 					if item.is_dir() {
 						let path = item.file_path().to_path_buf();
 						self.loader.make_request(LoadRequest::Dir { path, target: Arc::downgrade(node) });
+						node_lock.children = LoadState::Loading;
+					} else if item.is_pak() {
+						let path = item.file_path().to_path_buf();
+						self.loader.make_request(LoadRequest::Pak { path, target: Arc::downgrade(node) });
+						node_lock.children = LoadState::Loading;
+					} else {
+						node_lock.children = LoadState::Failed(Arc::new(
+							anyhow::anyhow!("not directory or pak; shouldn't be expandable")
+						));
 					}
-				}
+				},
+				_ => {},
 			}
-			node_lock.children = LoadState::Loading;
 		}
 		drop(node_lock);
 	}
@@ -75,6 +85,18 @@ impl TreeNode {
 		}
 	}
 	
+	fn pak_wahtever(pak_path: PathBuf, entry_name: BString, parent: Weak<Mutex<TreeNode>>) -> Self {
+		use bstr::ByteSlice;
+		
+		TreeNode {
+			parent,
+			children: LoadState::Unloaded,
+			
+			display_name: entry_name.to_str_lossy().to_string(),
+			source: TreeNodeSource::Pak { pak_path, entry_name },
+		}
+	}
+	
 	pub fn parent(&self) -> Option<Arc<Mutex<TreeNode>>> {
 		self.parent.upgrade()
 	}
@@ -86,7 +108,19 @@ impl TreeNode {
 	pub fn is_dir(&self) -> bool {
 		match &self.source {
 			TreeNodeSource::Fs(item) => item.is_dir(),
+			_ => false,
 		}
+	}
+	
+	pub fn is_pak(&self) -> bool {
+		match &self.source {
+			TreeNodeSource::Fs(item) => item.is_pak(),
+			_ => false,
+		}
+	}
+	
+	pub fn is_expandable(&self) -> bool {
+		self.is_dir() || self.is_pak()
 	}
 	
 	pub fn children(&self) -> LoadState<Arc<TreeChildren>> {
@@ -97,6 +131,7 @@ impl TreeNode {
 	pub fn unique_id(&self) -> UniqueId {
 		match &self.source {
 			TreeNodeSource::Fs(item) => UniqueId::Fs(item.file_path().to_path_buf()),
+			TreeNodeSource::Pak { pak_path, entry_name } => UniqueId::Pak(pak_path.clone(), entry_name.clone()),
 		}
 	}
 }
@@ -113,16 +148,19 @@ impl TreeChildren {
 
 pub enum TreeNodeSource {
 	Fs(DirItem),
+	Pak { pak_path: PathBuf, entry_name: BString },
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 pub enum UniqueId {
 	Fs(PathBuf),
+	Pak(PathBuf, BString),
 }
 
 enum LoadRequest {
 	Root { path: PathBuf, target: Weak<Mutex<TreeRoot>> },
 	Dir { path: PathBuf, target: Weak<Mutex<TreeNode>> },
+	Pak { path: PathBuf, target: Weak<Mutex<TreeNode>> },
 }
 
 impl ThreadRequest for LoadRequest {
@@ -163,7 +201,31 @@ impl ThreadRequest for LoadRequest {
 					lock.children.set_from_load_result(result);
 					drop(lock);
 				}
-			}
+			},
+			Self::Pak { path, target } => {
+				let result = (|| {
+					use std::{fs::File, io::BufReader};
+					use crate::formats::pak::PakParser;
+					
+					let file = File::open(&path)?;
+					let bufreader = BufReader::new(file);
+					
+					let mut parser = PakParser::new(bufreader)?;
+					let nodes = parser.files()?
+						.map(|r| r.map(|(_, name)| TreeNode::pak_wahtever(path.to_path_buf(), name, Weak::clone(&target))))
+						.map(|r| r.map(|x| Arc::new(Mutex::new(x))))
+						.collect::<Result<Vec<_>, _>>()?;
+					
+					let children = TreeChildren { nodes };
+					Ok(Arc::new(children))
+				})();
+				
+				if let Some(strong) = target.upgrade() {
+					let mut lock = strong.lock().unwrap();
+					lock.children.set_from_load_result::<anyhow::Error>(result);
+					drop(lock);
+				}
+			},
 		}
 	}
 }
