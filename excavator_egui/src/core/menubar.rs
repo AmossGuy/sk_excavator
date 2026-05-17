@@ -17,12 +17,14 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
 	])),
+	/*
 	MenuItem::SubMenu(Menu::new("Edit", &[
 		MenuItem::Action(MenuBarAction::Undo),
 		MenuItem::Action(MenuBarAction::Redo),
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Settings),
 	])),
+	*/
 	MenuItem::SubMenu(Menu::new("Help", &[
 		MenuItem::Action(MenuBarAction::About),
 	])),
@@ -35,9 +37,11 @@ pub enum MenuBarAction {
 	
 	Quit,
 	
+	/*
 	Undo,
 	Redo,
 	Settings,
+	*/
 	
 	About,
 }
@@ -49,9 +53,11 @@ impl MenuAction for MenuBarAction {
 			Self::CloseGameDir => "Close game directory",
 			Self::Quit => "Quit",
 			
+			/*
 			Self::Undo => "Undo",
 			Self::Redo => "Redo",
 			Self::Settings => "Settings...",
+			*/
 			
 			Self::About => "About Shovel Knight Excavator",
 		}
@@ -63,8 +69,10 @@ impl MenuAction for MenuBarAction {
 		
 		match self {
 			Self::Quit => Some(KS::new(Mod::COMMAND, Key::Q)),
+			/*
 			Self::Undo => Some(KS::new(Mod::COMMAND, Key::Z)),
 			Self::Redo => Some(KS::new(Mod::COMMAND | Mod::SHIFT, Key::Z)),
+			*/
 			_ => None,
 		}
 	}
@@ -72,13 +80,11 @@ impl MenuAction for MenuBarAction {
 
 impl MenuBarAction {
 	pub fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
-		println!("menubar: {:?}", self);
 		match self {
 			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(app, ctx, frame),
 			Self::CloseGameDir => app.set_game_root_path(None),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),
-			_ => {}, // TODO: implement all menu items
 		}
 	}
 }

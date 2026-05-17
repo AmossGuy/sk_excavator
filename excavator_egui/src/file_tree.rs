@@ -63,10 +63,11 @@ impl FileTreeView {
 		self.backend.replace_waker(RepaintWaker::new(ui.ctx()));
 		
 		let effect = self.fixed_ui(ui);
-		egui::Frame::group(ui.style()).show(ui, |ui| {
-			egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-				self.scrolling_ui(ui);
-			});
+		
+		ui.separator();
+		
+		egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
+			self.scrolling_ui(ui);
 		});
 		
 		effect
@@ -75,7 +76,8 @@ impl FileTreeView {
 	fn fixed_ui(&mut self, ui: &mut egui::Ui) -> FileTreeEffect {
 		let mut effect = FileTreeEffect::default();
 		
-		let layout = egui::Layout::right_to_left(egui::Align::Min);
+		// let layout = egui::Layout::right_to_left(egui::Align::Min);
+		let layout = egui::Layout::left_to_right(egui::Align::Min);
 		ui.scope_builder(egui::UiBuilder::new().layout(layout), |ui| {
 			if ui.button("Close").clicked() {
 				effect.close_clicked = true;
@@ -84,10 +86,13 @@ impl FileTreeView {
 				*self = Self::new(self.root_path.clone());
 			}
 			
+			// search is not implemented, because i had a horrible time trying to
+			/*
 			let search_box_size = egui::Vec2::new(ui.available_size().x, ui.min_size().y);
 			let search_box = egui::TextEdit::singleline(&mut self.search_text)
 				.hint_text("Search...");
 			ui.add_sized(search_box_size, search_box);
+			*/
 		});
 		
 		effect
