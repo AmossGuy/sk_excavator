@@ -55,12 +55,18 @@ impl FileView for LtbFileView {
 
 impl LtbFileView {
 	fn images_ui(&mut self, ui: &mut egui::Ui) {
+		egui::ScrollArea::both().auto_shrink(false).show(ui, |ui| {
+			self.images_ui_inner(ui);
+		});
+	}
+		
+	fn images_ui_inner(&mut self, ui: &mut egui::Ui) {
 		if let Some(ref texture) = self.current_texture {
 			let e_texture = egui::load::SizedTexture {
 				id: texture.handle.id(),
 				size: texture.size,
 			};
-			ui.add(egui::Image::new(e_texture).fit_to_exact_size(ui.available_size() * egui::Vec2::new(1.0, 0.3)));
+			ui.add(egui::Image::new(e_texture).fit_to_exact_size(texture.size));
 		}
 		
 		match &self.parsed {
@@ -98,6 +104,13 @@ impl LtbFileView {
 								
 								self.current_texture = Some(LtbViewTexture { handle, size: size_vec });
 							} }
+							
+							if ui.button("(export)").clicked() {
+								if let Ok(data) = ltb_image.decompress() {
+									let size = ltb_image.size();
+									crate::misc::file_dialog::show_wflz_export_dialog(Vec::from(data), size, ui.ctx());
+								}
+							}
 							
 							ui.label(format!("({})", ltb_image.meta_debug()));
 						},

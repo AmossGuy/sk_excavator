@@ -125,6 +125,22 @@ impl ParsedLtb {
 	pub fn get_chunk_data(&self, offset: usize) -> &[u16] {
 		&self.tilemap_data[offset..offset+CHUNK_AREA]
 	}
+	
+	pub fn dump_everything(&self, folder_path: std::path::PathBuf) -> anyhow::Result<()> {
+		use std::fs::{create_dir_all, File};
+		use std::io::Write;
+		
+		create_dir_all(&folder_path)?;
+		
+		for (i, image_result) in self.images.iter().enumerate() {
+			let image = image_result.as_ref().map_err(|e| anyhow::anyhow!("error loading image #{}: {}", i, e))?;
+			
+			let mut image_write_file = File::create(folder_path.join(format!("image {}.wflz", i)))?;
+			image_write_file.write_all(&image.data)?;
+		}
+		
+		Ok(())
+	}
 }
 
 pub struct ParsedImage {
