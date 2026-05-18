@@ -26,6 +26,10 @@ impl ExcavatorApp {
 			"SkExcavator",
 			eframe::NativeOptions::default(),
 			Box::new(|cc| {
+				#[cfg(debug_assertions)]
+				// workaround for it going off spuriously when clicking on stuff in file tree
+				cc.egui_ctx.global_style_mut(|s| s.debug.warn_if_rect_changes_id = false);
+				
 				Ok(Box::new(Self::new(cc)))
 			}),
 		)

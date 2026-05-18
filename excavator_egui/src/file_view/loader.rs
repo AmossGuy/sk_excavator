@@ -1,3 +1,4 @@
+use std::io::BufReader;
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
@@ -22,11 +23,35 @@ impl FileViewLoader {
 	pub fn from_file_source(source: FileSource, ctx: &egui::Context) -> Option<Self> {
 		let ctx = ctx.clone();
 		match source.file_format() {
-			Some(FileFormat::Image(ImageFormat::Png)) => Some(Self::with_load_fn(move || {
+			Some(FileFormat::Stb | FileFormat::Stm) => Some(Self::with_load_fn(move || {
 				let file = source.open()?;
 				let buf = std::io::BufReader::new(file);
 				
+				Ok(Box::new(super::st::StFileView::load_not_stl(buf, &ctx)))
+			})),
+			Some(FileFormat::Stl) => Some(Self::with_load_fn(move || {
+				let file = source.open()?;
+				let buf = std::io::BufReader::new(file);
+				
+				Ok(Box::new(super::st::StFileView::load_stl(buf, &ctx)))
+			})),
+			Some(FileFormat::Anb) => Some(Self::with_load_fn(move || {
+				let file = source.open()?;
+				let buf = std::io::BufReader::new(file);
+				
+				Ok(Box::new(super::anb::AnbFileView::load(buf, &ctx)))
+			})),
+			Some(FileFormat::Image(ImageFormat::Png)) => Some(Self::with_load_fn(move || {
+				let file = source.open()?;
+				let buf = BufReader::new(file);
+				
 				Ok(Box::new(super::image::ImageFileView::load(buf, &ctx)))
+			})),
+			Some(FileFormat::Ltb) => Some(Self::with_load_fn(move || {
+				let file = source.open()?;
+				let buf = BufReader::new(file);
+				
+				Ok(Box::new(super::ltb::LtbFileView::load(buf, &ctx)))
 			})),
 			_ => None,
 		}

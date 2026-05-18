@@ -1,23 +1,21 @@
-use crate::ExcavatorMessage;
-use crate::file_read::FileBytes;
-use super::ItemView;
-
+use super::{FileView, FileViewEffect};
 use excavator_backend::formats::anb::{decompress_wflz, parse_anb, ParsedAnb, ParsedAnbNode, ParsedData};
+use std::io::{BufRead, Seek};
 
 pub struct AnbFileView {
 	parsed: anyhow::Result<ParsedAnb>,
 	current_texture: Option<AnbViewTexture>,
 }
 
-impl ItemView for AnbFileView {
-	fn new(bytes: FileBytes, _ctx: &egui::Context) -> Self where Self: Sized {
-		let mut cursor = std::io::Cursor::new(bytes.as_slice());
-		// blocks the main thread for now, until i figure out an ergonomic system for all the threading this app ought to do
-		let parsed = parse_anb(&mut cursor);
+impl AnbFileView {
+	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> Self where Self: Sized {
+		let parsed = parse_anb(&mut reader);
 		Self { parsed, current_texture: None }
 	}
-	
-	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+}
+
+impl FileView for AnbFileView {
+	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
 		if let Some(ref texture) = self.current_texture {
 			let texture = egui::load::SizedTexture {
 				id: texture.handle.id(),
@@ -35,7 +33,7 @@ impl ItemView for AnbFileView {
 			Err(e) => { ui.label(format!("failed to load anb: {}", e)); },
 		};
 		
-		None
+		FileViewEffect::default()
 	}
 }
 

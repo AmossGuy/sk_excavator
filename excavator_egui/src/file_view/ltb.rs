@@ -1,11 +1,9 @@
-use crate::ExcavatorMessage;
-use crate::file_read::FileBytes;
-use super::ItemView;
+use super::{FileView, FileViewEffect};
 
 use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb, CHUNK_SIZE};
 
 use std::borrow::Cow;
-use std::sync::Arc;
+use std::io::{BufRead, Seek};
 
 pub struct LtbFileView {
 	parsed: anyhow::Result<ParsedLtb>,
@@ -22,15 +20,15 @@ enum Tab {
 	TilemapDisplay
 }
 
-impl ItemView for LtbFileView {
-	fn new(bytes: FileBytes, _ctx: &egui::Context) -> Self where Self: Sized {
-		let mut cursor = std::io::Cursor::new(bytes.as_slice());
-		// blocks the main thread for now, until i figure out an ergonomic system for all the threading this app ought to do
-		let parsed = parse_ltb(&mut cursor);
+impl LtbFileView {
+	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> Self {
+		let parsed = parse_ltb(&mut reader);
 		Self { parsed, tab: Tab::Images, current_texture: None, current_tilemap_layer: None }
 	}
-	
-	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+}
+
+impl FileView for LtbFileView {
+	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
 		egui::Panel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
 			for (label, value) in [
 				("Images", Tab::Images),
@@ -51,7 +49,7 @@ impl ItemView for LtbFileView {
 			};
 		});
 		
-		None
+		FileViewEffect::default()
 	}
 }
 
@@ -62,8 +60,7 @@ impl LtbFileView {
 				id: texture.handle.id(),
 				size: texture.size,
 			};
-			let r = ui.add(egui::Image::new(e_texture).fit_to_exact_size(ui.available_size() * egui::Vec2::new(1.0, 0.3)));
-			r.interact(egui::Sense::click()).context_menu(|ui| wflz_context_menu(ui, &texture));
+			ui.add(egui::Image::new(e_texture).fit_to_exact_size(ui.available_size() * egui::Vec2::new(1.0, 0.3)));
 		}
 		
 		match &self.parsed {
@@ -99,8 +96,7 @@ impl LtbFileView {
 								};
 								let handle = ui.ctx().load_texture(texture_name, egui_image, egui::TextureOptions::NEAREST);
 								
-								let raw = Arc::from(data);
-								self.current_texture = Some(LtbViewTexture { handle, size: size_vec, raw });
+								self.current_texture = Some(LtbViewTexture { handle, size: size_vec });
 							} }
 							
 							ui.label(format!("({})", ltb_image.meta_debug()));
@@ -183,23 +179,4 @@ impl LtbFileView {
 struct LtbViewTexture {
 	handle: egui::TextureHandle,
 	size: egui::Vec2,
-	raw: Arc<[u8]>,
-}
-
-fn wflz_context_menu(ui: &mut egui::Ui, texture: &LtbViewTexture) {
-	if ui.button("Export raw decompressed data").clicked() {
-		let threads = ui.ctx().plugin_or_default::<crate::plugins::ThreadSpawner>();
-		
-		let dialog = rfd::FileDialog::new()
-			.set_title("Export raw decompressed data");
-		
-		let raw = Arc::clone(&texture.raw);
-		threads.lock().spawn(ui.ctx().clone(), move |_| {
-			let outcome = dialog.save_file();
-			if let Some(path) = outcome {
-				let _ = std::fs::write(&path, raw);
-			}
-			None
-		});
-	}
 }
