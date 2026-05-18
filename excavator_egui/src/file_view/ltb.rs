@@ -121,11 +121,11 @@ impl LtbFileView {
 							
 							ui.label(format!("({})", ltb_image.meta_debug()));
 						},
-						Err(e) => { ui.label(format!("image data {} error: {}", i, e)); },
+						Err(e) => { ui.label(format!("image data {} error: {:?}", i, e)); },
 					}
 				}
 			}); },
-			Err(e) => { ui.label(e.to_string()); },
+			Err(e) => { ui.label(format!("error: {:?}", e)); },
 		}
 	}
 	

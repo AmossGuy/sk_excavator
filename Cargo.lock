@@ -1106,6 +1106,7 @@ dependencies = [
  "bstr",
  "image",
  "lexical-sort",
+ "serde",
  "zerocopy",
  "zerocopy-derive",
 ]

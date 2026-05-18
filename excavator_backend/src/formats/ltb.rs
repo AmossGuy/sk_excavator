@@ -4,6 +4,8 @@ use std::io::{BufRead, Seek};
 use zerocopy::{FromBytes, LittleEndian as LE, U16, U32, U64};
 use zerocopy_derive::*;
 
+use anyhow::Context;
+
 pub const CHUNK_SIZE: usize = 16;
 pub const CHUNK_AREA: usize = CHUNK_SIZE.pow(2);
 
@@ -53,8 +55,8 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<ParsedLtb>
 	let mut reader = ParseReader::new(reader);
 	let header = reader.read_struct::<LtbHeader>(0)?;
 	
-	let image_pointers = read_struct_array_from_row::<U64<LE>>(&mut reader, &header.rows[7])?;
-	let meta = read_struct_array_from_row::<ImageMetadata>(&mut reader, &header.rows[2])?;
+	let image_pointers = read_struct_array_from_row::<U64<LE>>(&mut reader, &header.rows[7]).context("image pointers")?;
+	let meta = read_struct_array_from_row::<ImageMetadata>(&mut reader, &header.rows[2]).context("image metadata")?;
 	
 	let images = std::iter::zip(image_pointers, meta).map(|(poin, meta)| {
 		let mut cursor = reader.cursor(poin.get())?;
@@ -63,23 +65,32 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<ParsedLtb>
 		Ok(ParsedImage { data, meta })
 	}).collect::<Vec<_>>();
 	
-	let layer_metadata = read_struct_array_from_row::<LayerMetadata>(&mut reader, &header.rows[0])?;
-	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3])?;
+	let (layer_metadata, layer_metadata_weird_number) = read_struct_array_from_row_2::<LayerMetadata>(&mut reader, &header.rows[0], true).context("layer metadata")?;
+	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3]).context("chunkmap data")?;
 	let chunkmap_data = chunkmap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
-	let tilemap_data = read_struct_array_from_row::<U16<LE>>(&mut reader, &header.rows[4])?;
+	let tilemap_data = read_struct_array_from_row::<U16<LE>>(&mut reader, &header.rows[4]).context("tilemap data")?;
 	let tilemap_data = tilemap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
 	
 	Ok(ParsedLtb { header, images, layer_metadata, chunkmap_data, tilemap_data })
 }
 
 fn read_struct_array_from_row<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow) -> anyhow::Result<Vec<T>> {
+	read_struct_array_from_row_2(reader, row, false).map(|(vec, _)| vec)
+}
+	
+fn read_struct_array_from_row_2<T: FromBytes>(reader: &mut ParseReader<impl BufRead + Seek>, row: &LtbHeaderRow, lenient: bool) -> anyhow::Result<(Vec<T>, u32)> {
+	let unknown_count_thing = row.unknown.get();
 	let array_count = row.entry_count.get();
 	let array_pointer = row.entry_pointer.get();
+	
+	if !lenient && unknown_count_thing != array_count {
+		anyhow::bail!("count mismatch?");
+	}
 	
 	let vec = reader
 		.read_struct_array::<T>(array_pointer, array_count.into())?
 		.collect::<Result<Vec<_>, _>>()?;
-	Ok(vec)
+	Ok((vec, unknown_count_thing))
 }
 
 pub struct ParsedLtb {

@@ -17,4 +17,4 @@ rfd = "0.17.2"
 anyhow = { workspace = true }
 bstr = { workspace = true }
 image = { workspace = true }
-serde = "1.0.228"
+serde = { workspace = true }
