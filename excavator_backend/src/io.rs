@@ -1,4 +1,5 @@
 pub mod dir;
+pub mod file;
 
 use std::sync::Arc;
 

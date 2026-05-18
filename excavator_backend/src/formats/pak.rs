@@ -1,6 +1,7 @@
 use crate::parse::{ParseReader, ParseError, ParseResult};
 use bstr::BString;
-use std::io::{BufRead, Read, Seek};
+use std::fs::File;
+use std::io::{BufRead, BufReader, Read, Seek, Take};
 use std::path::PathBuf;
 use zerocopy::byteorder::{LittleEndian as LE, U32, U64};
 use zerocopy_derive::*;
@@ -61,9 +62,9 @@ impl<R: BufRead + Seek> PakParser<R> {
 	}
 }
 
-pub fn do_single_pak_extract(outer_path: PathBuf, inner_path: BString, save_path: PathBuf) -> anyhow::Result<()> {
-	let file = std::fs::File::open(&outer_path)?;
-	let bufreader = std::io::BufReader::new(file);
+pub fn open_pak_entry(outer_path: PathBuf, inner_path: BString) -> anyhow::Result<Take<File>> {
+	let mut file = File::open(&outer_path)?;
+	let bufreader = BufReader::new(&mut file);
 	let mut parser = PakParser::new(bufreader)?;
 	
 	let mut right_name_iter = parser.files()?.filter(|r| match r {
@@ -75,18 +76,19 @@ pub fn do_single_pak_extract(outer_path: PathBuf, inner_path: BString, save_path
 		drop(right_name_iter); // required due to very funky lifetime shenanigans
 		let (position, size) = parser.file_position_size(right_one.0)?;
 		
-		let mut reader = parser.reader.take_reader();
-		reader.seek(std::io::SeekFrom::Start(position))?;
-		let mut take = reader.take(size);
-		
-		let mut writer = std::fs::File::create(save_path)?;
-		
-		std::io::copy(&mut take, &mut writer)?;
-		
-		return Ok(());
+		file.seek(std::io::SeekFrom::Start(position))?;
+		return Ok(file.take(size));
 	} else {
-		anyhow::bail!("do_single_pak_extract: no matching entry in pak");
+		anyhow::bail!("open_pak_entry: no matching entry in pak");
 	}
+}
+
+pub fn do_single_pak_extract(outer_path: PathBuf, inner_path: BString, save_path: PathBuf) -> anyhow::Result<()> {
+	let mut reader = open_pak_entry(outer_path, inner_path)?;
+	let mut writer = std::fs::File::create(save_path)?;
+	
+	std::io::copy(&mut reader, &mut writer)?;
+	Ok(())
 }
 
 /// The header at the beginning of a .pak archive.

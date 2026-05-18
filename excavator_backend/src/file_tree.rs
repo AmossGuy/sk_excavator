@@ -127,11 +127,10 @@ impl TreeNode {
 		LoadState::clone(&self.children)
 	}
 	
-	// using a definition of "unique id" that is not very rigorous
-	pub fn unique_id(&self) -> UniqueId {
+	pub fn unique_id(&self) -> TreeItemId {
 		match &self.source {
-			TreeNodeSource::Fs(item) => UniqueId::Fs(item.file_path().to_path_buf()),
-			TreeNodeSource::Pak { pak_path, entry_name } => UniqueId::Pak(pak_path.clone(), entry_name.clone()),
+			TreeNodeSource::Fs(item) => TreeItemId::Fs(item.file_path().to_path_buf()),
+			TreeNodeSource::Pak { pak_path, entry_name } => TreeItemId::Pak(pak_path.clone(), entry_name.clone()),
 		}
 	}
 }
@@ -152,7 +151,7 @@ pub enum TreeNodeSource {
 }
 
 #[derive(Clone, Eq, Hash, PartialEq)]
-pub enum UniqueId {
+pub enum TreeItemId {
 	Fs(PathBuf),
 	Pak(PathBuf, BString),
 }

@@ -1,5 +1,5 @@
-use excavator_backend::file_tree::{self, FileTreeBackend, TreeNode, UniqueId};
-use excavator_backend::io::LoadState;
+use excavator_backend::file_tree::{FileTreeBackend, TreeItemId, TreeNode};
+use excavator_backend::io::{file::FileSource, LoadState};
 use excavator_backend::request_thread::Waker;
 
 use egui_ltreeview::{NodeBuilder, TreeViewBuilder};
@@ -11,7 +11,7 @@ use crate::misc::file_dialog::show_file_extract_dialog;
 
 #[derive(Clone, Eq, Hash, PartialEq)]
 enum NodeId {
-	Node(file_tree::UniqueId),
+	Node(TreeItemId),
 	Aux,
 }
 
@@ -26,7 +26,8 @@ pub struct FileTreeView {
 #[must_use]
 pub struct FileTreeEffect {
 	pub close_clicked: bool,
-	pub pls_app: Vec<Box<dyn FnOnce(&mut crate::core::app::ExcavatorApp, &egui::Context, &mut eframe::Frame)>>
+	pub pls_app: Vec<Box<dyn FnOnce(&mut crate::core::app::ExcavatorApp, &egui::Context, &mut eframe::Frame)>>,
+	pub new_selection: Option<Vec<excavator_backend::io::file::FileSource>>,
 }
 
 impl FileTreeEffect {
@@ -37,6 +38,7 @@ impl FileTreeEffect {
 		Self {
 			close_clicked: self.close_clicked || other.close_clicked,
 			pls_app,
+			new_selection: self.new_selection.or(other.new_selection),
 		}
 	}
 }
@@ -120,13 +122,28 @@ impl FileTreeView {
 			.allow_drag_and_drop(false)
 			.fallback_context_menu(|a, b| Self::context_menu(&mut effect, a, b));
 		
-		tree.show(ui, |builder| {
+		let (_, actions) = tree.show(ui, |builder| {
 			let root_state = self.backend.tree_root();
 			
 			if let Some(root_node) = self.render_load_state(builder, &root_state) {
 				self.render_node(builder, &root_node);
 			}
 		});
+		
+		for action in actions {
+			match action {
+				egui_ltreeview::Action::SetSelected(nodes) => {
+					effect.new_selection = Some(nodes.into_iter().filter_map(|node_id| {
+						match node_id {
+							NodeId::Node(TreeItemId::Fs(path)) => Some(FileSource::Fs { path }),
+							NodeId::Node(TreeItemId::Pak(outer_path, inner_path)) => Some(FileSource::Pak { outer_path, inner_path }),
+							NodeId::Aux => None,
+						}
+					}).collect());
+				},
+				_ => {},
+			}
+		}
 		
 		effect
 	}
@@ -198,12 +215,12 @@ impl FileTreeView {
 		};
 		
 		match node {
-			NodeId::Node(UniqueId::Fs(path)) => {
+			NodeId::Node(TreeItemId::Fs(path)) => {
 				if ui.button("Copy path").clicked() {
 					ui.ctx().copy_text(path.to_string_lossy().into_owned());
 				}
 			},
-			NodeId::Node(UniqueId::Pak(outer_path, inner_path)) => {
+			NodeId::Node(TreeItemId::Pak(outer_path, inner_path)) => {
 				if ui.button("Extract from archive...").clicked() {
 					let (outer_path, inner_path) = (outer_path.clone(), inner_path.clone());
 					effect.pls_app.push(Box::new(

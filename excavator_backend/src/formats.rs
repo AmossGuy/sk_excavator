@@ -53,7 +53,3 @@ impl FileFormat {
 		}
 	}
 }
-
-pub enum ParsedFile {
-	
-}

@@ -1,26 +1,24 @@
 use image::{DynamicImage, EncodableLayout};
 use image::codecs::png::PngDecoder;
-use std::io::Cursor;
+use std::io::{BufRead, Seek};
 
-use crate::ExcavatorMessage;
-use crate::file_read::FileBytes;
-use super::ItemView;
+use super::{FileView, FileViewEffect};
 
 pub struct ImageFileView {
-	#[expect(dead_code)] // hold on to this so the containing archive stay loaded
-	bytes: FileBytes,
 	texture: Result<ImageViewTexture, String>,
 }
 
-impl ItemView for ImageFileView {
-	fn new(bytes: FileBytes, ctx: &egui::Context) -> Self {
-		let name = format!("{:?}", bytes.source_item());
-		let texture = ImageViewTexture::load(bytes.as_slice(), ctx, name)
+impl ImageFileView {
+	pub fn load(reader: impl BufRead + Seek, ctx: &egui::Context) -> Self {
+		let name = "ImageFileView texture".to_string();
+		let texture = ImageViewTexture::load(reader, ctx, name)
 			.map_err(|e| e.to_string());
-		Self { bytes, texture }
+		Self { texture }
 	}
-	
-	fn ui(&mut self, ui: &mut egui::Ui) -> Option<ExcavatorMessage> {
+}
+
+impl FileView for ImageFileView {
+	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
 		match &self.texture {
 			Ok(texture) => {
 				let texture = egui::load::SizedTexture {
@@ -28,13 +26,13 @@ impl ItemView for ImageFileView {
 					size: texture.size,
 				};
 				ui.add(egui::Image::new(texture).fit_to_exact_size(ui.available_size()));
-				None
 			},
 			Err(message) => {
 				ui.label(format!("Error creating texture:\n{}", message));
-				None
 			},
 		}
+		
+		FileViewEffect::default()
 	}
 }
 
@@ -44,9 +42,8 @@ struct ImageViewTexture {
 }
 
 impl ImageViewTexture {
-	pub fn load(data: &[u8], ctx: &egui::Context, texture_name: String) -> anyhow::Result<Self> {
-		let mut cursor = Cursor::new(data);
-		let decoder = PngDecoder::new(&mut cursor)?;
+	pub fn load(mut reader: impl BufRead + Seek, ctx: &egui::Context, texture_name: String) -> anyhow::Result<Self> {
+		let decoder = PngDecoder::new(&mut reader)?;
 		let decoded_image = DynamicImage::from_decoder(decoder)?;
 		
 		let egui_image_size: [usize; 2] = [
