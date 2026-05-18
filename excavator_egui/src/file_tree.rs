@@ -191,8 +191,13 @@ impl FileTreeView {
 			self.backend.start_load_if_unloaded(node);
 			
 			if let Some(children) = self.render_load_state(builder, &children_state) {
+				let mut is_empty = true;
 				for child in children.iter() {
+					is_empty = false;
 					self.render_node(builder, child);
+				}
+				if is_empty {
+					builder.leaf(NodeId::Aux, "(Empty)");
 				}
 			}
 		}
