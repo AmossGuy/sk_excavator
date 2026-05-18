@@ -4,9 +4,10 @@ use excavator_backend::formats::ltb::{parse_ltb, ParsedLtb, CHUNK_SIZE};
 
 use std::borrow::Cow;
 use std::io::{BufRead, Seek};
+use std::sync::Arc;
 
 pub struct LtbFileView {
-	parsed: anyhow::Result<ParsedLtb>,
+	parsed: anyhow::Result<Arc<ParsedLtb>>,
 	tab: Tab,
 	
 	current_texture: Option<LtbViewTexture>,
@@ -22,7 +23,7 @@ enum Tab {
 
 impl LtbFileView {
 	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> Self {
-		let parsed = parse_ltb(&mut reader);
+		let parsed = parse_ltb(&mut reader).map(|x| Arc::new(x));
 		Self { parsed, tab: Tab::Images, current_texture: None, current_tilemap_layer: None }
 	}
 }
@@ -37,6 +38,12 @@ impl FileView for LtbFileView {
 			] {
 				if ui.selectable_label(self.tab == value, label).clicked() {
 					self.tab = value;
+				}
+			}
+			
+			if ui.button("Dump everything").clicked() {
+				if let Ok(parsed) = &self.parsed {
+					crate::misc::file_dialog::show_ltb_dump_dialog(Arc::clone(&parsed));
 				}
 			}
 		}));
