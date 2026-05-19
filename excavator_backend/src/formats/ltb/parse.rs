@@ -110,16 +110,10 @@ impl ParsedImage {
 	
 	pub fn paletted(&self) -> bool {
 		// Is this really how this is determined?
-		self.meta.unknown_more[2] != u32::MAX
+		self.meta.palettes[0] != u32::MAX
 	}
 	
 	pub fn meta_debug(&self) -> String {
-		let meta = &self.meta;
-		// let more_count = meta.unknown_more.iter().filter(|x| x.get() != u32::MAX).count();
-		format!(
-			"unknown a: {}, compressed: {}, width: {}, height: {}, unknown 1: 0x{:X}, unknown 2: {}, unknown 3: 0x{:X}, unknown last: {}",
-			meta.unknown_00, meta.is_compressed, meta.image_width, meta.image_height,
-			meta.unknown_more[0], meta.unknown_more[1], meta.unknown_more[2], meta.unknown_more[13],
-		)
+		format!("{:?}", self.meta)
 	}
 }

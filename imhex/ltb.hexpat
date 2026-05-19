@@ -19,7 +19,10 @@ struct ImageMetadata {
     u32 is_compressed;
     u32 image_width;
     u32 image_height;
-    u32 unknown_more[14];
+    u32 unknown_10;
+    u32 unknown_14;
+    u32 palettes[11];
+    u32 unknown_44;
     u32 data_size;
 };
 

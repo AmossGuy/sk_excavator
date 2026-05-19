@@ -39,6 +39,9 @@ pub struct ImageMetadata {
 	pub is_compressed: U32<LE>,
 	pub image_width: U32<LE>,
 	pub image_height: U32<LE>,
-	pub unknown_more: [U32<LE>; 14],
+	pub unknown_10: U32<LE>,
+	pub unknown_14: U32<LE>,
+	pub palettes: [U32<LE>; 11],
+	pub unknown_44: U32<LE>,
 	pub data_size: U32<LE>,
 }
