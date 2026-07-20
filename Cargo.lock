@@ -541,6 +541,7 @@ dependencies = [
  "foldhash 0.2.0",
  "glam",
  "indexmap",
+ "inventory",
  "serde",
  "smallvec",
  "smol_str",
@@ -1360,6 +1361,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bevy_ecs",
+ "bevy_reflect",
  "bstr",
  "image",
  "lexical-sort",
@@ -1373,6 +1375,8 @@ name = "excavator_egui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "bevy_ecs",
+ "bevy_reflect",
  "bstr",
  "eframe",
  "egui",
@@ -1943,6 +1947,15 @@ checksum = "7714e70437a7dc3ac8eb7e6f8df75fd8eb422675fc7678aff7364301092b1017"
 dependencies = [
  "equivalent",
  "hashbrown 0.16.1",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]

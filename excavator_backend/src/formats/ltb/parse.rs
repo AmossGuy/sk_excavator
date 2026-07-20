@@ -1,5 +1,5 @@
 use crate::parse::*;
-use crate::formats::anb::decompress_wflz;
+use crate::formats::wflz::decompress as decompress_wflz;
 use super::*;
 
 use std::io::{BufRead, Seek};
@@ -20,7 +20,7 @@ pub fn parse_ltb<R: BufRead + Seek>(reader: &mut R) -> anyhow::Result<ParsedLtb>
 		Ok(ParsedImage { data, meta })
 	}).collect::<Vec<_>>();
 	
-	let (layer_metadata, layer_metadata_weird_number) = read_struct_array_from_row_2::<LayerMetadata>(&mut reader, &header.rows[0], true).context("layer metadata")?;
+	let (layer_metadata, _layer_metadata_weird_number) = read_struct_array_from_row_2::<LayerMetadata>(&mut reader, &header.rows[0], true).context("layer metadata")?;
 	let chunkmap_data = read_struct_array_from_row::<U32<LE>>(&mut reader, &header.rows[3]).context("chunkmap data")?;
 	let chunkmap_data = chunkmap_data.iter().map(|x| x.get()).collect::<Vec<_>>();
 	let tilemap_data = read_struct_array_from_row::<U16<LE>>(&mut reader, &header.rows[4]).context("tilemap data")?;

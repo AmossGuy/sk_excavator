@@ -95,9 +95,11 @@ impl<'a, R: BufRead + Seek> ParseCursor<'a, R> {
 		self.reader().stream_position()
 	}
 	
+	/*
 	pub fn uncursor(self) -> &'a mut ParseReader<R> {
 		self.parse_reader
 	}
+	*/
 	
 	// idk maybe this whole wrapper's silly
 	pub fn inner_reader(&mut self) -> &mut R {
@@ -168,6 +170,7 @@ impl<'a, T: FromBytes, R: BufRead + Seek> Iterator for ReadStructArray<'a, T, R>
 	}
 }
 
+/*
 pub fn check_magic(expected: impl AsRef<[u8]>, found: impl AsRef<[u8]>) -> ParseResult<()> {
 	let (expected, found) = (expected.as_ref(), found.as_ref());
 	if expected == found {
@@ -179,3 +182,4 @@ pub fn check_magic(expected: impl AsRef<[u8]>, found: impl AsRef<[u8]>) -> Parse
 		})
 	}
 }
+*/

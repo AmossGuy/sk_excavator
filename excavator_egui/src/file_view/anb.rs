@@ -1,78 +1,96 @@
 use super::{FileView, FileViewEffect};
-use excavator_backend::formats::anb::{decompress_wflz, parse_anb, ParsedAnb, ParsedAnbNode, ParsedData};
 use std::io::{BufRead, Seek};
 
+use bevy_ecs::{entity::Entity, reflect::AppTypeRegistry, world::World};
+use bevy_reflect::{PartialReflect, ReflectRef, TypeRegistry, structs::Struct};
+
 pub struct AnbFileView {
-	parsed: anyhow::Result<ParsedAnb>,
-	current_texture: Option<AnbViewTexture>,
+	ecs_world: World,
+	root: Entity,
 }
 
 impl AnbFileView {
 	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> Self where Self: Sized {
-		let parsed = parse_anb(&mut reader);
-		Self { parsed, current_texture: None }
+		let mut ecs_world = bevy_ecs::world::World::new();
+		ecs_world.insert_resource(AppTypeRegistry::new_with_derived_types());
+		
+		let mut bytes = Vec::new();
+		reader.read_to_end(&mut bytes).unwrap();
+		let root = excavator_backend::formats::anb::load_from_bytes(&bytes, &mut ecs_world.commands());
+		ecs_world.flush();
+		
+		Self { ecs_world, root }
 	}
 }
 
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
-		if let Some(ref texture) = self.current_texture {
-			let texture = egui::load::SizedTexture {
-				id: texture.handle.id(),
-				size: texture.size,
-			};
-			ui.add(egui::Image::new(texture).fit_to_exact_size(ui.available_size() * egui::Vec2::new(1.0, 0.3)));
-		}
-		
-		match &self.parsed {
-			Ok(parsed) => {
-				egui::ScrollArea::vertical().auto_shrink(false).show(ui, |ui| {
-					node_ui(ui, "root", parsed.root(), &mut self.current_texture);
-				});
-			},
-			Err(e) => { ui.label(format!("failed to load anb: {}", e)); },
-		};
-		
+		entity_ui(ui, &self.ecs_world, self.root);
 		FileViewEffect::default()
 	}
 }
 
-fn node_ui(ui: &mut egui::Ui, index: impl std::hash::Hash + std::fmt::Display, node: &anyhow::Result<ParsedAnbNode>, current_texture: &mut Option<AnbViewTexture>) {
-	match node {
-		Ok(node) => {
-			egui::CollapsingHeader::new(format!("{} (kind: {})", index, node.kind()))
-				.id_salt(index)
-				.default_open(true)
-				.show(ui, |ui| {
-					match node.data() {
-						ParsedData::FrameWflz { metadata, data } => {
-							if ui.button("show image").clicked() { 'click: {
-								let Ok(data) = decompress_wflz(&mut std::io::Cursor::new(data)) else {
-									break 'click;
-								};
-								
-								let egui_image_size = [metadata.image_width as usize, metadata.image_height as usize];
-								let egui_image = egui::ColorImage::from_rgba_unmultiplied(egui_image_size, &data);
-								let texture_name = "let's hope giving this a fixed name is good enough to work for now lol";
-								*current_texture = Some(AnbViewTexture {
-									handle: ui.ctx().load_texture(texture_name, egui_image, egui::TextureOptions::NEAREST),
-									size: egui::Vec2::new(metadata.image_width as f32, metadata.image_height as f32),
-								});
-							} }
-						},
-						_ => {},
-					}
-					
-					for (i, child) in node.children().enumerate() {
-						node_ui(ui, i, child, current_texture);
-					}
-				});
-		},
-		Err(e) => { ui.label(format!("error reading node: {}", e)); },
+fn entity_ui(ui: &mut egui::Ui, world: &World, entity: Entity) {
+	let entity_ref = world.get_entity(entity)
+		.expect("entity should be spawned");
+	let component_list = entity_ref.archetype().components();
+	
+	for &component_id in component_list {
+		if let Some(info) = world.components().get_info(component_id) && let Some(type_id) = info.type_id() {
+			let reflect = world.get_reflect(entity, type_id)
+				.expect("entity should have the components of its archetype");
+			let registry = world.get_resource::<AppTypeRegistry>()
+				.expect("type registry should exist")
+				.read();
+			
+			match reflect.reflect_ref() {
+				ReflectRef::Struct(thing) => { struct_ui(ui, thing, &registry); },
+				_ => {},
+			}
+		}
 	}
 }
 
-struct AnbViewTexture {
-	handle: egui::TextureHandle,
-	size: egui::Vec2,
+fn struct_ui(ui: &mut egui::Ui, thing: &dyn Struct, registry: &TypeRegistry) {
+	ui.heading(thing.reflect_type_ident().unwrap_or("(anonymous type)"));
+	
+	egui::Grid::new("struct").show(ui, |ui| {
+		for (name, value) in thing.iter_fields() {
+			ui.label(name);
+			match lookup_value_widget(value, registry) {
+				None => { ui.label("(unknown type)"); },
+				Some(value) => { value.value_widget(ui); },
+			};
+			ui.end_row();
+		}
+	});
+}
+
+fn lookup_value_widget<'a>(value: &'a dyn PartialReflect, _registery: &TypeRegistry) -> Option<&'a dyn ValueWidget> {
+	if let Some(number) = value.try_downcast_ref::<u32>() {
+		Some(number)
+	} else {
+		None
+	}
+}
+
+// Reflecting traits on primitives is slightly too annoying for me to bother at the moment
+/*
+fn lookup_value_widget<'a>(value: &'a dyn PartialReflect, registery: &TypeRegistry) -> Option<&'a dyn ValueWidget> {
+	let type_data = registery.get_type_data::<ReflectValueWidget>(value.type_id())?;
+	value.try_as_reflect().and_then(|v| type_data.get(v))
+}
+*/
+
+// #[reflect_trait]
+trait ValueWidget {
+	fn value_widget(&self, ui: &mut egui::Ui);
+}
+
+
+impl ValueWidget for u32 {
+	fn value_widget(&self, ui: &mut egui::Ui) {
+		let mut fake = self.clone();
+		ui.add(egui::DragValue::new(&mut fake));
+	}
 }
