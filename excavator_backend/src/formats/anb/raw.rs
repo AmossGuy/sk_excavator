@@ -15,3 +15,15 @@ pub struct Header {
 	pub unknown_1C: U32<LE>,
 	pub root_node_pointer: U64<LE>,
 }
+
+#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct NodePlaceholder {
+	data: [u8; 11],
+}
+
+impl NodePlaceholder {
+	pub fn new() -> Self {
+		Self { data: *b"placeholder" }
+	}
+}

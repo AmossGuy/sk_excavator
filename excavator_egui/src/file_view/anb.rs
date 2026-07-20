@@ -26,6 +26,15 @@ impl AnbFileView {
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
 		entity_ui(ui, &mut self.ecs_world, self.root);
+		
+		if ui.button("Save as (WIP)").clicked() {
+			// another case of using blocking thingy because i'm lazy
+			if let Some(path) = rfd::FileDialog::new().save_file() {
+				let data = excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root);
+				std::fs::write(path, data).unwrap();
+			}
+		}
+		
 		FileViewEffect::default()
 	}
 }
