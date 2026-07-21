@@ -4,7 +4,12 @@ members = ["excavator_backend", "excavator_egui"]
 default-members = ["excavator_egui"]
 
 [profile.dev.package."*"]
-opt-level = 3
+# So this one time the program got a little laggy while scrolling through a long list.
+# I set opt-level = 3 here to speed that up, and then kinda stuck with that setting for a while.
+# The downside of that was that it utterly ballooned the time it took to recompile dependencies when they changed.
+# I've switched to a more moderate setting to keep compile times convenient.
+# With opt-level = 1 like this I got it rebuilt from zero in 15 minutes.
+opt-level = 1
 
 [workspace.dependencies]
 anyhow = "1.0.102"
