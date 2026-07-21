@@ -1,20 +1,23 @@
 use super::definition::*;
 use hecs::{Entity, World};
 use std::marker::PhantomData;
-use zerocopy::{FromBytes, IntoBytes, KnownLayout, U32, U64};
+use zerocopy::{FromBytes, IntoBytes, KnownLayout, LE, U32, U64};
 
 pub fn save_from_world(world: &World, entity: Entity) -> Vec<u8> {
 	let mut data = Vec::new();
 	
 	let header = Reservation::<HeaderRaw>::reserve(&mut data);
 	let placeholder = Reservation::<Placeholder>::reserve(&mut data);
-	header.write(&mut data, save_header(&world.entity(entity).unwrap().get::<&Header>().unwrap(), &placeholder));
+	let second_pointer = Reservation::<U64<LE>>::reserve(&mut data);
+	
+	header.write(&mut data, save_header(&world.entity(entity).unwrap().get::<&Header>().unwrap(), &second_pointer));
+	second_pointer.write(&mut data, U64::new(placeholder.location as u64));
 	placeholder.write(&mut data, Placeholder::new());
 	
 	data
 }
 
-fn save_header(this: &Header, root_node: &Reservation<Placeholder>) -> HeaderRaw {
+fn save_header(this: &Header, root_node: &Reservation<U64<LE>>) -> HeaderRaw {
 	HeaderRaw {
 		magic: *b"YCSN",
 		unknown_04: U32::new(this.unknown_04),
