@@ -1,16 +1,15 @@
 use super::{ecs, raw};
-use bevy_ecs::{entity::Entity, system::Commands};
+use hecs::{Entity, World};
 use zerocopy::FromBytes;
 
-pub fn load_from_bytes(bytes: &[u8], commands: &mut Commands) -> Entity {
-	load_header(bytes, commands)
+pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> Entity {
+	load_header(bytes, world)
 }
 
-fn load_header(bytes: &[u8], commands: &mut Commands) -> Entity {
+fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	// early state of work on this... unwrapping okay for the moment
 	let header_component = parse_header(bytes).unwrap();
-	let header_ecs = commands.spawn(header_component);
-	header_ecs.id()
+	world.spawn((header_component,))
 }
 
 fn parse_header(bytes: &[u8]) -> anyhow::Result<ecs::Header> {

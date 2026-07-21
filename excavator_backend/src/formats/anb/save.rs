@@ -1,5 +1,5 @@
 use super::{ecs, raw};
-use bevy_ecs::{entity::Entity, world::World};
+use hecs::{Entity, World};
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, U32, U64};
 
@@ -8,7 +8,7 @@ pub fn save_from_world(world: &World, entity: Entity) -> Vec<u8> {
 	
 	let header = Reservation::<raw::Header>::reserve(&mut data);
 	let placeholder = Reservation::<raw::NodePlaceholder>::reserve(&mut data);
-	header.write(&mut data, save_header(world.entity(entity).get::<ecs::Header>().unwrap(), &placeholder));
+	header.write(&mut data, save_header(&world.entity(entity).unwrap().get::<&ecs::Header>().unwrap(), &placeholder));
 	placeholder.write(&mut data, raw::NodePlaceholder::new());
 	
 	data

@@ -15,8 +15,7 @@ rfd = "0.17.2"
 
 # miscellaneous
 anyhow = { workspace = true }
-bevy_ecs = { workspace = true }
-bevy_reflect = { workspace = true }
 bstr = { workspace = true }
+hecs = { workspace = true }
 image = { workspace = true }
 serde = { workspace = true }
