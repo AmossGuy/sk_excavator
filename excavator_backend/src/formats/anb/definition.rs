@@ -19,6 +19,16 @@ pub struct HeaderRaw {
 	pub root_node_pointer: U64<LE>,
 }
 
+#[derive(ProcUnrawStruct, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct NodeCommonRaw {
+	pub kind: U32<LE>,
+	#[unraw(skip)]
+	pub child_count: U32<LE>,
+	#[unraw(skip)]
+	pub child_array_pointer: U64<LE>,
+}
+
 #[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct Placeholder {

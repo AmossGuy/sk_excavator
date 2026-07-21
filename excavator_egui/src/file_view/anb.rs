@@ -5,7 +5,7 @@ use std::ops::DerefMut;
 
 use hecs::{Entity, World};
 
-use excavator_backend::formats::{EditableStruct, anb::Header};
+use excavator_backend::formats::{EditableStruct, anb::{Header, NodeCommon}};
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -46,10 +46,26 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 	let component_list = entity_ref.component_types().collect::<Vec<_>>();
 	
 	for type_id in component_list {
+		// awaiting my implementation of a dynamic version of this
 		if type_id == TypeId::of::<Header>() {
 			struct_ui(ui, entity_ref.get::<&mut Header>().unwrap().deref_mut());
+		} else if type_id == TypeId::of::<NodeCommon>() {
+			struct_ui(ui, entity_ref.get::<&mut NodeCommon>().unwrap().deref_mut());
+		} else if type_id == TypeId::of::<excavator_backend::formats::Parent>() {
+			// ignore it
 		} else {
 			ui.label("look whatever i'm working on it");
+		}
+	}
+	
+	let binding = entity_ref.get::<&excavator_backend::formats::Parent>();
+	if let Some(ref parent) = binding {
+		let children = parent.children.clone();
+		drop(binding);
+		
+		for child in children {
+			ui.separator();
+			entity_ui(ui, world, child);
 		}
 	}
 }
@@ -57,7 +73,10 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 fn struct_ui(ui: &mut egui::Ui, thing: &mut dyn EditableStruct) {
 	ui.heading(thing.struct_name());
 	
-	egui::Grid::new("struct").show(ui, |ui| {
+	// clever??? debatable. probably jank in some way
+	let wacky_hash = ui.cursor().min.y.to_bits();
+	
+	egui::Grid::new(wacky_hash).show(ui, |ui| {
 		for i in 0..thing.number_of_fields() {
 			let name = thing.field_name(i).unwrap();
 			ui.label(name);

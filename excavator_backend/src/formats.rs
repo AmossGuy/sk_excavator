@@ -54,6 +54,11 @@ impl FileFormat {
 	}
 }
 
+#[derive(Default)]
+pub struct Parent {
+	pub children: Vec<hecs::Entity>,
+}
+
 trait RawField {
 	type Parsed;
 	fn parse(&self) -> Self::Parsed;
