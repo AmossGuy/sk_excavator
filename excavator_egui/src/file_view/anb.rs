@@ -5,7 +5,7 @@ use std::ops::DerefMut;
 
 use hecs::{Entity, World};
 
-use excavator_backend::formats::anb::{EditableStruct, Header};
+use excavator_backend::formats::{EditableStruct, anb::Header};
 
 pub struct AnbFileView {
 	ecs_world: World,

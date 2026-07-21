@@ -1,4 +1,4 @@
-use super::{ecs, raw};
+use super::definition::*;
 use hecs::{Entity, World};
 use zerocopy::FromBytes;
 
@@ -12,15 +12,15 @@ fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	world.spawn((header_component,))
 }
 
-fn parse_header(bytes: &[u8]) -> anyhow::Result<ecs::Header> {
-	let (header_raw, _) = raw::Header::ref_from_prefix(bytes)
+fn parse_header(bytes: &[u8]) -> anyhow::Result<Header> {
+	let (header_raw, _) = HeaderRaw::ref_from_prefix(bytes)
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	
 	if header_raw.magic != *b"YCSN" {
 		anyhow::bail!("wrong magic");
 	}
 	
-	Ok(ecs::Header {
+	Ok(Header {
 		unknown_04: header_raw.unknown_04.get(),
 		unknown_08: header_raw.unknown_08.get(),
 		unknown_0C: header_raw.unknown_0C.get(),

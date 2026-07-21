@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 anyhow = { workspace = true }
 bstr = { workspace = true }
+excavator_backend_macros = { path = "../excavator_backend_macros" }
 hecs = { workspace = true }
 image = { workspace = true }
 lexical-sort = "0.3.1"

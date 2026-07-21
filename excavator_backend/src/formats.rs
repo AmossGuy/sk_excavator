@@ -53,3 +53,53 @@ impl FileFormat {
 		}
 	}
 }
+
+trait RawField {
+	type Parsed;
+	fn parse(&self) -> Self::Parsed;
+	fn unparse(parsed: Self::Parsed) -> Self;
+}
+
+macro_rules! raw_field_self {
+	($ty:ty) => {
+		impl RawField for $ty {
+			type Parsed = Self;
+			fn parse(&self) -> Self { self.clone() }
+			fn unparse(parsed: Self) -> Self { parsed.clone() }
+		}
+	};
+}
+
+macro_rules! raw_field_zerocopy {
+	($zerocopy_ty:ty, $parsed_ty:ty) => {
+		impl<O: zerocopy::ByteOrder> RawField for $zerocopy_ty {
+			type Parsed = $parsed_ty;
+			fn parse(&self) -> $parsed_ty { self.get() }
+			fn unparse(parsed: $parsed_ty) -> Self { Self::new(parsed) }
+		}
+	};
+}
+
+raw_field_self!(i8);
+raw_field_self!(u8);
+
+raw_field_zerocopy!(zerocopy::F32<O>, f32);
+raw_field_zerocopy!(zerocopy::F64<O>, f64);
+raw_field_zerocopy!(zerocopy::I16<O>, i16);
+raw_field_zerocopy!(zerocopy::I32<O>, i32);
+raw_field_zerocopy!(zerocopy::I64<O>, i64);
+raw_field_zerocopy!(zerocopy::I128<O>, i128);
+raw_field_zerocopy!(zerocopy::Isize<O>, isize);
+raw_field_zerocopy!(zerocopy::U16<O>, u16);
+raw_field_zerocopy!(zerocopy::U32<O>, u32);
+raw_field_zerocopy!(zerocopy::U64<O>, u64);
+raw_field_zerocopy!(zerocopy::U128<O>, u128);
+raw_field_zerocopy!(zerocopy::Usize<O>, usize);
+
+pub trait EditableStruct {
+	fn struct_name(&self) -> &str;
+	fn number_of_fields(&self) -> usize;
+	fn field_name(&self, index: usize) -> Option<&str>;
+	fn field_ref(&self, index: usize) -> Option<&dyn std::any::Any>;
+	fn field_mut(&mut self, index: usize) -> Option<&mut dyn std::any::Any>;
+}
