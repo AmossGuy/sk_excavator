@@ -27,8 +27,6 @@ impl AnbFileView {
 
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
-		entity_ui(ui, &mut self.ecs_world, self.root);
-		
 		if ui.button("Save as (WIP)").clicked() {
 			// another case of using blocking thingy because i'm lazy
 			if let Some(path) = rfd::FileDialog::new().save_file() {
@@ -37,8 +35,33 @@ impl FileView for AnbFileView {
 			}
 		}
 		
+		ui.separator();
+		
+		egui::ScrollArea::both().show(ui, |ui| {
+			entity_tree_ui(ui, &mut self.ecs_world, self.root);
+		});
+		
 		FileViewEffect::default()
 	}
+}
+
+fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
+	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
+		entity_ui(ui, world, root);
+	});
+	
+	let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
+		left: 20,
+		..egui::Margin::ZERO
+	});
+	
+	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
+	let children = world.children::<TreeMarker>(root).collect::<Vec<_>>();
+	indent_frame.show(ui, |ui| {
+		for child in children {
+			entity_tree_ui(ui, world, child);
+		}
+	});
 }
 
 fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
@@ -60,22 +83,14 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 			ui.label(format!("unknown component type: {:?}", type_id));
 		}
 	}
-	
-	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
-	let children = world.children::<TreeMarker>(entity).collect::<Vec<_>>();
-	for child in children {
-		ui.separator();
-		entity_ui(ui, world, child);
-	}
 }
 
 fn struct_ui(ui: &mut egui::Ui, thing: &mut dyn EditableStruct) {
 	ui.heading(thing.struct_name());
 	
-	// clever??? debatable. probably jank in some way
-	let wacky_hash = ui.cursor().min.y.to_bits();
+	let type_id = std::any::Any::type_id(thing);
 	
-	egui::Grid::new(wacky_hash).show(ui, |ui| {
+	egui::Grid::new(type_id).show(ui, |ui| {
 		for i in 0..thing.number_of_fields() {
 			let name = thing.field_name(i).unwrap();
 			ui.label(name);

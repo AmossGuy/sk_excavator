@@ -4,6 +4,7 @@ pub mod pak;
 pub mod st;
 mod wflz;
 
+use std::any::Any;
 use image::ImageFormat;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -56,10 +57,10 @@ impl FileFormat {
 
 pub struct TreeMarker;
 
-pub trait EditableStruct {
+pub trait EditableStruct: Any {
 	fn struct_name(&self) -> &str;
 	fn number_of_fields(&self) -> usize;
 	fn field_name(&self, index: usize) -> Option<&str>;
-	fn field_ref(&self, index: usize) -> Option<&dyn std::any::Any>;
-	fn field_mut(&mut self, index: usize) -> Option<&mut dyn std::any::Any>;
+	fn field_ref(&self, index: usize) -> Option<&dyn Any>;
+	fn field_mut(&mut self, index: usize) -> Option<&mut dyn Any>;
 }
