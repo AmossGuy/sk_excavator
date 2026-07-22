@@ -8,6 +8,7 @@ anyhow = { workspace = true }
 bstr = { workspace = true }
 excavator_backend_macros = { path = "../excavator_backend_macros" }
 hecs = { workspace = true }
+hecs-hierarchy = { workspace = true }
 image = { workspace = true }
 lexical-sort = "0.3.1"
 serde = { workspace = true }

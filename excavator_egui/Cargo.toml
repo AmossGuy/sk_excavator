@@ -17,5 +17,6 @@ rfd = "0.17.2"
 anyhow = { workspace = true }
 bstr = { workspace = true }
 hecs = { workspace = true }
+hecs-hierarchy = { workspace = true }
 image = { workspace = true }
 serde = { workspace = true }

@@ -54,10 +54,7 @@ impl FileFormat {
 	}
 }
 
-#[derive(Default)]
-pub struct Parent {
-	pub children: Vec<hecs::Entity>,
-}
+pub struct TreeMarker;
 
 pub trait EditableStruct {
 	fn struct_name(&self) -> &str;

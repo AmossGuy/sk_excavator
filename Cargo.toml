@@ -15,5 +15,7 @@ opt-level = 1
 anyhow = "1.0.102"
 bstr = { version = "1.12.1", default-features = false, features = ["alloc"] }
 hecs = "0.11.0"
+# Upstream hasn't been updated to hecs 0.11.0, so I cobbled together a patch myself.
+hecs-hierarchy = { git = "https://github.com/AmossGuy/hecs-hierarchy", rev = "6b8d5fe" }
 image = { version = "0.25.9", default-features = false, features = ["png"] }
 serde = "1.0.228"

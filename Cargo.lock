@@ -1106,6 +1106,7 @@ dependencies = [
  "bstr",
  "excavator_backend_macros",
  "hecs",
+ "hecs-hierarchy",
  "image",
  "lexical-sort",
  "serde",
@@ -1134,6 +1135,7 @@ dependencies = [
  "egui_ltreeview",
  "excavator_backend",
  "hecs",
+ "hecs-hierarchy",
  "image",
  "rfd",
  "serde",
@@ -1499,6 +1501,15 @@ dependencies = [
  "foldhash 0.2.0",
  "hashbrown 0.16.1",
  "spin",
+]
+
+[[package]]
+name = "hecs-hierarchy"
+version = "0.12.1"
+source = "git+https://github.com/AmossGuy/hecs-hierarchy?rev=6b8d5fe#6b8d5fe3d63d971c0f879d8c11e0aa6c4a0bbadb"
+dependencies = [
+ "hecs",
+ "smallvec",
 ]
 
 [[package]]

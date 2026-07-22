@@ -4,8 +4,9 @@ use std::io::{BufRead, Seek};
 use std::ops::DerefMut;
 
 use hecs::{Entity, World};
+use hecs_hierarchy::Hierarchy;
 
-use excavator_backend::formats::{EditableStruct, anb::{Header, NodeCommon}};
+use excavator_backend::formats::{EditableStruct, TreeMarker, anb::{Header, NodeCommon}};
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -51,22 +52,20 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 			struct_ui(ui, entity_ref.get::<&mut Header>().unwrap().deref_mut());
 		} else if type_id == TypeId::of::<NodeCommon>() {
 			struct_ui(ui, entity_ref.get::<&mut NodeCommon>().unwrap().deref_mut());
-		} else if type_id == TypeId::of::<excavator_backend::formats::Parent>() {
+		} else if type_id == TypeId::of::<hecs_hierarchy::Parent<TreeMarker>>() {
+			// ignore it
+		} else if type_id == TypeId::of::<hecs_hierarchy::Child<TreeMarker>>() {
 			// ignore it
 		} else {
-			ui.label("look whatever i'm working on it");
+			ui.label(format!("unknown component type: {:?}", type_id));
 		}
 	}
 	
-	let binding = entity_ref.get::<&excavator_backend::formats::Parent>();
-	if let Some(ref parent) = binding {
-		let children = parent.children.clone();
-		drop(binding);
-		
-		for child in children {
-			ui.separator();
-			entity_ui(ui, world, child);
-		}
+	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
+	let children = world.children::<TreeMarker>(entity).collect::<Vec<_>>();
+	for child in children {
+		ui.separator();
+		entity_ui(ui, world, child);
 	}
 }
 

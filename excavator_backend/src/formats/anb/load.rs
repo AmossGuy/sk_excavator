@@ -1,6 +1,7 @@
 use super::definition::*;
-use super::super::Parent;
+use super::super::TreeMarker;
 use hecs::{Entity, World};
+use hecs_hierarchy::HierarchyMut;
 use zerocopy::{FromBytes, LE, U64};
 
 pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> Entity {
@@ -10,15 +11,13 @@ pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> Entity {
 fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	// early state of work on this... unwrapping okay for the moment
 	let (header_component, node_offset_x2) = parse_header(bytes).unwrap();
-	let header_entity = world.spawn((header_component, Parent::default()));
+	let header_entity = world.spawn((header_component,));
 	
 	let node_offset_x2 = node_offset_x2 as usize;
 	let node_offset = U64::<LE>::ref_from_prefix(&bytes[node_offset_x2..]).unwrap().0.get() as usize;
 	
 	let node_component = parse_node_common(bytes, node_offset as usize).unwrap();
-	let node_entity = world.spawn((node_component,));
-	// I very obviously still need to implement a properly abstracted hierarchy
-	world.get::<&mut Parent>(header_entity).unwrap().children.push(node_entity);
+	let _node_entity = world.attach_new::<TreeMarker, _>(header_entity, (node_component,));
 	
 	header_entity
 }
