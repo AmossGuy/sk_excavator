@@ -1,4 +1,4 @@
-use crate::parse::*;
+use crate::parse_old::*;
 use crate::formats::wflz::decompress as decompress_wflz;
 use super::*;
 

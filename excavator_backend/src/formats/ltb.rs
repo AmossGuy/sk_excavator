@@ -4,7 +4,7 @@ mod raw;
 pub use self::parse::*;
 use self::raw::*;
 
-use crate::parse::ParseReader;
+use crate::parse_old::ParseReader;
 
 use std::io::{BufRead, Seek};
 use zerocopy::FromBytes;

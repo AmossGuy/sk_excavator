@@ -114,7 +114,7 @@ fn parsify_field(field: &Field) -> Option<Field> {
 	
 	let ty = &field.ty;
 	let parsified = quote! {
-		<#ty as crate::formats::RawField>::Parsed
+		<#ty as crate::parse_new::RawField>::Parsed
 	};
 	field.ty = Type::Verbatim(parsified);
 	Some(field)

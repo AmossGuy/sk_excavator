@@ -1,4 +1,4 @@
-use crate::parse::{ParseReader, ParseError, ParseResult};
+use crate::parse_old::{ParseReader, ParseError, ParseResult};
 use bstr::BString;
 use std::fs::File;
 use std::io::{BufRead, BufReader, Read, Seek, Take};

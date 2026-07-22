@@ -3,7 +3,7 @@ use std::io::{BufRead, Seek};
 use zerocopy::{FromBytes, LittleEndian as LE, U32, U64};
 use zerocopy_derive::*;
 
-use crate::parse::ParseReader;
+use crate::parse_old::ParseReader;
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
