@@ -112,10 +112,14 @@ fn parsify_field(field: &Field) -> Option<Field> {
 	}
 	if skip { return None; }
 	
+	if let Some(ident) = &mut field.ident {
+		// suppresses duplication of warnings related to the identifier
+		ident.set_span(Span::call_site());
+	}
+	
 	let ty = &field.ty;
-	let parsified = quote! {
+	field.ty = Type::Verbatim(quote! {
 		<#ty as crate::parse_new::RawField>::Parsed
-	};
-	field.ty = Type::Verbatim(parsified);
+	});
 	Some(field)
 }
