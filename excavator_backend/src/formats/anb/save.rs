@@ -1,20 +1,60 @@
 use super::definition::*;
+use super::super::TreeMarker;
 use hecs::{Entity, World};
+use hecs_hierarchy::Hierarchy;
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, LE, U32, U64};
 
-pub fn save_from_world(world: &World, entity: Entity) -> Vec<u8> {
-	let mut data = Vec::new();
+pub fn save_from_world(world: &World, root_entity: Entity) -> Vec<u8> {
+	let mut data = Vec::<u8>::new();
 	
 	let header = Reservation::<HeaderRaw>::reserve(&mut data);
-	let placeholder = Reservation::<Placeholder>::reserve(&mut data);
+	let node = Reservation::<NodeCommonRaw>::reserve(&mut data);
 	let second_pointer = Reservation::<U64<LE>>::reserve(&mut data);
 	
-	header.write(&mut data, save_header(&world.entity(entity).unwrap().get::<&Header>().unwrap(), &second_pointer));
-	second_pointer.write(&mut data, U64::new(placeholder.location as u64));
-	placeholder.write(&mut data, Placeholder::new());
+	let header_component = world.get::<&Header>(root_entity).unwrap();
+	header.write(&mut data, save_header(&header_component, &second_pointer));
+	second_pointer.write(&mut data, U64::new(node.location as u64));
+	
+	let node_entity = world.get::<&hecs_hierarchy::Parent<TreeMarker>>(root_entity).unwrap().first_child(world).unwrap();
+	save_node_recursively(world, node_entity, &mut data);
 	
 	data
+}
+
+fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8>) -> usize {
+	// Before going any further, we need to reserve the spot this node will be saved to.
+	// However, we won't actually write it until later, when we have pointers to all of its children prepared.
+	let node_reser = Reservation::<NodeCommonRaw>::reserve(output);
+	let node_reser_location = node_reser.location;
+	
+	let (child_count, child_array_pointer) = save_children_nodes(world, node_entity, output);
+	
+	// Finally, write the parent, including the pointer to the children pointers.
+	let node_component = world.get::<&NodeCommon>(node_entity).unwrap();
+	node_reser.write(output, save_node_common(&node_component, child_count, child_array_pointer));
+	
+	node_reser_location
+}
+
+fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> (usize, usize) {
+	// step one: get iterator
+	let children_iter = world.children::<TreeMarker>(parent);
+	
+	// step two: save each child, recursing for the children's children
+	let mut child_pointers = Vec::<usize>::new();
+	for child in children_iter {
+		let pointer = save_node_recursively(world, child, output);
+		child_pointers.push(pointer);
+	}
+	
+	// step three: write pointers to children
+	let child_array_pointer = output.len();
+	for pointer in child_pointers.iter().copied() {
+		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
+	}
+	
+	(child_pointers.len(), child_array_pointer)
 }
 
 fn save_header(this: &Header, root_node: &Reservation<U64<LE>>) -> HeaderRaw {
@@ -28,6 +68,14 @@ fn save_header(this: &Header, root_node: &Reservation<U64<LE>>) -> HeaderRaw {
 		unknown_18: U32::new(this.unknown_18),
 		unknown_1C: U32::new(this.unknown_1C),
 		root_node_pointer: U64::new(root_node.pointer_64()),
+	}
+}
+
+fn save_node_common(this: &NodeCommon, child_count: usize, child_array_pointer: usize) -> NodeCommonRaw {
+	NodeCommonRaw {
+		kind: U32::new(this.kind),
+		child_count: U32::new(child_count as u32),
+		child_array_pointer: U64::new(child_array_pointer as u64),
 	}
 }
 

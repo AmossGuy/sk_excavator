@@ -28,15 +28,3 @@ pub struct NodeCommonRaw {
 	#[unraw(skip)]
 	pub child_array_pointer: U64<LE>,
 }
-
-#[derive(Debug, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
-#[repr(C)]
-pub struct Placeholder {
-	data: [u8; 11],
-}
-
-impl Placeholder {
-	pub fn new() -> Self {
-		Self { data: *b"placeholder" }
-	}
-}
