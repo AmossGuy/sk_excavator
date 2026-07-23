@@ -13,13 +13,22 @@ fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	let (header_component, node_offset_x2) = parse_header(bytes).unwrap();
 	let header_entity = world.spawn((header_component,));
 	
-	let node_offset_x2 = node_offset_x2 as usize;
-	let node_offset = U64::<LE>::ref_from_prefix(&bytes[node_offset_x2..]).unwrap().0.get() as usize;
-	
-	let node_component = parse_node_common(bytes, node_offset as usize).unwrap();
-	let _node_entity = world.attach_new::<TreeMarker, _>(header_entity, (node_component,));
+	load_node_list(bytes, world, header_entity, node_offset_x2, 1);
 	
 	header_entity
+}
+
+fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, length: u32) {
+	let offset_bytes = &bytes[(offset as usize)..];
+	let slice = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize).unwrap().0;
+	
+	for pointer in slice {
+		let pointer = pointer.get();
+		let (node_component, children_offset, children_count) = parse_node_common(bytes, pointer as usize).unwrap();
+		let node_entity = world.attach_new::<TreeMarker, _>(parent, (node_component,)).unwrap();
+		
+		load_node_list(bytes, world, node_entity, children_offset, children_count);
+	}
 }
 
 fn parse_header(bytes: &[u8]) -> anyhow::Result<(Header, u64)> {
@@ -41,11 +50,11 @@ fn parse_header(bytes: &[u8]) -> anyhow::Result<(Header, u64)> {
 	}, header_raw.root_node_pointer.get()))
 }
 
-fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<NodeCommon> {
+fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<(NodeCommon, u64, u32)> {
 	let (node_raw, _) = NodeCommonRaw::ref_from_prefix(&bytes[offset..])
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	
-	Ok(NodeCommon {
+	Ok((NodeCommon {
 		kind: node_raw.kind.get(),
-	})
+	}, node_raw.child_array_pointer.get(), node_raw.child_count.get()))
 }

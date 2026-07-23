@@ -37,7 +37,7 @@ impl FileView for AnbFileView {
 		
 		ui.separator();
 		
-		egui::ScrollArea::both().show(ui, |ui| {
+		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
 			entity_tree_ui(ui, &mut self.ecs_world, self.root);
 		});
 		
@@ -58,8 +58,10 @@ fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
 	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
 	let children = world.children::<TreeMarker>(root).collect::<Vec<_>>();
 	indent_frame.show(ui, |ui| {
-		for child in children {
-			entity_tree_ui(ui, world, child);
+		for (i, child) in children.into_iter().enumerate() {
+			ui.push_id(i, |ui| {
+				entity_tree_ui(ui, world, child);
+			});
 		}
 	});
 }
