@@ -25,7 +25,9 @@ struct TreeNode {
     u32 child_count;
     NodePointer *child_pointer[child_count] : u64;
     
-    if (type == 1) {
+    if (type == 0) {
+        // no extra data
+    } else if (type == 1) {
         u32 sprite_width;
         u32 sprite_height;
         u32 e_unknown_08;
@@ -78,18 +80,15 @@ struct NodePointer {
 
 struct Header {
     char magic[4];
+    if (magic != "YCSN") {
+        std::print("wrong file magic: {}", magic);
+    }
     u32 unknown_04;
     u32 unknown_08;
     u32 unknown_0C;
     u32 unknown_10;
     u32 unknown_14;
-    u32 unknown_18;
-    u32 unknown_1C;
-    NodePointer *root_pointer: u64;
-    
-    if (magic != "YCSN") {
-        std::print("wrong file magic: {}", magic);
-    }
+    TreeNode root_node;
 };
 
 Header header @ 0;

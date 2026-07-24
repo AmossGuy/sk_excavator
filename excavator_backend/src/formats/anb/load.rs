@@ -10,10 +10,13 @@ pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> Entity {
 
 fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	// early state of work on this... unwrapping okay for the moment
-	let (header_component, node_offset_x2) = parse_header(bytes).unwrap();
+	let header_component = parse_header(bytes).unwrap();
 	let header_entity = world.spawn((header_component,));
 	
-	load_node_list(bytes, world, header_entity, node_offset_x2, 1);
+	let (root_component, root_child_offset, root_child_count) = parse_node_common(bytes, std::mem::size_of::<HeaderRaw>()).unwrap();
+	let root_entity = world.attach_new::<TreeMarker, _>(header_entity, (root_component,)).unwrap();
+	
+	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count);
 	
 	header_entity
 }
@@ -31,7 +34,7 @@ fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, 
 	}
 }
 
-fn parse_header(bytes: &[u8]) -> anyhow::Result<(Header, u64)> {
+fn parse_header(bytes: &[u8]) -> anyhow::Result<Header> {
 	let (header_raw, _) = HeaderRaw::ref_from_prefix(bytes)
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	
@@ -39,15 +42,13 @@ fn parse_header(bytes: &[u8]) -> anyhow::Result<(Header, u64)> {
 		anyhow::bail!("wrong magic");
 	}
 	
-	Ok((Header {
+	Ok(Header {
 		unknown_04: header_raw.unknown_04.get(),
 		unknown_08: header_raw.unknown_08.get(),
 		unknown_0C: header_raw.unknown_0C.get(),
 		unknown_10: header_raw.unknown_10.get(),
 		unknown_14: header_raw.unknown_14.get(),
-		unknown_18: header_raw.unknown_18.get(),
-		unknown_1C: header_raw.unknown_1C.get(),
-	}, header_raw.root_node_pointer.get()))
+	})
 }
 
 fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<(NodeCommon, u64, u32)> {

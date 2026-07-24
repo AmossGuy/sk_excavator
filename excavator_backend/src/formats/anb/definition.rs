@@ -13,10 +13,6 @@ pub struct HeaderRaw {
 	pub unknown_0C: U32<LE>,
 	pub unknown_10: U32<LE>,
 	pub unknown_14: U32<LE>,
-	pub unknown_18: U32<LE>,
-	pub unknown_1C: U32<LE>,
-	#[unraw(skip)]
-	pub root_node_pointer: U64<LE>,
 }
 
 #[derive(ProcUnrawStruct, FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]

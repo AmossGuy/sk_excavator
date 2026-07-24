@@ -8,13 +8,9 @@ use zerocopy::{FromBytes, IntoBytes, KnownLayout, LE, U32, U64};
 pub fn save_from_world(world: &World, root_entity: Entity) -> Vec<u8> {
 	let mut data = Vec::<u8>::new();
 	
-	let header = Reservation::<HeaderRaw>::reserve(&mut data);
-	let node = Reservation::<NodeCommonRaw>::reserve(&mut data);
-	let second_pointer = Reservation::<U64<LE>>::reserve(&mut data);
-	
+	let header_reser = Reservation::<HeaderRaw>::reserve(&mut data);
 	let header_component = world.get::<&Header>(root_entity).unwrap();
-	header.write(&mut data, save_header(&header_component, &second_pointer));
-	second_pointer.write(&mut data, U64::new(node.location as u64));
+	header_reser.write(&mut data, save_header(&header_component));
 	
 	let node_entity = world.get::<&hecs_hierarchy::Parent<TreeMarker>>(root_entity).unwrap().first_child(world).unwrap();
 	save_node_recursively(world, node_entity, &mut data);
@@ -54,10 +50,14 @@ fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> (
 		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
 	}
 	
-	(child_pointers.len(), child_array_pointer)
+	if child_pointers.is_empty() {
+		(0, 0)
+	} else {
+		(child_pointers.len(), child_array_pointer)
+	}
 }
 
-fn save_header(this: &Header, root_node: &Reservation<U64<LE>>) -> HeaderRaw {
+fn save_header(this: &Header) -> HeaderRaw {
 	HeaderRaw {
 		magic: *b"YCSN",
 		unknown_04: U32::new(this.unknown_04),
@@ -65,9 +65,6 @@ fn save_header(this: &Header, root_node: &Reservation<U64<LE>>) -> HeaderRaw {
 		unknown_0C: U32::new(this.unknown_0C),
 		unknown_10: U32::new(this.unknown_10),
 		unknown_14: U32::new(this.unknown_14),
-		unknown_18: U32::new(this.unknown_18),
-		unknown_1C: U32::new(this.unknown_1C),
-		root_node_pointer: U64::new(root_node.pointer_64()),
 	}
 }
 
@@ -90,10 +87,6 @@ impl<T> Reservation<T> {
 		let location = data.len();
 		data.extend(std::iter::repeat(0).take(std::mem::size_of::<T>()));
 		Self { location, phantom: PhantomData }
-	}
-	
-	pub fn pointer_64(&self) -> u64 {
-		self.location as u64
 	}
 }
 
