@@ -24,10 +24,13 @@ fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8
 	let node_reser = Reservation::<NodeCommonRaw>::reserve(output);
 	let node_reser_location = node_reser.location;
 	
+	// make a placeholder for the node's actual data
+	let node_component = world.get::<&NodeCommon>(node_entity).unwrap();
+	output.extend(std::iter::repeat(0xAA).take(kind_data_bytes(node_component.kind)));
+	
 	let (child_count, child_array_pointer) = save_children_nodes(world, node_entity, output);
 	
 	// Finally, write the parent, including the pointer to the children pointers.
-	let node_component = world.get::<&NodeCommon>(node_entity).unwrap();
 	node_reser.write(output, save_node_common(&node_component, child_count, child_array_pointer));
 	
 	node_reser_location
@@ -54,6 +57,26 @@ fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> (
 		(0, 0)
 	} else {
 		(child_pointers.len(), child_array_pointer)
+	}
+}
+
+fn kind_data_bytes(kind: u32) -> usize {
+	match kind {
+		0 => 0,
+		1 => 24,
+		2 => 16,
+		3 => 0,
+		4 => 8,
+		5 => 16,
+		6 => 16,
+		7 => 32,
+		8 => 16,
+		9 => 8,
+		10 => 16,
+		11 => 8,
+		12 => 8,
+		13 => 24,
+		_ => 0,
 	}
 }
 
