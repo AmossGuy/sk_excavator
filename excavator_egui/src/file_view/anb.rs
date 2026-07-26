@@ -6,7 +6,7 @@ use std::ops::DerefMut;
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
 
-use excavator_backend::formats::{EditableStruct, TreeMarker, anb::{Header, NodeCommon}};
+use excavator_backend::formats::{EditableStruct, anb::{Header, NodeCommon}};
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -56,7 +56,7 @@ fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
 	});
 	
 	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
-	let children = world.children::<TreeMarker>(root).collect::<Vec<_>>();
+	let children = world.children::<()>(root).collect::<Vec<_>>();
 	indent_frame.show(ui, |ui| {
 		for (i, child) in children.into_iter().enumerate() {
 			ui.push_id(i, |ui| {
@@ -77,9 +77,9 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 			struct_ui(ui, entity_ref.get::<&mut Header>().unwrap().deref_mut());
 		} else if type_id == TypeId::of::<NodeCommon>() {
 			struct_ui(ui, entity_ref.get::<&mut NodeCommon>().unwrap().deref_mut());
-		} else if type_id == TypeId::of::<hecs_hierarchy::Parent<TreeMarker>>() {
+		} else if type_id == TypeId::of::<hecs_hierarchy::Parent<()>>() {
 			// ignore it
-		} else if type_id == TypeId::of::<hecs_hierarchy::Child<TreeMarker>>() {
+		} else if type_id == TypeId::of::<hecs_hierarchy::Child<()>>() {
 			// ignore it
 		} else {
 			ui.label(format!("unknown component type: {:?}", type_id));

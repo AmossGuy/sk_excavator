@@ -55,8 +55,6 @@ impl FileFormat {
 	}
 }
 
-pub struct TreeMarker;
-
 pub trait EditableStruct: Any {
 	fn struct_name(&self) -> &str;
 	fn number_of_fields(&self) -> usize;

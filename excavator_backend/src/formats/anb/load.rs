@@ -1,5 +1,4 @@
 use super::definition::*;
-use super::super::TreeMarker;
 use hecs::{Entity, World};
 use hecs_hierarchy::HierarchyMut;
 use zerocopy::{FromBytes, LE, U64};
@@ -14,7 +13,7 @@ fn load_header(bytes: &[u8], world: &mut World) -> Entity {
 	let header_entity = world.spawn((header_component,));
 	
 	let (root_component, root_child_offset, root_child_count) = parse_node_common(bytes, std::mem::size_of::<HeaderRaw>()).unwrap();
-	let root_entity = world.attach_new::<TreeMarker, _>(header_entity, (root_component,)).unwrap();
+	let root_entity = world.attach_new::<(), _>(header_entity, (root_component,)).unwrap();
 	
 	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count);
 	
@@ -28,7 +27,7 @@ fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, 
 	for pointer in slice {
 		let pointer = pointer.get();
 		let (node_component, children_offset, children_count) = parse_node_common(bytes, pointer as usize).unwrap();
-		let node_entity = world.attach_new::<TreeMarker, _>(parent, (node_component,)).unwrap();
+		let node_entity = world.attach_new::<(), _>(parent, (node_component,)).unwrap();
 		
 		load_node_list(bytes, world, node_entity, children_offset, children_count);
 	}

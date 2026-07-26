@@ -1,5 +1,4 @@
 use super::definition::*;
-use super::super::TreeMarker;
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
 use std::marker::PhantomData;
@@ -12,7 +11,7 @@ pub fn save_from_world(world: &World, root_entity: Entity) -> Vec<u8> {
 	let header_component = world.get::<&Header>(root_entity).unwrap();
 	header_reser.write(&mut data, save_header(&header_component));
 	
-	let node_entity = world.get::<&hecs_hierarchy::Parent<TreeMarker>>(root_entity).unwrap().first_child(world).unwrap();
+	let node_entity = world.get::<&hecs_hierarchy::Parent<()>>(root_entity).unwrap().first_child(world).unwrap();
 	save_node_recursively(world, node_entity, &mut data);
 	
 	data
@@ -38,7 +37,7 @@ fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8
 
 fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> (usize, usize) {
 	// step one: get iterator
-	let children_iter = world.children::<TreeMarker>(parent);
+	let children_iter = world.children::<()>(parent);
 	
 	// step two: save each child, recursing for the children's children
 	let mut child_pointers = Vec::<usize>::new();
