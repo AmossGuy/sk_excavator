@@ -14,14 +14,14 @@ pub struct AnbFileView {
 }
 
 impl AnbFileView {
-	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> Self where Self: Sized {
-		let mut ecs_world = World::new();
-		
+	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> anyhow::Result<Self> {
 		let mut bytes = Vec::new();
-		reader.read_to_end(&mut bytes).unwrap();
-		let root = excavator_backend::formats::anb::load_from_bytes(&bytes, &mut ecs_world);
+		reader.read_to_end(&mut bytes)?;
 		
-		Self { ecs_world, root }
+		let mut ecs_world = World::new();
+		let root = excavator_backend::formats::anb::load_from_bytes(&bytes, &mut ecs_world)?;
+		
+		Ok(Self { ecs_world, root })
 	}
 }
 

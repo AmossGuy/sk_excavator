@@ -1,36 +1,39 @@
 use super::definition::*;
+
 use hecs::{Entity, World};
 use hecs_hierarchy::HierarchyMut;
 use zerocopy::{FromBytes, LE, U64};
 
-pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> Entity {
+pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
 	load_header(bytes, world)
 }
 
-fn load_header(bytes: &[u8], world: &mut World) -> Entity {
-	// early state of work on this... unwrapping okay for the moment
-	let header_component = parse_header(bytes).unwrap();
+fn load_header(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
+	let header_component = parse_header(bytes)?;
 	let header_entity = world.spawn((header_component,));
 	
-	let (root_component, root_child_offset, root_child_count) = parse_node_common(bytes, std::mem::size_of::<HeaderRaw>()).unwrap();
-	let root_entity = world.attach_new::<(), _>(header_entity, (root_component,)).unwrap();
+	let (root_component, root_child_offset, root_child_count) = parse_node_common(bytes, std::mem::size_of::<HeaderRaw>())?;
+	let root_entity = world.attach_new::<(), _>(header_entity, (root_component,))?;
 	
-	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count);
+	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count)?;
 	
-	header_entity
+	Ok(header_entity)
 }
 
-fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, length: u32) {
+fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, length: u32) -> anyhow::Result<()> {
 	let offset_bytes = &bytes[(offset as usize)..];
-	let slice = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize).unwrap().0;
+	let (slice, _) = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize)
+		.map_err(|e| anyhow::anyhow!(e.to_string()))?;
 	
 	for pointer in slice {
 		let pointer = pointer.get();
-		let (node_component, children_offset, children_count) = parse_node_common(bytes, pointer as usize).unwrap();
-		let node_entity = world.attach_new::<(), _>(parent, (node_component,)).unwrap();
+		let (node_component, children_offset, children_count) = parse_node_common(bytes, pointer as usize)?;
+		let node_entity = world.attach_new::<(), _>(parent, (node_component,))?;
 		
-		load_node_list(bytes, world, node_entity, children_offset, children_count);
+		load_node_list(bytes, world, node_entity, children_offset, children_count)?;
 	}
+	
+	Ok(())
 }
 
 fn parse_header(bytes: &[u8]) -> anyhow::Result<Header> {
