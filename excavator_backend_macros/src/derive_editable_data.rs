@@ -57,6 +57,14 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 		},
 	};
 	
+	let selected_arms = variants.iter().map(|(variant, _)| {
+		let variant_ident = &variant.ident;
+		let variant_name = variant_ident.to_string();
+		quote! {
+			Self::#variant_ident(_) => { #variant_name },
+		}
+	});
+	
 	let choices = variants.iter().map(|(variant, values)| {
 		if values.skip {
 			quote! {} // That's right, nothing
@@ -84,7 +92,11 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 	});
 	
 	quote! {
-		renderer.dropdown("enum variant", |mut contents| {
+		let selected_text = match self {
+			#(#selected_arms)*
+		};
+		
+		renderer.dropdown("enum variant", selected_text, |mut contents| {
 			use crate::formats::DropdownRenderer;
 			#(#choices)*
 		});

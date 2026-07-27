@@ -62,7 +62,7 @@ pub trait EditableData {
 pub trait EditableDataRenderer {
 	type Dropdown<'a>: DropdownRenderer;
 	
-	fn dropdown(&mut self, name: &str, contents: impl FnOnce(Self::Dropdown<'_>));
+	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>));
 	fn field_f32(&mut self, name: &str, value: &mut f32);
 	fn field_u32(&mut self, name: &str, value: &mut u32);
 }

@@ -106,10 +106,11 @@ struct EguiDataRenderer<'a> {
 impl EditableDataRenderer for EguiDataRenderer<'_> {
 	type Dropdown<'a> = EguiDropdownRenderer<'a>;
 	
-	fn dropdown(&mut self, name: &str, contents: impl FnOnce(Self::Dropdown<'_>)) {
+	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>)) {
 		let ui = &mut self.ui;
 		ui.label(name);
 		egui::ComboBox::from_id_salt(name)
+			.selected_text(selected_text)
 			.show_ui(ui, |ui| {
 				contents(EguiDropdownRenderer { ui })
 			});
