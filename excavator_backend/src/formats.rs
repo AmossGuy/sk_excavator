@@ -4,7 +4,6 @@ pub mod pak;
 pub mod st;
 mod wflz;
 
-use std::any::Any;
 use image::ImageFormat;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -55,10 +54,35 @@ impl FileFormat {
 	}
 }
 
-pub trait EditableStruct: Any {
+pub trait EditableData {
 	fn struct_name(&self) -> &str;
-	fn number_of_fields(&self) -> usize;
-	fn field_name(&self, index: usize) -> Option<&str>;
-	fn field_ref(&self, index: usize) -> Option<&dyn Any>;
-	fn field_mut(&mut self, index: usize) -> Option<&mut dyn Any>;
+	fn display(&mut self, renderer: impl EditableDataRenderer);
+}
+
+pub trait EditableDataRenderer {
+	type Dropdown<'a>: DropdownRenderer;
+	
+	fn dropdown(&mut self, name: &str, contents: impl FnOnce(Self::Dropdown<'_>));
+	fn field_f32(&mut self, name: &str, value: &mut f32);
+	fn field_u32(&mut self, name: &str, value: &mut u32);
+}
+
+pub trait DropdownRenderer {
+	fn choice(&mut self, name: &str, selected: bool) -> bool;
+}
+
+pub trait FieldDispatch {
+	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str);
+}
+
+impl FieldDispatch for f32 {
+	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
+		renderer.field_f32(name, self);
+	}
+}
+
+impl FieldDispatch for u32 {
+	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
+		renderer.field_u32(name, self);
+	}
 }

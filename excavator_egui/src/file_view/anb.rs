@@ -6,7 +6,10 @@ use std::ops::DerefMut;
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
 
-use excavator_backend::formats::{EditableStruct, anb::{Header, NodeCommon}};
+use excavator_backend::formats::{
+	DropdownRenderer, EditableData, EditableDataRenderer,
+	anb::{Header, Node},
+};
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -75,8 +78,8 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 		// awaiting my implementation of a dynamic version of this
 		if type_id == TypeId::of::<Header>() {
 			struct_ui(ui, entity_ref.get::<&mut Header>().unwrap().deref_mut());
-		} else if type_id == TypeId::of::<NodeCommon>() {
-			struct_ui(ui, entity_ref.get::<&mut NodeCommon>().unwrap().deref_mut());
+		} else if type_id == TypeId::of::<Node>() {
+			struct_ui(ui, entity_ref.get::<&mut Node>().unwrap().deref_mut());
 		} else if type_id == TypeId::of::<hecs_hierarchy::Parent<()>>() {
 			// ignore it
 		} else if type_id == TypeId::of::<hecs_hierarchy::Child<()>>() {
@@ -87,42 +90,54 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 	}
 }
 
-fn struct_ui(ui: &mut egui::Ui, thing: &mut dyn EditableStruct) {
-	ui.heading(thing.struct_name());
+fn struct_ui(ui: &mut egui::Ui, thing: &mut impl EditableData) {
+	let struct_name = thing.struct_name();
+	ui.heading(struct_name);
 	
-	let type_id = std::any::Any::type_id(thing);
-	
-	egui::Grid::new(type_id).show(ui, |ui| {
-		for i in 0..thing.number_of_fields() {
-			let name = thing.field_name(i).unwrap();
-			ui.label(name);
-			
-			let value = thing.field_mut(i).unwrap();
-			match lookup_value_widget(value) {
-				None => { ui.label("(unknown type)"); },
-				Some(value) => { value.value_widget(ui); },
-			};
-			
-			ui.end_row();
-		}
+	egui::Grid::new(struct_name).show(ui, |ui| {
+		thing.display(EguiDataRenderer { ui });
 	});
 }
 
-fn lookup_value_widget<'a>(value: &'a mut dyn std::any::Any) -> Option<&'a mut dyn ValueWidget> {
-	if let Some(number) = value.downcast_mut::<u32>() {
-		Some(number)
-	} else {
-		None
+struct EguiDataRenderer<'a> {
+	ui: &'a mut egui::Ui,
+}
+
+impl EditableDataRenderer for EguiDataRenderer<'_> {
+	type Dropdown<'a> = EguiDropdownRenderer<'a>;
+	
+	fn dropdown(&mut self, name: &str, contents: impl FnOnce(Self::Dropdown<'_>)) {
+		let ui = &mut self.ui;
+		ui.label(name);
+		egui::ComboBox::from_id_salt(name)
+			.show_ui(ui, |ui| {
+				contents(EguiDropdownRenderer { ui })
+			});
+		ui.end_row();
+	}
+	
+	fn field_f32(&mut self, name: &str, value: &mut f32) {
+		let ui = &mut self.ui;
+		ui.label(name);
+		ui.add(egui::DragValue::new(value));
+		ui.end_row();
+	}
+	
+	fn field_u32(&mut self, name: &str, value: &mut u32) {
+		let ui = &mut self.ui;
+		ui.label(name);
+		ui.add(egui::DragValue::new(value));
+		ui.end_row();
 	}
 }
 
-trait ValueWidget {
-	fn value_widget(&mut self, ui: &mut egui::Ui);
+struct EguiDropdownRenderer<'a> {
+	ui: &'a mut egui::Ui,
 }
 
-
-impl ValueWidget for u32 {
-	fn value_widget(&mut self, ui: &mut egui::Ui) {
-		ui.add(egui::DragValue::new(self));
+impl DropdownRenderer for EguiDropdownRenderer<'_> {
+	fn choice(&mut self, name: &str, selected: bool) -> bool {
+		let ui = &mut self.ui;
+		ui.selectable_label(selected, name).clicked()
 	}
 }

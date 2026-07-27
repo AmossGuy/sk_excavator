@@ -1,11 +1,11 @@
-mod proc_unraw_struct;
-use syn::{parse_macro_input, ItemStruct};
+mod derive_editable_data;
 
 use proc_macro::TokenStream;
+use syn::{parse_macro_input, DeriveInput};
 
-#[proc_macro_derive(ProcUnrawStruct, attributes(unraw))]
-pub fn proc_unraw_struct(item: TokenStream) -> TokenStream {
-	let item = parse_macro_input!(item as ItemStruct);
-	let expanded = proc_unraw_struct::unraw(item);
+#[proc_macro_derive(EditableData, attributes(edit))]
+pub fn derive_editable_data(item: TokenStream) -> TokenStream {
+	let item = parse_macro_input!(item as DeriveInput);
+	let expanded = derive_editable_data::macro_main(item);
 	TokenStream::from(expanded)
 }
