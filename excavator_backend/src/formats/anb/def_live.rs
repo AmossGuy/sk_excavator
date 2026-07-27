@@ -12,10 +12,10 @@ pub struct Header {
 
 #[derive(EditableData)]
 pub enum Node {
-	// Base,
+	Base,
 	// Texture(NodeTexture),
 	// Vertex(NodeVertex),
-	// Meta,
+	Meta,
 	// MetaScalar(NodeMetaScalar),
 	MetaPoint(NodeMetaPoint),
 	MetaAnchor(NodeMetaAnchor),
@@ -33,6 +33,8 @@ pub enum Node {
 impl Node {
 	pub fn kind(&self) -> u32 {
 		match self {
+			Self::Base => 0,
+			Self::Meta => 3,
 			Self::MetaPoint(_) => 5,
 			Self::MetaAnchor(_) => 6,
 			Self::MetaRect(_) => 7,

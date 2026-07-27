@@ -1,6 +1,6 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::{Attribute, Data, DataEnum, DataStruct, DeriveInput, Index, Member};
+use syn::{*, spanned::Spanned};
 
 pub fn macro_main(input: DeriveInput) -> TokenStream {
 	let display_body = match input.data {
@@ -8,7 +8,7 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 		Data::Enum(enum_data) => enum_display_body(enum_data),
 		Data::Union(union_data) => {
 			let span = union_data.union_token.span;
-			quote_spanned!(span=> compile_error!("EditableData derive does not support unions");)
+			quote_spanned!(span=> compile_error!("EditableData derive does not support unions"))
 		},
 	};
 	
@@ -58,10 +58,11 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 	};
 	
 	let selected_arms = variants.iter().map(|(variant, _)| {
+		let f_ignore = fields_ignore(&variant.fields);
 		let variant_ident = &variant.ident;
 		let variant_name = variant_ident.to_string();
 		quote! {
-			Self::#variant_ident(_) => { #variant_name },
+			Self::#variant_ident #f_ignore => { #variant_name },
 		}
 	});
 	
@@ -69,25 +70,40 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 		if values.skip {
 			quote! {} // That's right, nothing
 		} else {
+			let f_ignore = fields_ignore(&variant.fields);
+			let f_default = fields_default(&variant.fields);
+			
 			let variant_ident = &variant.ident;
 			let variant_name = variant_ident.to_string();
 			quote! {
-				let is_selected = ::std::matches!(self, Self::#variant_ident(_));
+				let is_selected = ::std::matches!(self, Self::#variant_ident #f_ignore);
 				if contents.choice(#variant_name, is_selected) && !is_selected {
-					*self = Self::#variant_ident(::std::default::Default::default());
+					*self = Self::#variant_ident #f_default;
 				}
 			}
 		}
 	});
 	
 	let recurse_arms = variants.iter().map(|(variant, values)| {
-		let variant_ident = &variant.ident;
-		let display_code = match values.skip {
-			true => quote! {}, // That's right, nothing (again)
-			false => quote! { crate::formats::EditableData::display(value, renderer); },
-		};
-		quote! {
-			Self::#variant_ident(value) => { #display_code },
+		if let Fields::Unnamed(unnamed) = &variant.fields && unnamed.unnamed.len() == 1 {
+			let variant_ident = &variant.ident;
+			let display_code = match values.skip {
+				true => quote! {}, // That's right, nothing (again)
+				false => quote! { crate::formats::EditableData::display(value, renderer); },
+			};
+			quote! {
+				Self::#variant_ident(value) => { #display_code },
+			}
+		} else if let Fields::Unit = &variant.fields {
+			let variant_ident = &variant.ident;
+			quote! {
+				Self::#variant_ident => {},
+			}
+		} else {
+			let span = variant.span();
+			quote_spanned! {span=>
+				compile_error!("EditableData enum variants without `skip` must be either unit or one-element tuple")
+			}
 		}
 	});
 	
@@ -104,6 +120,33 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 		match self {
 			#(#recurse_arms)*
 		}
+	}
+}
+
+fn fields_ignore(fields: &Fields) -> TokenStream {
+	match fields {
+		Fields::Named(_) => quote! { {..} },
+		Fields::Unnamed(_) => quote! { (..) },
+		Fields::Unit => quote! {},
+	}
+}
+
+fn fields_default(fields: &Fields) -> TokenStream {
+	match fields {
+		Fields::Named(named) => {
+			let defaults = named.named.iter().map(|field| {
+				let field_ident = field.ident.as_ref().expect("named field should have an identifier");
+				quote! { #field_ident: ::std::default::Default::default() }
+			});
+			quote! { { #(#defaults),* } }
+		},
+		Fields::Unnamed(unnamed) => {
+			let defaults = unnamed.unnamed.iter().map(|_field| {
+				quote! { ::std::default::Default::default() }
+			});
+			quote! { (#(#defaults),*) }
+		},
+		Fields::Unit => quote! {},
 	}
 }
 
