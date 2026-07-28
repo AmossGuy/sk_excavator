@@ -1,5 +1,4 @@
 use super::{FileView, FileViewEffect};
-use std::any::TypeId;
 use std::io::{BufRead, Seek};
 use std::ops::DerefMut;
 
@@ -72,21 +71,12 @@ fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
 fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 	let entity_ref = world.entity(entity)
 		.expect("entity should be spawned");
-	let component_list = entity_ref.component_types().collect::<Vec<_>>();
 	
-	for type_id in component_list {
-		// awaiting my implementation of a dynamic version of this
-		if type_id == TypeId::of::<Header>() {
-			struct_ui(ui, entity_ref.get::<&mut Header>().unwrap().deref_mut());
-		} else if type_id == TypeId::of::<Node>() {
-			struct_ui(ui, entity_ref.get::<&mut Node>().unwrap().deref_mut());
-		} else if type_id == TypeId::of::<hecs_hierarchy::Parent<()>>() {
-			// ignore it
-		} else if type_id == TypeId::of::<hecs_hierarchy::Child<()>>() {
-			// ignore it
-		} else {
-			ui.label(format!("unknown component type: {:?}", type_id));
-		}
+	if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
+		struct_ui(ui, header_component.deref_mut());
+	}
+	if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
+		struct_ui(ui, node_component.deref_mut());
 	}
 }
 
