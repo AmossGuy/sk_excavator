@@ -26,7 +26,7 @@ pub struct FileTreeView {
 #[must_use]
 pub struct FileTreeEffect {
 	pub close_clicked: bool,
-	pub pls_app: Vec<Box<dyn FnOnce(&mut crate::core::app::ExcavatorApp, &egui::Context, &mut eframe::Frame)>>,
+	pub pls_app: Vec<Box<dyn FnOnce(&egui::Context, &mut crate::core::app::ExcavatorContext)>>,
 	pub new_selection: Option<Vec<excavator_backend::io::file::FileSource>>,
 }
 
@@ -229,7 +229,7 @@ impl FileTreeView {
 				if ui.button("Extract from archive...").clicked() {
 					let (outer_path, inner_path) = (outer_path.clone(), inner_path.clone());
 					effect.pls_app.push(Box::new(
-						|_a, b, c| show_file_extract_dialog(outer_path, inner_path, b, c)
+						|ctx, _excavator| show_file_extract_dialog(outer_path, inner_path, ctx)
 					))
 				}
 			},

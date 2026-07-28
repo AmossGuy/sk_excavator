@@ -1,23 +1,17 @@
 use crate::file_tree::FileTreeView;
 use crate::file_view::FileViewLoader;
+use super::menu::MenuAction;
 use super::menubar::{MenuBarAction, show_menu_bar_panel};
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
-use std::sync::mpsc;
+use std::sync::Arc;
 
 pub struct ExcavatorApp {
-	settings: ExcavatorSettings,
-	pub windows: WindowHolder,
+	excavator: ExcavatorContext,
+	
 	file_tree: Option<FileTreeView>,
 	file_view: Option<FileViewLoader>,
-	
-	receiver: mpsc::Receiver<TaskToAppMessage>,
-	sender: mpsc::Sender<TaskToAppMessage>,
-}
-
-pub enum TaskToAppMessage {
-	SetRootPath(std::path::PathBuf),
 }
 
 impl ExcavatorApp {
@@ -43,38 +37,19 @@ impl ExcavatorApp {
 		let file_tree = Option::map(settings.game_root_path.clone(), FileTreeView::new);
 		let file_view = None;
 		
-		let (sender, receiver) = mpsc::channel();
-		
-		Self { settings, windows, file_tree, file_view, receiver, sender }
-	}
-	
-	pub fn sender(&self) -> &mpsc::Sender<TaskToAppMessage> {
-		&self.sender
-	}
-	
-	pub fn set_game_root_path(&mut self, path: Option<std::path::PathBuf>) {
-		self.settings.game_root_path = path;
-		self.file_tree = Option::map(self.settings.game_root_path.clone(), FileTreeView::new);
+		let excavator = ExcavatorContext::new(
+			ExcavatorInner { settings, windows }
+		);
+		Self { excavator, file_tree, file_view }
 	}
 }
 
 impl eframe::App for ExcavatorApp {
-	fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-		// textbook example of this aliasing problem
-		// wouldn't need to collect if compiler understood the other stuff doesn't use receiver
-		for message in self.receiver.try_iter().collect::<Vec<_>>() {
-			match message {
-				TaskToAppMessage::SetRootPath(path) => {
-					self.set_game_root_path(Some(path));
-				},
-			}
-		}
-	}
-	
 	fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
-		self.windows.show_as_viewports(ui);
+		// depending on exactly how Ui::ui.show_viewport_deferred works, this might be bad?
+		self.excavator.inner.write().windows.show_as_viewports(ui);
 		
-		show_menu_bar_panel(ui, self, frame);
+		show_menu_bar_panel(ui, &mut self.excavator);
 		
 		if let Some(file_view) = &mut self.file_view {
 			egui::Panel::right("file view").resizable(true).show_inside(ui, |ui| {
@@ -88,19 +63,19 @@ impl eframe::App for ExcavatorApp {
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {
-		self.settings.save(storage);
+		self.excavator.settings(|s| s.save(storage));
 	}
 }
 
 impl ExcavatorApp {
-	fn game_dir_ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+	fn game_dir_ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		if let Some(file_tree) = &mut self.file_tree {
 			let effect = file_tree.ui(ui);
 			if effect.close_clicked {
-				MenuBarAction::CloseGameDir.apply(self, ui.ctx(), frame);
+				MenuBarAction::CloseGameDir.execute(ui.ctx(), &mut self.excavator);
 			}
 			for pls in effect.pls_app {
-				pls(self, ui.ctx(), frame);
+				pls(ui.ctx(), &mut self.excavator);
 			}
 			if let Some(new_selection) = effect.new_selection {
 				self.file_view = match new_selection.len() {
@@ -110,8 +85,38 @@ impl ExcavatorApp {
 			}
 		} else {
 			if ui.button("Select game path...").clicked() {
-				MenuBarAction::SelectGameDir.apply(self, ui.ctx(), frame);
+				MenuBarAction::SelectGameDir.execute(ui.ctx(), &mut self.excavator);
 			}
 		}
+	}
+}
+
+struct ExcavatorInner {
+	settings: ExcavatorSettings,
+	windows: WindowHolder,
+}
+
+#[derive(Clone)]
+pub struct ExcavatorContext {
+	inner: Arc<egui::mutex::RwLock<ExcavatorInner>>,
+}
+
+impl ExcavatorContext {
+	fn new(inner: ExcavatorInner) -> Self {
+		Self {
+			inner: Arc::new(egui::mutex::RwLock::new(inner)),
+		}
+	}
+	
+	pub fn settings<R>(&self, reader: impl FnOnce(&ExcavatorSettings) -> R) -> R {
+		reader(&self.inner.read().settings)
+	}
+	
+	pub fn settings_mut<R>(&self, writer: impl FnOnce(&mut ExcavatorSettings) -> R) -> R {
+		writer(&mut self.inner.write().settings)
+	}
+	
+	pub fn add_window(&self, window: impl super::windows::Window) {
+		self.inner.write().windows.add(window);
 	}
 }

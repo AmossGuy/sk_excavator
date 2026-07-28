@@ -1,11 +1,12 @@
 use bstr::BString;
+use serde::{Serialize, Deserialize};
 use std::fs::File;
 use std::io::{Read, Take};
 use std::path::PathBuf;
 
 use crate::formats::FileFormat;
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum FileSource {
 	Fs { path: PathBuf },
 	Pak { outer_path: PathBuf, inner_path: BString },

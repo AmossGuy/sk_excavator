@@ -1,11 +1,11 @@
 use egui::{Key, KeyboardShortcut, Modifiers};
-use super::app::ExcavatorApp;
+use super::app::ExcavatorContext;
 use super::menu::{Menu, MenuAction, MenuItem, RootMenu};
 
-pub fn show_menu_bar_panel(ui: &mut egui::Ui, app: &mut ExcavatorApp, frame: &mut eframe::Frame) {
+pub fn show_menu_bar_panel(ui: &mut egui::Ui, env: &mut ExcavatorContext) {
 	egui::Panel::top("menu bar").show_inside(ui, |ui| {
 		egui::MenuBar::new().ui(ui, |ui| {
-			MENU_BAR.ui(ui, &mut |action, ctx| action.apply(app, ctx, frame));
+			MENU_BAR.ui(ui, env);
 		});
 	});
 }
@@ -14,6 +14,10 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 	MenuItem::SubMenu(Menu::new("File", &[
 		MenuItem::Action(MenuBarAction::SelectGameDir),
 		MenuItem::Action(MenuBarAction::CloseGameDir),
+		MenuItem::SubMenu(Menu::new("Recent files", &[
+			MenuItem::Separator,
+			MenuItem::Action(MenuBarAction::ClearRecentFiles),
+		])),
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
 	])),
@@ -34,7 +38,7 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 pub enum MenuBarAction {
 	SelectGameDir,
 	CloseGameDir,
-	
+	ClearRecentFiles,
 	Quit,
 	
 	/*
@@ -47,10 +51,13 @@ pub enum MenuBarAction {
 }
 
 impl MenuAction for MenuBarAction {
+	type Env = ExcavatorContext;
+	
 	fn static_name(&self) -> &'static str {
 		match self {
 			Self::SelectGameDir => "Select game directory...",
 			Self::CloseGameDir => "Close game directory",
+			Self::ClearRecentFiles => "Clear recent files",
 			Self::Quit => "Quit",
 			
 			/*
@@ -76,15 +83,15 @@ impl MenuAction for MenuBarAction {
 			_ => None,
 		}
 	}
-}
-
-impl MenuBarAction {
-	pub fn apply(self, app: &mut ExcavatorApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
+	
+	fn execute(&self, ctx: &egui::Context, excavator: &mut ExcavatorContext) {
 		match self {
-			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(app, ctx, frame),
-			Self::CloseGameDir => app.set_game_root_path(None),
+			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(ctx, excavator),
+			Self::CloseGameDir => excavator.settings_mut(|s| s.game_root_path = None),
+			Self::ClearRecentFiles => {},
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-			Self::About => app.windows.add(crate::misc::about::AboutWindow::new()),
+			
+			Self::About => excavator.add_window(crate::misc::about::AboutWindow::new()),
 		}
 	}
 }

@@ -1,32 +1,29 @@
-use crate::core::app::{ExcavatorApp, TaskToAppMessage};
+use crate::core::app::ExcavatorContext;
 use rfd::FileDialog;
 
 use bstr::{BString, ByteSlice};
 use std::path::PathBuf;
 use excavator_backend::formats::pak::do_single_pak_extract;
 
-pub fn show_game_path_dialog(app: &mut ExcavatorApp, ctx: &egui::Context, frame: &mut eframe::Frame) {
+pub fn show_game_path_dialog(ctx: &egui::Context, excavator: &ExcavatorContext) {
 	let dialog = FileDialog::new()
-		.set_title("Select game path")
-		.set_parent(frame);
+		.set_title("Select game path");
 	
-	let sender = app.sender().clone();
+	let excavator = excavator.clone();
 	let ctx = ctx.clone();
 	
 	std::thread::spawn(move || {
 		if let Some(path) = dialog.pick_folder() {
-			if sender.send(TaskToAppMessage::SetRootPath(path)).is_ok() {
-				ctx.request_repaint();
-			}
+			excavator.settings_mut(|s| s.game_root_path = Some(path));
+			ctx.request_repaint();
 		}
 	});
 }
 
-pub fn show_file_extract_dialog(outer_path: PathBuf, inner_path: BString, ctx: &egui::Context, frame: &mut eframe::Frame) {
+pub fn show_file_extract_dialog(outer_path: PathBuf, inner_path: BString, ctx: &egui::Context) {
 	let dialog = FileDialog::new()
 		.set_title("Extract from archive")
-		.set_file_name(inner_path.to_str_lossy())
-		.set_parent(frame);
+		.set_file_name(inner_path.to_str_lossy());
 	
 	let ctx = ctx.clone();
 	
