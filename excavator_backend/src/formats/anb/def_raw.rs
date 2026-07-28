@@ -23,6 +23,24 @@ pub struct NodeCommon {
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
+pub struct NodeMetaPoint {
+	pub x: F32<LE>,
+	pub y: F32<LE>,
+	pub z: F32<LE>,
+	pub padding: U32<LE>,
+}
+
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct NodeMetaAnchor {
+	pub x: F32<LE>,
+	pub y: F32<LE>,
+	pub z: F32<LE>,
+	pub angle: F32<LE>,
+}
+
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
 pub struct NodeMetaRect {
 	pub center_x: F32<LE>,
 	pub center_y: F32<LE>,

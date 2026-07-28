@@ -59,6 +59,28 @@ fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node,
 	let kind = node_common_raw.kind.get();
 	
 	let node = match kind {
+		0 => live::Node::Base,
+		3 => live::Node::Meta,
+		5 => {
+			let (node_raw, _) = raw::NodeMetaPoint::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::MetaPoint(live::NodeMetaPoint {
+				x: node_raw.x.get(),
+				y: node_raw.y.get(),
+				z: node_raw.z.get(),
+				padding: node_raw.padding.get(),
+			})
+		},
+		6 => {
+			let (node_raw, _) = raw::NodeMetaAnchor::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::MetaAnchor(live::NodeMetaAnchor {
+				x: node_raw.x.get(),
+				y: node_raw.y.get(),
+				z: node_raw.z.get(),
+				angle: node_raw.angle.get(),
+			})
+		},
 		7 => {
 			let (node_raw, _) = raw::NodeMetaRect::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
