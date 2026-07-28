@@ -48,9 +48,7 @@ impl FileView for AnbFileView {
 }
 
 fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
-	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
-		entity_ui(ui, world, root);
-	});
+	entity_ui(ui, world, root);
 	
 	let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
 		left: 20,
@@ -69,15 +67,38 @@ fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
 }
 
 fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
+	if !world.satisfies::<&CachedSize>(entity) {
+		world.insert(entity, (CachedSize::default(),)).unwrap();
+	}
+	
 	let entity_ref = world.entity(entity)
 		.expect("entity should be spawned");
 	
-	if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
-		struct_ui(ui, header_component.deref_mut());
+	let mut cached_size = entity_ref.get::<&mut CachedSize>()
+		.expect("we've just ensured the presence of CachedSize");
+	
+	let next_widget_position = ui.next_widget_position();
+	let inner_will_be_visible = !cached_size.inner_size.is_finite() || ui.is_rect_visible(
+		egui::Rect::from_min_size(next_widget_position, cached_size.inner_size),
+	);
+	
+	if inner_will_be_visible {
+		let response = entity_ui_inner(ui, entity_ref);
+		cached_size.inner_size = response.rect.size();
+	} else {
+		ui.allocate_space(cached_size.inner_size);
 	}
-	if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
-		struct_ui(ui, node_component.deref_mut());
-	}
+}
+
+fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>) -> egui::Response {
+	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
+		if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
+			struct_ui(ui, header_component.deref_mut());
+		}
+		if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
+			struct_ui(ui, node_component.deref_mut());
+		}
+	}).response
 }
 
 fn struct_ui(ui: &mut egui::Ui, thing: &mut impl EditableData) {
@@ -130,5 +151,17 @@ impl DropdownRenderer for EguiDropdownRenderer<'_> {
 	fn choice(&mut self, name: &str, selected: bool) -> bool {
 		let ui = &mut self.ui;
 		ui.selectable_label(selected, name).clicked()
+	}
+}
+
+struct CachedSize {
+	outer_size: egui::Vec2,
+	inner_size: egui::Vec2,
+}
+
+impl Default for CachedSize {
+	fn default() -> Self {
+		let s = egui::Vec2::splat(f32::INFINITY);
+		Self { outer_size: s, inner_size: s }
 	}
 }
