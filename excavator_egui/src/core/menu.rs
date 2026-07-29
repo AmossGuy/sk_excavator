@@ -48,6 +48,10 @@ impl<A: MenuAction> MenuItem<A> {
 		match self {
 			Self::SubMenu(menu) => {
 				ui.menu_button(menu.name, |ui| {
+					// egui's popup sizing stinks
+					// with this workaround, we still have the problem that menus will never shrink horizontally, but at least it'll avoid text wrapping in weird ways
+					ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
+					
 					for item in menu.content {
 						item.ui(ui, env);
 					}
