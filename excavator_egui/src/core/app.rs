@@ -152,6 +152,10 @@ impl ExcavatorContext {
 	
 	fn add_recent_file(&self, file_source: FileSource) {
 		self.settings_mut(|s| {
+			if let Some(index) = s.recent_files.iter().position(|item| *item == file_source) {
+				s.recent_files.remove(index);
+			}
+			
 			s.recent_files.push_back(file_source);
 			while s.recent_files.len() > usize::from(s.max_recent_files) {
 				s.recent_files.pop_front();

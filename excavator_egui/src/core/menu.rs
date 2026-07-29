@@ -39,6 +39,7 @@ pub enum MenuItem<A: MenuAction> {
 	SubMenu(Menu<A>),
 	Action(A),
 	Separator,
+	CustomCondition(fn(&egui::Context, &mut A::Env) -> bool, &'static [MenuItem<A>]),
 	CustomUi(fn(&mut egui::Ui, &mut A::Env)),
 }
 
@@ -63,6 +64,13 @@ impl<A: MenuAction> MenuItem<A> {
 			},
 			Self::Separator => {
 				ui.separator();
+			},
+			Self::CustomCondition(condition, content) => {
+				if condition(ui.ctx(), env) {
+					for item in content.iter() {
+						item.ui(ui, env);
+					}
+				}
 			},
 			Self::CustomUi(ui_func) => {
 				ui_func(ui, env);

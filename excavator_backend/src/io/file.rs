@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use crate::formats::FileFormat;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub enum FileSource {
 	Fs { path: PathBuf },
 	Pak { outer_path: PathBuf, inner_path: BString },

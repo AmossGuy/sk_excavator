@@ -16,8 +16,10 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 		MenuItem::Action(MenuBarAction::CloseGameDir),
 		MenuItem::SubMenu(Menu::new("Recent files", &[
 			MenuItem::CustomUi(recent_file_list),
-			MenuItem::Separator,
-			MenuItem::Action(MenuBarAction::ClearRecentFiles),
+			MenuItem::CustomCondition(recent_files_not_empty, &[
+				MenuItem::Separator,
+				MenuItem::Action(MenuBarAction::ClearRecentFiles),
+			]),
 		])),
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
@@ -99,9 +101,19 @@ impl MenuAction for MenuBarAction {
 
 fn recent_file_list(ui: &mut egui::Ui, excavator: &mut ExcavatorContext) {
 	let list = excavator.settings(|s| s.recent_files.clone());
-	for item in list {
-		if ui.button(item.file_name_lossy()).clicked() {
-			excavator.open_file(item);
+	if list.is_empty() {
+		ui.add_enabled_ui(false, |ui| {
+			ui.label("No recent files");
+		});
+	} else {
+		for item in list.into_iter().rev() {
+			if ui.button(item.file_name_lossy()).clicked() {
+				excavator.open_file(item);
+			}
 		}
 	}
+}
+
+fn recent_files_not_empty(_ctx: &egui::Context, excavator: &mut ExcavatorContext) -> bool {
+	excavator.settings(|s| !s.recent_files.is_empty())
 }
