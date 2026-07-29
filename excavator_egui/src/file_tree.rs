@@ -16,7 +16,7 @@ enum NodeId {
 }
 
 pub struct FileTreeView {
-	root_path: PathBuf,
+	pub root_path: PathBuf,
 	// search_text: String,
 	
 	backend: FileTreeBackend<RepaintWaker>,

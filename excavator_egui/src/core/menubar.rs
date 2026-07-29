@@ -15,6 +15,7 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 		MenuItem::Action(MenuBarAction::SelectGameDir),
 		MenuItem::Action(MenuBarAction::CloseGameDir),
 		MenuItem::SubMenu(Menu::new("Recent files", &[
+			MenuItem::CustomUi(recent_file_list),
 			MenuItem::Separator,
 			MenuItem::Action(MenuBarAction::ClearRecentFiles),
 		])),
@@ -88,10 +89,19 @@ impl MenuAction for MenuBarAction {
 		match self {
 			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(ctx, excavator),
 			Self::CloseGameDir => excavator.settings_mut(|s| s.game_root_path = None),
-			Self::ClearRecentFiles => {},
+			Self::ClearRecentFiles => excavator.clear_recent_files(),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
 			Self::About => excavator.add_window(crate::misc::about::AboutWindow::new()),
+		}
+	}
+}
+
+fn recent_file_list(ui: &mut egui::Ui, excavator: &mut ExcavatorContext) {
+	let list = excavator.settings(|s| s.recent_files.clone());
+	for item in list {
+		if ui.button(item.file_name_lossy()).clicked() {
+			excavator.open_file(item);
 		}
 	}
 }

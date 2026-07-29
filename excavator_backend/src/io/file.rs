@@ -1,5 +1,6 @@
-use bstr::BString;
+use bstr::{BString, ByteSlice};
 use serde::{Serialize, Deserialize};
+use std::borrow::Cow;
 use std::fs::File;
 use std::io::{Read, Take};
 use std::path::PathBuf;
@@ -29,6 +30,17 @@ impl FileSource {
 		match self {
 			Self::Fs { path } => FileFormat::from_filename(path.as_os_str().as_encoded_bytes()),
 			Self::Pak { inner_path, .. } => FileFormat::from_filename(inner_path),
+		}
+	}
+	
+	pub fn file_name_lossy(&self) -> Cow<'_, str> {
+		match self {
+			Self::Fs { path } => {
+				path.file_name().unwrap_or_default().to_string_lossy()
+			},
+			Self::Pak { inner_path, .. } => {
+				inner_path.rsplit(|c| *c == b'/').next().unwrap_or_default().to_str_lossy()
+			},
 		}
 	}
 }

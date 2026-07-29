@@ -5,6 +5,8 @@ use super::menubar::{MenuBarAction, show_menu_bar_panel};
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
+use excavator_backend::io::file::FileSource;
+
 use std::sync::Arc;
 
 pub struct ExcavatorApp {
@@ -38,14 +40,14 @@ impl ExcavatorApp {
 		let file_view = None;
 		
 		let excavator = ExcavatorContext::new(
-			ExcavatorInner { settings, windows }
+			ExcavatorInner { settings, windows, file_to_open: None }
 		);
 		Self { excavator, file_tree, file_view }
 	}
 }
 
 impl eframe::App for ExcavatorApp {
-	fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		// depending on exactly how Ui::ui.show_viewport_deferred works, this might be bad?
 		self.excavator.inner.write().windows.show_as_viewports(ui);
 		
@@ -57,9 +59,26 @@ impl eframe::App for ExcavatorApp {
 			});
 		}
 		
+		match self.excavator.settings(|s| s.game_root_path.clone()) {
+			None => { self.file_tree = None; },
+			Some(new_root_path) => {
+				let file_tree = self.file_tree.get_or_insert_with(|| FileTreeView::new(new_root_path.clone()));
+				if new_root_path != file_tree.root_path {
+					file_tree.root_path = new_root_path;
+				}
+			},
+		}
+		
 		egui::CentralPanel::default().show_inside(ui, |ui| {
-			self.game_dir_ui(ui, frame);
+			self.game_dir_ui(ui);
 		});
+		
+		if let Some(file_to_open) = self.excavator.take_file_to_open() {
+			self.file_view = FileViewLoader::from_file_source(file_to_open.clone(), ui.ctx());
+			if self.file_view.is_some() {
+				self.excavator.add_recent_file(file_to_open);
+			}
+		}
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -68,7 +87,7 @@ impl eframe::App for ExcavatorApp {
 }
 
 impl ExcavatorApp {
-	fn game_dir_ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+	fn game_dir_ui(&mut self, ui: &mut egui::Ui) {
 		if let Some(file_tree) = &mut self.file_tree {
 			let effect = file_tree.ui(ui);
 			if effect.close_clicked {
@@ -78,10 +97,15 @@ impl ExcavatorApp {
 				pls(ui.ctx(), &mut self.excavator);
 			}
 			if let Some(new_selection) = effect.new_selection {
-				self.file_view = match new_selection.len() {
-					1 => FileViewLoader::from_file_source(new_selection[0].clone(), ui.ctx()),
-					_ => None,
-				};
+				match new_selection.len() {
+					1 => {
+						self.excavator.open_file(new_selection[0].clone());
+					},
+					_ => { 
+						self.file_view = None
+						
+					},
+				}
 			}
 		} else {
 			if ui.button("Select game path...").clicked() {
@@ -94,6 +118,8 @@ impl ExcavatorApp {
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	windows: WindowHolder,
+	
+	file_to_open: Option<FileSource>,
 }
 
 #[derive(Clone)]
@@ -118,5 +144,26 @@ impl ExcavatorContext {
 	
 	pub fn add_window(&self, window: impl super::windows::Window) {
 		self.inner.write().windows.add(window);
+	}
+	
+	pub fn open_file(&self, file_source: FileSource) {
+		self.inner.write().file_to_open = Some(file_source);
+	}
+	
+	fn add_recent_file(&self, file_source: FileSource) {
+		self.settings_mut(|s| {
+			s.recent_files.push_back(file_source);
+			while s.recent_files.len() > usize::from(s.max_recent_files) {
+				s.recent_files.pop_front();
+			}
+		});
+	}
+	
+	pub fn clear_recent_files(&self) {
+		self.settings_mut(|s| s.recent_files.clear());
+	}
+	
+	fn take_file_to_open(&self) -> Option<FileSource> {
+		self.inner.write().file_to_open.take()
 	}
 }
