@@ -155,13 +155,15 @@ impl DropdownRenderer for EguiDropdownRenderer<'_> {
 }
 
 struct CachedSize {
-	outer_size: egui::Vec2,
+	// i'll try the outer culling again later. i'm pondering if switching the editing to commands instead of mut will help with that
+	// or perhaps ditching the tree iteration entirely for something with binary search... we'll see when i get around to it
+	// outer_size: egui::Vec2,
 	inner_size: egui::Vec2,
 }
 
 impl Default for CachedSize {
 	fn default() -> Self {
 		let s = egui::Vec2::splat(f32::INFINITY);
-		Self { outer_size: s, inner_size: s }
+		Self { /* outer_size: s, */ inner_size: s }
 	}
 }
