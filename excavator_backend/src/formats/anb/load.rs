@@ -12,7 +12,7 @@ fn load_header(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
 	let header_component = parse_header(bytes)?;
 	let header_entity = world.spawn((header_component,));
 	
-	let (root_component, root_child_offset, root_child_count) = parse_node_common(bytes, std::mem::size_of::<raw::Header>())?;
+	let (root_component, root_child_offset, root_child_count) = parse_node(bytes, std::mem::size_of::<raw::Header>())?;
 	let root_entity = world.attach_new::<(), _>(header_entity, (root_component,))?;
 	
 	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count)?;
@@ -27,7 +27,7 @@ fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, 
 	
 	for pointer in slice {
 		let pointer = pointer.get();
-		let (node_component, children_offset, children_count) = parse_node_common(bytes, pointer as usize)?;
+		let (node_component, children_offset, children_count) = parse_node(bytes, pointer as usize)?;
 		let node_entity = world.attach_new::<(), _>(parent, (node_component,))?;
 		
 		load_node_list(bytes, world, node_entity, children_offset, children_count)?;
@@ -53,14 +53,40 @@ fn parse_header(bytes: &[u8]) -> anyhow::Result<live::Header> {
 	})
 }
 
-fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
+fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
 	let (node_common_raw, followup) = raw::NodeCommon::ref_from_prefix(&bytes[offset..])
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	let kind = node_common_raw.kind.get();
 	
 	let node = match kind {
 		0 => live::Node::Base,
+		1 => {
+			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::Texture(live::NodeTexture {
+				width: node_raw.width.get(),
+				height: node_raw.height.get(),
+				flags: node_raw.flags.get(),
+				padding: node_raw.padding.get(),
+			})
+		},
+		2 => {
+			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::Vertex(live::NodeVertex {
+				vert_count: node_raw.vert_count.get(),
+				flags: node_raw.flags.get(),
+			})
+		}
 		3 => live::Node::Meta,
+		4 => {
+			let (node_raw, _) = raw::NodeMetaScalar::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::MetaScalar(live::NodeMetaScalar {
+				unk_1: node_raw.unk_1.get(),
+				unk_2: node_raw.unk_2.get(),
+			})
+		},
 		5 => {
 			let (node_raw, _) = raw::NodeMetaPoint::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -93,6 +119,55 @@ fn parse_node_common(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node,
 				extents_z: node_raw.extents_z.get(),
 				angle: node_raw.angle.get(),
 				padding: node_raw.padding.get(),
+			})
+		},
+		8 => {
+			let (node_raw, _) = raw::NodeMetaString::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::MetaString(live::NodeMetaString {
+				padding: node_raw.padding.get(),
+			})
+		},
+		9 => {
+			let (_node_raw, _) = raw::NodeMetaTable::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::MetaTable(live::NodeMetaTable {
+			})
+		},
+		10 => {
+			let (node_raw, _) = raw::NodeFrame::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::Frame(live::NodeFrame {
+				min_x: node_raw.min_x.get(),
+				max_x: node_raw.max_x.get(),
+				min_y: node_raw.min_y.get(),
+				max_y: node_raw.max_y.get(),
+			})
+		},
+		11 => {
+			let (node_raw, _) = raw::NodeSequenceFrame::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::SequenceFrame(live::NodeSequenceFrame {
+				frame: node_raw.frame.get(),
+				delay: node_raw.delay.get(),
+			})
+		},
+		12 => {
+			let (node_raw, _) = raw::NodeSequence::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::Sequence(live::NodeSequence {
+				hashname: node_raw.hashname.get(),
+				frame_count: node_raw.frame_count.get(),
+			})
+		},
+		13 => {
+			let (node_raw, _) = raw::NodeAnimation::ref_from_prefix(followup)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			live::Node::Animation(live::NodeAnimation {
+				sequence_count: node_raw.sequence_count.get(),
+				frame_count: node_raw.frame_count.get(),
+				single_texture: node_raw.single_texture.get(),
+				palette_index: node_raw.palette_index.get(),
 			})
 		},
 		_ => live::Node::UnknownKind(kind),
