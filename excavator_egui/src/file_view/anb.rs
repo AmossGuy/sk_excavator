@@ -13,6 +13,8 @@ use excavator_backend::formats::{
 pub struct AnbFileView {
 	ecs_world: World,
 	root: Entity,
+	
+	save_message: String,
 }
 
 impl AnbFileView {
@@ -23,7 +25,9 @@ impl AnbFileView {
 		let mut ecs_world = World::new();
 		let root = excavator_backend::formats::anb::load_from_bytes(&bytes, &mut ecs_world)?;
 		
-		Ok(Self { ecs_world, root })
+		let save_message = String::new();
+		
+		Ok(Self { ecs_world, root, save_message })
 	}
 }
 
@@ -32,10 +36,16 @@ impl FileView for AnbFileView {
 		if ui.button("Save as (WIP)").clicked() {
 			// another case of using blocking thingy because i'm lazy
 			if let Some(path) = rfd::FileDialog::new().save_file() {
-				let data = excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root);
-				std::fs::write(path, data).unwrap();
+				match excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root) {
+					Err(e) => { self.save_message = format!("error while serializing: {}", e); },
+					Ok(data) => match std::fs::write(path, data) {
+						Err(e) => { self.save_message = format!("error while writing file: {}", e); },
+						Ok(()) => { self.save_message = "Success".to_string(); },
+					},
+				}
 			}
 		}
+		ui.label(&self.save_message);
 		
 		ui.separator();
 		
