@@ -24,16 +24,119 @@ fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8
 	let node_reser = Reservation::<raw::NodeCommon>::reserve(output);
 	let node_reser_location = node_reser.location;
 	
-	// make a placeholder for the node's actual data
-	let node_component = world.get::<&live::Node>(node_entity)?;
-	output.extend(std::iter::repeat(0xAA).take(kind_data_bytes(node_component.kind())));
+	let node_kind = save_node_attachment(world, node_entity, output)?;
 	
+	// Recursively save all of this node's children
 	let (child_count, child_array_pointer) = save_children_nodes(world, node_entity, output)?;
 	
 	// Finally, write the parent, including the pointer to the children pointers.
-	node_reser.write(output, save_node_common(&node_component, child_count, child_array_pointer));
+	node_reser.write(output, save_node_common(node_kind, child_count as u32, child_array_pointer as u64));
 	
 	Ok(node_reser_location)
+}
+
+const PLACEHOLDER_POINTER: U64<LE> = U64::new(0xAA_AA_AA_AA_AA_AA_AA_AA);
+
+fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>) -> anyhow::Result<u32> {
+	let node_component = world.get::<&live::Node>(node_entity)?;
+	match &*node_component {
+		live::Node::Base => {},
+		live::Node::Texture(node_live) => {
+			output.extend(raw::NodeTexture {
+				width: node_live.width.into(),
+				height: node_live.height.into(),
+				flags: node_live.flags.into(),
+				padding: node_live.padding.into(),
+				data_pointer: PLACEHOLDER_POINTER
+			}.as_bytes());
+		},
+		live::Node::Vertex(node_live) => {
+			output.extend(raw::NodeVertex {
+				vert_count: node_live.vert_count.into(),
+				flags: node_live.flags.into(),
+			}.as_bytes());
+		},
+		live::Node::Meta => {},
+		live::Node::MetaScalar(node_live) => {
+			output.extend(raw::NodeMetaScalar {
+				unk_1: node_live.unk_1.into(),
+				unk_2: node_live.unk_2.into(),
+			}.as_bytes());
+		},
+		live::Node::MetaPoint(node_live) => {
+			output.extend(raw::NodeMetaPoint {
+				x: node_live.x.into(),
+				y: node_live.y.into(),
+				z: node_live.z.into(),
+				padding: node_live.padding.into(),
+			}.as_bytes());
+		},
+		live::Node::MetaAnchor(node_live) => {
+			output.extend(raw::NodeMetaAnchor {
+				x: node_live.x.into(),
+				y: node_live.y.into(),
+				z: node_live.z.into(),
+				angle: node_live.angle.into(),
+			}.as_bytes());
+		},
+		live::Node::MetaRect(node_live) => {
+			output.extend(raw::NodeMetaRect {
+				center_x: node_live.center_x.into(),
+				center_y: node_live.center_y.into(),
+				center_z: node_live.center_z.into(),
+				extents_x: node_live.extents_x.into(),
+				extents_y: node_live.extents_y.into(),
+				extents_z: node_live.extents_z.into(),
+				angle: node_live.angle.into(),
+				padding: node_live.padding.into(),
+			}.as_bytes());
+		},
+		live::Node::MetaString(node_live) => {
+			output.extend(raw::NodeMetaString {
+				string_length: node_live.string_length.into(),
+				padding: node_live.padding.into(),
+				string_offset: PLACEHOLDER_POINTER,
+			}.as_bytes());
+		},
+		live::Node::MetaTable(_node_live) => {
+			output.extend(raw::NodeMetaTable {
+				hashname_pointer: PLACEHOLDER_POINTER,
+			}.as_bytes());
+		},
+		live::Node::Frame(node_live) => {
+			output.extend(raw::NodeFrame {
+				min_x: node_live.min_x.into(),
+				max_x: node_live.max_x.into(),
+				min_y: node_live.min_y.into(),
+				max_y: node_live.max_y.into(),
+			}.as_bytes());
+		},
+		live::Node::SequenceFrame(node_live) => {
+			output.extend(raw::NodeSequenceFrame {
+				frame: node_live.frame.into(),
+				delay: node_live.delay.into(),
+			}.as_bytes());
+		},
+		live::Node::Sequence(node_live) => {
+			output.extend(raw::NodeSequence {
+				hashname: node_live.hashname.into(),
+				frame_count: node_live.frame_count.into(),
+			}.as_bytes());
+		},
+		live::Node::Animation(node_live) => {
+			output.extend(raw::NodeAnimation {
+				sequence_count: node_live.sequence_count.into(),
+				frame_count: node_live.frame_count.into(),
+				single_texture: node_live.single_texture.into(),
+				palette_index: node_live.palette_index.into(),
+				hashname_pointer: PLACEHOLDER_POINTER,
+			}.as_bytes());
+		},
+		_ => {
+			output.extend(std::iter::repeat(0xAA).take(kind_data_bytes(node_component.kind())));
+		},
+	}
+	Ok(node_component.kind())
 }
 
 fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
@@ -91,11 +194,11 @@ fn save_header(this: &live::Header) -> raw::Header {
 	}
 }
 
-fn save_node_common(this: &live::Node, child_count: usize, child_array_pointer: usize) -> raw::NodeCommon {
+fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) -> raw::NodeCommon {
 	raw::NodeCommon {
-		kind: U32::new(this.kind()),
-		child_count: U32::new(child_count as u32),
-		child_array_pointer: U64::new(child_array_pointer as u64),
+		kind: U32::new(node_kind),
+		child_count: U32::new(child_count),
+		child_array_pointer: U64::new(child_array_pointer),
 	}
 }
 

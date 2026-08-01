@@ -102,6 +102,7 @@ pub struct NodeMetaRect {
 
 #[derive(EditableData, Default)]
 pub struct NodeMetaString {
+	pub string_length: u32,
 	pub padding: u32,
 }
 

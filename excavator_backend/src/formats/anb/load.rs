@@ -125,6 +125,7 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 			let (node_raw, _) = raw::NodeMetaString::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			live::Node::MetaString(live::NodeMetaString {
+				string_length: node_raw.string_length.get(),
 				padding: node_raw.padding.get(),
 			})
 		},
