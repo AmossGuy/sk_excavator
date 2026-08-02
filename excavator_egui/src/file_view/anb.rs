@@ -151,6 +151,19 @@ impl EditableDataRenderer for EguiDataRenderer<'_> {
 		ui.add(egui::DragValue::new(value));
 		ui.end_row();
 	}
+	
+	fn field_vec_u8(&mut self, name: &str, value: &mut Vec<u8>) {
+		let ui = &mut self.ui;
+		ui.label(name);
+		ui.horizontal(|ui| {
+			for byte in value {
+				ui.add(egui::DragValue::new(byte).custom_formatter(|n, _| {
+					format!("{:02X}", n as u8)
+				}));
+			}
+		});
+		ui.end_row();
+	}
 }
 
 struct EguiDropdownRenderer<'a> {

@@ -36,6 +36,7 @@ pub struct NodeTexture {
 pub struct NodeVertex {
 	pub vert_count: U32<LE>,
 	pub flags: U32<LE>,
+	pub data_pointer: U64<LE>,
 }
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
@@ -121,4 +122,11 @@ pub struct NodeAnimation {
 	pub single_texture: U32<LE>,
 	pub palette_index: U32<LE>,
 	pub hashname_pointer: U64<LE>,
+}
+
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct DataBlockHeader {
+	pub magic: [u8; 4],
+	pub data_size: U32<LE>,
 }

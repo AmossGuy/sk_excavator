@@ -73,9 +73,11 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		2 => {
 			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			let extra_data = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?.to_vec();
 			live::Node::Vertex(live::NodeVertex {
 				vert_count: node_raw.vert_count.get(),
 				flags: node_raw.flags.get(),
+				extra_data,
 			})
 		}
 		3 => live::Node::Meta,
@@ -175,4 +177,14 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 	};
 	
 	Ok((node, node_common_raw.child_array_pointer.get(), node_common_raw.child_count.get()))
+}
+
+fn parse_data_block(bytes: &[u8], offset: usize) -> anyhow::Result<&[u8]> {
+	let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&bytes[offset..])
+		.map_err(|e| anyhow::anyhow!("{}", e))?;
+	if header.magic != [0xFF, 0xFF, 0xFF, 0x00] {
+		anyhow::bail!("wrong data block magic");
+	}
+	let data_size = header.data_size.get() as usize;
+	Ok(&followup[..data_size])
 }

@@ -64,6 +64,7 @@ pub struct NodeTexture {
 pub struct NodeVertex {
 	pub vert_count: u32,
 	pub flags: u32,
+	pub extra_data: Vec<u8>,
 }
 
 #[derive(EditableData, Default)]
