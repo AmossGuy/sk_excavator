@@ -13,12 +13,12 @@ pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec
 	header_reser.write(&mut data, save_header(&header_component));
 	
 	let node_entity = world.get::<&hecs_hierarchy::Parent<()>>(root_entity)?.first_child(world)?;
-	save_node_recursively(world, node_entity, &mut data)?;
+	save_node(world, node_entity, &mut data, true)?;
 	
 	Ok(data)
 }
 
-fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8>) -> anyhow::Result<usize> {
+fn save_node(world: &World, node_entity: Entity, output: &mut Vec<u8>, alt: bool) -> anyhow::Result<usize> {
 	// Before going any further, we need to reserve the spot this node will be saved to.
 	// However, we won't actually write it until later, when we have pointers to all of its children prepared.
 	let node_reser = Reservation::<raw::NodeCommon>::reserve(output);
@@ -27,7 +27,11 @@ fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8
 	let node_kind = save_node_attachment(world, node_entity, output)?;
 	
 	// Recursively save all of this node's children
-	let (child_count, child_array_pointer) = save_children_nodes(world, node_entity, output)?;
+	let (child_count, child_array_pointer) = if alt {
+		save_children_nodes_alt(world, node_entity, output)?
+	} else {
+		save_children_nodes(world, node_entity, output)?
+	};
 	
 	// Finally, write the parent, including the pointer to the children pointers.
 	node_reser.write(output, save_node_common(node_kind, child_count as u32, child_array_pointer as u64));
@@ -41,14 +45,14 @@ fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> a
 	
 	// step two: save each child, recursing for the children's children
 	let mut child_pointers = Vec::<usize>::new();
-	for child in children_iter {
-		let pointer = save_node_recursively(world, child, output)?;
+	for child_entity in children_iter {
+		let pointer = save_node(world, child_entity, output, false)?;
 		child_pointers.push(pointer);
 	}
 	
 	// step three: write pointers to children
 	let child_array_pointer = output.len();
-	for pointer in child_pointers.iter().copied() {
+	for &pointer in child_pointers.iter() {
 		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
 	}
 	
@@ -56,6 +60,41 @@ fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> a
 		Ok((0, 0))
 	} else {
 		Ok((child_pointers.len(), child_array_pointer))
+	}
+}
+
+// the only difference this has from save_children_nodes is that it writes things in a different order, to imitate a quirk in the vanilla files. it just takes some finagling to do that
+fn save_children_nodes_alt(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
+	// step one: get iterator
+	let children_iter = world.children::<()>(parent);
+	
+	// step two alt: save each child, but save their own children for later
+	let mut child_things = Vec::<(Reservation<raw::NodeCommon>, Entity, u32)>::new();
+	for child_entity in children_iter {
+		// these two lines are basically the first half of save_node alt version
+		let child_reser = Reservation::<raw::NodeCommon>::reserve(output);
+		let child_kind = save_node_attachment(world, child_entity, output)?;
+		
+		child_things.push((child_reser, child_entity, child_kind));
+	}
+	
+	// step three: write pointers to children
+	let child_array_pointer = output.len();
+	for (child_reser, _, _) in child_things.iter() {
+		output.extend(U64::<LE>::new(child_reser.location as u64).to_bytes());
+	}
+	
+	// extra step: do the recursion we saved for later (it's later)
+	let child_things_len = child_things.len();
+	for (child_reser, child_entity, child_kind) in child_things {
+		let (w_child_count, w_child_array_pointer) = save_children_nodes(world, child_entity, output)?;
+		child_reser.write(output, save_node_common(child_kind, w_child_count as u32, w_child_array_pointer as u64));
+	}
+	
+	if child_things_len == 0 {
+		Ok((0, 0))
+	} else {
+		Ok((child_things_len, child_array_pointer))
 	}
 }
 
