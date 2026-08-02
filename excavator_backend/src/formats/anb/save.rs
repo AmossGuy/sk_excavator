@@ -35,7 +35,50 @@ fn save_node_recursively(world: &World, node_entity: Entity, output: &mut Vec<u8
 	Ok(node_reser_location)
 }
 
+fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
+	// step one: get iterator
+	let children_iter = world.children::<()>(parent);
+	
+	// step two: save each child, recursing for the children's children
+	let mut child_pointers = Vec::<usize>::new();
+	for child in children_iter {
+		let pointer = save_node_recursively(world, child, output)?;
+		child_pointers.push(pointer);
+	}
+	
+	// step three: write pointers to children
+	let child_array_pointer = output.len();
+	for pointer in child_pointers.iter().copied() {
+		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
+	}
+	
+	if child_pointers.is_empty() {
+		Ok((0, 0))
+	} else {
+		Ok((child_pointers.len(), child_array_pointer))
+	}
+}
+
 const PLACEHOLDER_POINTER: U64<LE> = U64::new(0xAA_AA_AA_AA_AA_AA_AA_AA);
+
+fn save_header(this: &live::Header) -> raw::Header {
+	raw::Header {
+		magic: *b"YCSN",
+		unknown_04: U32::new(this.unknown_04),
+		unknown_08: U32::new(this.unknown_08),
+		unknown_0C: U32::new(this.unknown_0C),
+		unknown_10: U32::new(this.unknown_10),
+		unknown_14: U32::new(this.unknown_14),
+	}
+}
+
+fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) -> raw::NodeCommon {
+	raw::NodeCommon {
+		kind: U32::new(node_kind),
+		child_count: U32::new(child_count),
+		child_array_pointer: U64::new(child_array_pointer),
+	}
+}
 
 fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>) -> anyhow::Result<u32> {
 	let node_component = world.get::<&live::Node>(node_entity)?;
@@ -132,74 +175,11 @@ fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>
 				hashname_pointer: PLACEHOLDER_POINTER,
 			}.as_bytes());
 		},
-		_ => {
-			output.extend(std::iter::repeat(0xAA).take(kind_data_bytes(node_component.kind())));
+		live::Node::UnknownKind(kind) => {
+			anyhow::bail!("unknown kind node ({})", kind);
 		},
 	}
 	Ok(node_component.kind())
-}
-
-fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
-	// step one: get iterator
-	let children_iter = world.children::<()>(parent);
-	
-	// step two: save each child, recursing for the children's children
-	let mut child_pointers = Vec::<usize>::new();
-	for child in children_iter {
-		let pointer = save_node_recursively(world, child, output)?;
-		child_pointers.push(pointer);
-	}
-	
-	// step three: write pointers to children
-	let child_array_pointer = output.len();
-	for pointer in child_pointers.iter().copied() {
-		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
-	}
-	
-	if child_pointers.is_empty() {
-		Ok((0, 0))
-	} else {
-		Ok((child_pointers.len(), child_array_pointer))
-	}
-}
-
-fn kind_data_bytes(kind: u32) -> usize {
-	match kind {
-		0 => 0,
-		1 => 24,
-		2 => 16,
-		3 => 0,
-		4 => 8,
-		5 => 16,
-		6 => 16,
-		7 => 32,
-		8 => 16,
-		9 => 8,
-		10 => 16,
-		11 => 8,
-		12 => 8,
-		13 => 24,
-		_ => 0,
-	}
-}
-
-fn save_header(this: &live::Header) -> raw::Header {
-	raw::Header {
-		magic: *b"YCSN",
-		unknown_04: U32::new(this.unknown_04),
-		unknown_08: U32::new(this.unknown_08),
-		unknown_0C: U32::new(this.unknown_0C),
-		unknown_10: U32::new(this.unknown_10),
-		unknown_14: U32::new(this.unknown_14),
-	}
-}
-
-fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) -> raw::NodeCommon {
-	raw::NodeCommon {
-		kind: U32::new(node_kind),
-		child_count: U32::new(child_count),
-		child_array_pointer: U64::new(child_array_pointer),
-	}
 }
 
 #[must_use]
