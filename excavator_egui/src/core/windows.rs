@@ -1,4 +1,5 @@
 use std::sync::{Arc, Mutex};
+use crate::core::app::ExcavatorContext;
 
 pub struct WindowHolder {
 	windows: Vec<Option<WrappedDynWindow>>,
@@ -35,7 +36,7 @@ impl WindowHolder {
 		}
 	}
 	
-	pub fn show_as_viewports(&mut self, ui: &mut egui::Ui) {
+	pub fn show_as_viewports(&mut self, ui: &mut egui::Ui, excavator: &ExcavatorContext) {
 		let base_id = ui.id().with("WindowHolder");
 		for (i, window_opt) in self.windows.iter_mut().enumerate() {
 			if let Some(window) = window_opt {
@@ -44,9 +45,10 @@ impl WindowHolder {
 				let viewport_id = egui::ViewportId(base_id.with(i));
 				let builder = egui::ViewportBuilder::default().with_inner_size(initial_size);
 				let window_clone = Arc::clone(window);
+				let excavator_clone = excavator.clone();
 				
-				ui.show_viewport_deferred(viewport_id, builder, move |ui, class| {
-					Self::viewport_callback(&window_clone, ui, class);
+				ui.show_viewport_deferred(viewport_id, builder, move |ui, _class| {
+					Self::viewport_callback(&window_clone, ui, &excavator_clone);
 				});
 				
 				if window.lock().unwrap().state.doomed {
@@ -56,10 +58,10 @@ impl WindowHolder {
 		}
 	}
 	
-	fn viewport_callback(window_m: &WrappedDynWindow, ui: &mut egui::Ui, _class: egui::ViewportClass) {
+	fn viewport_callback(window_m: &WrappedDynWindow, ui: &mut egui::Ui, excavator: &ExcavatorContext) {
 		let mut window = window_m.lock().unwrap();
 		
-		window.itself.ui(ui);
+		window.itself.ui(ui, excavator);
 		
 		if ui.ctx().input(|state| state.viewport().close_requested()) {
 			window.state.doomed = true;
@@ -68,7 +70,7 @@ impl WindowHolder {
 }
 
 pub trait Window: Send + 'static {
-	fn ui(&mut self, ui: &mut egui::Ui);
+	fn ui(&mut self, ui: &mut egui::Ui, excavator: &ExcavatorContext);
 	
 	fn initial_size(&self) -> egui::Vec2 {
 		egui::Vec2::splat(300.0)

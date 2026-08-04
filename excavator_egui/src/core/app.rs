@@ -49,7 +49,7 @@ impl ExcavatorApp {
 impl eframe::App for ExcavatorApp {
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		// depending on exactly how Ui::ui.show_viewport_deferred works, this might be bad?
-		self.excavator.inner.write().windows.show_as_viewports(ui);
+		self.excavator.inner.write().windows.show_as_viewports(ui, &self.excavator);
 		
 		show_menu_bar_panel(ui, &mut self.excavator);
 		

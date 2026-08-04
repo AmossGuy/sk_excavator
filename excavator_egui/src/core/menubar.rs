@@ -2,6 +2,9 @@ use egui::{Key, KeyboardShortcut, Modifiers};
 use super::app::ExcavatorContext;
 use super::menu::{Menu, MenuAction, MenuItem, RootMenu};
 
+use crate::misc::about::AboutWindow;
+use crate::core::settings::SettingsWindow;
+
 pub fn show_menu_bar_panel(ui: &mut egui::Ui, env: &mut ExcavatorContext) {
 	egui::Panel::top("menu bar").show_inside(ui, |ui| {
 		egui::MenuBar::new().ui(ui, |ui| {
@@ -24,14 +27,10 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
 	])),
-	/*
-	MenuItem::SubMenu(Menu::new("Edit", &[
-		MenuItem::Action(MenuBarAction::Undo),
-		MenuItem::Action(MenuBarAction::Redo),
-		MenuItem::Separator,
-		MenuItem::Action(MenuBarAction::Settings),
+	MenuItem::SubMenu(Menu::new("Settings", &[
+		MenuItem::Action(MenuBarAction::SettingsExcavator),
+		MenuItem::Action(MenuBarAction::SettingsEgui),
 	])),
-	*/
 	MenuItem::SubMenu(Menu::new("Help", &[
 		MenuItem::Action(MenuBarAction::About),
 	])),
@@ -44,11 +43,8 @@ pub enum MenuBarAction {
 	ClearRecentFiles,
 	Quit,
 	
-	/*
-	Undo,
-	Redo,
-	Settings,
-	*/
+	SettingsExcavator,
+	SettingsEgui,
 	
 	About,
 }
@@ -63,11 +59,8 @@ impl MenuAction for MenuBarAction {
 			Self::ClearRecentFiles => "Clear recent files",
 			Self::Quit => "Quit",
 			
-			/*
-			Self::Undo => "Undo",
-			Self::Redo => "Redo",
-			Self::Settings => "Settings...",
-			*/
+			Self::SettingsExcavator => "Configure Excavator...",
+			Self::SettingsEgui => "Configure egui...",
 			
 			Self::About => "About Shovel Knight Excavator",
 		}
@@ -94,7 +87,10 @@ impl MenuAction for MenuBarAction {
 			Self::ClearRecentFiles => excavator.clear_recent_files(),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
-			Self::About => excavator.add_window(crate::misc::about::AboutWindow::new()),
+			Self::SettingsExcavator => excavator.add_window(SettingsWindow::excavator_tab()),
+			Self::SettingsEgui => excavator.add_window(SettingsWindow::egui_tab()),
+			
+			Self::About => excavator.add_window(AboutWindow::new()),
 		}
 	}
 }
