@@ -1,13 +1,12 @@
 use excavator_backend_macros::EditableData;
 
 #[derive(EditableData)]
-#[expect(non_snake_case)]
 pub struct Header {
-	pub unknown_04: u32,
-	pub unknown_08: u32,
-	pub unknown_0C: u32,
-	pub unknown_10: u32,
-	pub unknown_14: u32,
+	pub fixup: u32,
+	pub version: u32,
+	pub padding_a: u32,
+	pub padding_b: u32,
+	pub padding_c: u32,
 }
 
 #[derive(EditableData)]

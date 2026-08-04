@@ -45,11 +45,11 @@ fn parse_header(bytes: &[u8]) -> anyhow::Result<live::Header> {
 	}
 	
 	Ok(live::Header {
-		unknown_04: header_raw.unknown_04.get(),
-		unknown_08: header_raw.unknown_08.get(),
-		unknown_0C: header_raw.unknown_0C.get(),
-		unknown_10: header_raw.unknown_10.get(),
-		unknown_14: header_raw.unknown_14.get(),
+		fixup: header_raw.fixup.get(),
+		version: header_raw.version.get(),
+		padding_a: header_raw.padding_a.get(),
+		padding_b: header_raw.padding_b.get(),
+		padding_c: header_raw.padding_c.get(),
 	})
 }
 

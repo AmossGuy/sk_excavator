@@ -3,14 +3,13 @@ use zerocopy_derive::*;
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
-#[expect(non_snake_case)]
 pub struct Header {
 	pub magic: [u8; 4],
-	pub unknown_04: U32<LE>,
-	pub unknown_08: U32<LE>,
-	pub unknown_0C: U32<LE>,
-	pub unknown_10: U32<LE>,
-	pub unknown_14: U32<LE>,
+	pub fixup: U32<LE>,
+	pub version: U32<LE>,
+	pub padding_a: U32<LE>,
+	pub padding_b: U32<LE>,
+	pub padding_c: U32<LE>,
 }
 
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]

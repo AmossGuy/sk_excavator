@@ -103,11 +103,11 @@ const PLACEHOLDER_POINTER: U64<LE> = U64::new(0xAA_AA_AA_AA_AA_AA_AA_AA);
 fn save_header(this: &live::Header) -> raw::Header {
 	raw::Header {
 		magic: *b"YCSN",
-		unknown_04: U32::new(this.unknown_04),
-		unknown_08: U32::new(this.unknown_08),
-		unknown_0C: U32::new(this.unknown_0C),
-		unknown_10: U32::new(this.unknown_10),
-		unknown_14: U32::new(this.unknown_14),
+		fixup: U32::new(this.fixup),
+		version: U32::new(this.version),
+		padding_a: U32::new(this.padding_a),
+		padding_b: U32::new(this.padding_b),
+		padding_c: U32::new(this.padding_c),
 	}
 }
 
