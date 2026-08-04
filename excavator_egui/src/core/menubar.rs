@@ -1,6 +1,6 @@
 use egui::{Key, KeyboardShortcut, Modifiers};
 use super::app::ExcavatorContext;
-use super::menu::{Menu, MenuAction, MenuItem, RootMenu};
+use super::menu::{MenuAction, MenuItem, RootMenu};
 
 use crate::misc::about::AboutWindow;
 use crate::core::settings::SettingsWindow;
@@ -14,26 +14,26 @@ pub fn show_menu_bar_panel(ui: &mut egui::Ui, env: &mut ExcavatorContext) {
 }
 
 static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
-	MenuItem::SubMenu(Menu::new("File", &[
+	MenuItem::SubMenu("File", &[
 		MenuItem::Action(MenuBarAction::SelectGameDir),
 		MenuItem::Action(MenuBarAction::CloseGameDir),
-		MenuItem::SubMenu(Menu::new("Recent files", &[
+		MenuItem::SubMenu("Recent files", &[
 			MenuItem::CustomUi(recent_file_list),
 			MenuItem::CustomCondition(recent_files_not_empty, &[
 				MenuItem::Separator,
 				MenuItem::Action(MenuBarAction::ClearRecentFiles),
 			]),
-		])),
+		]),
 		MenuItem::Separator,
 		MenuItem::Action(MenuBarAction::Quit),
-	])),
-	MenuItem::SubMenu(Menu::new("Settings", &[
+	]),
+	MenuItem::SubMenu("Settings", &[
 		MenuItem::Action(MenuBarAction::SettingsExcavator),
 		MenuItem::Action(MenuBarAction::SettingsEgui),
-	])),
-	MenuItem::SubMenu(Menu::new("Help", &[
+	]),
+	MenuItem::SubMenu("Help", &[
 		MenuItem::Action(MenuBarAction::About),
-	])),
+	]),
 ]);
 
 #[derive(Copy, Clone, Debug)]

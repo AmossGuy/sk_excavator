@@ -24,19 +24,8 @@ impl<A: MenuAction> RootMenu<A> {
 	}
 }
 
-pub struct Menu<A: MenuAction> {
-	name: &'static str,
-	content: &'static [MenuItem<A>],
-}
-
-impl<A: MenuAction> Menu<A> {
-	pub const fn new(name: &'static str, content: &'static [MenuItem<A>]) -> Self {
-		Self { name, content }
-	}
-}
-
 pub enum MenuItem<A: MenuAction> {
-	SubMenu(Menu<A>),
+	SubMenu(&'static str, &'static [MenuItem<A>]),
 	Action(A),
 	Separator,
 	CustomCondition(fn(&egui::Context, &mut A::Env) -> bool, &'static [MenuItem<A>]),
@@ -46,13 +35,13 @@ pub enum MenuItem<A: MenuAction> {
 impl<A: MenuAction> MenuItem<A> {
 	fn ui(&'static self, ui: &mut egui::Ui, env: &mut A::Env) {
 		match self {
-			Self::SubMenu(menu) => {
-				ui.menu_button(menu.name, |ui| {
+			Self::SubMenu(name, content) => {
+				ui.menu_button(*name, |ui| {
 					// egui's popup sizing stinks
 					// with this workaround, we still have the problem that menus will never shrink horizontally, but at least it'll avoid text wrapping in weird ways
 					ui.style_mut().wrap_mode = Some(egui::TextWrapMode::Extend);
 					
-					for item in menu.content {
+					for item in *content {
 						item.ui(ui, env);
 					}
 				});
