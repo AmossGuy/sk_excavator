@@ -73,11 +73,15 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		2 => {
 			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
-			let extra_data = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?.to_vec();
+			
+			let vert_count = node_raw.vert_count.get();
+			let vert_bytes = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
+			let vert_slice = <[raw::VertexBodyEntry]>::ref_from_bytes_with_elems(vert_bytes, vert_count as usize)
+				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			
 			live::Node::Vertex(live::NodeVertex {
-				vert_count: node_raw.vert_count.get(),
 				flags: node_raw.flags.get(),
-				extra_data,
+				verts: vert_slice.into_iter().map(parse_vert).collect(),
 			})
 		}
 		3 => live::Node::Meta,
@@ -187,4 +191,15 @@ fn parse_data_block(bytes: &[u8], offset: usize) -> anyhow::Result<&[u8]> {
 	}
 	let data_size = header.data_size.get() as usize;
 	Ok(&followup[..data_size])
+}
+
+fn parse_vert(vert_raw: &raw::VertexBodyEntry) -> live::VertexBodyEntry {
+	live::VertexBodyEntry {
+		position_x: vert_raw.position_x.get(),
+		position_y: vert_raw.position_y.get(),
+		texture_x: vert_raw.texture_x.get(),
+		texture_y: vert_raw.texture_y.get(),
+		width: vert_raw.width.get(),
+		height: vert_raw.height.get(),
+	}
 }

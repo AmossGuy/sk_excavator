@@ -134,7 +134,7 @@ fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>
 		},
 		live::Node::Vertex(node_live) => {
 			output.extend(raw::NodeVertex {
-				vert_count: node_live.vert_count.into(),
+				vert_count: (node_live.verts.len() as u32).into(),
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			}.as_bytes());

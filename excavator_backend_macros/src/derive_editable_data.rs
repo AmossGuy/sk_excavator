@@ -29,19 +29,33 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 }
 
 fn struct_display_body(struct_data: DataStruct) -> TokenStream {
-	struct_data.fields.iter().zip(0..).map(|(field, i)| {
+	let fields = match struct_data.fields.iter().zip(0..).map(|(field, i)| {
+		let values = AttributeValues::parse(field.attrs.iter())?;
+		Ok((field, values, i))
+	}).collect::<syn::Result<Vec<_>>>() {
+		Ok(stuff) => stuff,
+		Err(e) => {
+			return e.into_compile_error();
+		},
+	};
+	
+	fields.iter().map(|(field, values, i)| {
 		let (field, field_name) = match &field.ident {
 			Some(ident) => {
 				(Member::Named(ident.clone()), ident.to_string())
 			},
 			None => {
-				let index = Index { index: i, span: Span::call_site() };
+				let index = Index { index: *i, span: Span::call_site() };
 				(Member::Unnamed(index), i.to_string())
 			},
 		};
 		
-		quote! {
-			crate::formats::FieldDispatch::dispatch(&mut self.#field, &mut renderer, #field_name);
+		if values.skip {
+			quote! {}
+		} else {
+			quote! {
+				crate::formats::FieldDispatch::dispatch(&mut self.#field, &mut renderer, #field_name);
+			}
 		}
 	}).collect()
 }

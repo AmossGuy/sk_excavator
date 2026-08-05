@@ -126,6 +126,17 @@ pub struct NodeAnimation {
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct DataBlockHeader {
-	pub magic: [u8; 4],
+	pub magic: [u8; 4], // toolkit says this is "flags" but i'm being stubborn. i'll fix this sometime!
 	pub data_size: U32<LE>,
+}
+
+#[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
+#[repr(C)]
+pub struct VertexBodyEntry {
+	pub position_x: F32<LE>,
+	pub position_y: F32<LE>,
+	pub texture_x: U16<LE>,
+	pub texture_y: U16<LE>,
+	pub width: U16<LE>,
+	pub height: U16<LE>,
 }

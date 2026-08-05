@@ -1,4 +1,5 @@
 use super::{FileView, FileViewEffect};
+use std::any::Any;
 use std::io::{BufRead, Seek};
 use std::ops::DerefMut;
 
@@ -133,13 +134,39 @@ fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands:
 	}).response
 }
 
-fn struct_ui(ui: &mut egui::Ui, thing: &mut impl EditableData) {
+fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 	let struct_name = thing.struct_name();
 	ui.heading(struct_name);
 	
 	egui::Grid::new(struct_name).show(ui, |ui| {
 		thing.display(EguiDataRenderer { ui });
 	});
+	
+	if let Some(Node::Vertex(vertex_node)) = <dyn Any>::downcast_mut::<Node>(thing) {
+		ui.collapsing("vertex table", |ui| {
+			egui::Grid::new("vertex grid").show(ui, |ui| {
+				ui.allocate_space(egui::Vec2::ZERO);
+				ui.label("position_x");
+				ui.label("position_y");
+				ui.label("texture_x");
+				ui.label("texture_y");
+				ui.label("width");
+				ui.label("height");
+				ui.end_row();
+				
+				for (i, vert) in vertex_node.verts.iter_mut().enumerate() {
+					ui.label(i.to_string());
+					ui.add(egui::DragValue::new(&mut vert.position_x));
+					ui.add(egui::DragValue::new(&mut vert.position_y));
+					ui.add(egui::DragValue::new(&mut vert.texture_x));
+					ui.add(egui::DragValue::new(&mut vert.texture_y));
+					ui.add(egui::DragValue::new(&mut vert.width));
+					ui.add(egui::DragValue::new(&mut vert.height));
+					ui.end_row();
+				}
+			});
+		});
+	}
 }
 
 struct EguiDataRenderer<'a> {
@@ -167,23 +194,17 @@ impl EditableDataRenderer for EguiDataRenderer<'_> {
 		ui.end_row();
 	}
 	
-	fn field_u32(&mut self, name: &str, value: &mut u32) {
+	fn field_u16(&mut self, name: &str, value: &mut u16) {
 		let ui = &mut self.ui;
 		ui.label(name);
 		ui.add(egui::DragValue::new(value));
 		ui.end_row();
 	}
 	
-	fn field_vec_u8(&mut self, name: &str, value: &mut Vec<u8>) {
+	fn field_u32(&mut self, name: &str, value: &mut u32) {
 		let ui = &mut self.ui;
 		ui.label(name);
-		ui.horizontal(|ui| {
-			for byte in value {
-				ui.add(egui::DragValue::new(byte).custom_formatter(|n, _| {
-					format!("{:02X}", n as u8)
-				}));
-			}
-		});
+		ui.add(egui::DragValue::new(value));
 		ui.end_row();
 	}
 }

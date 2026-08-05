@@ -64,8 +64,8 @@ pub trait EditableDataRenderer {
 	
 	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>));
 	fn field_f32(&mut self, name: &str, value: &mut f32);
+	fn field_u16(&mut self, name: &str, value: &mut u16);
 	fn field_u32(&mut self, name: &str, value: &mut u32);
-	fn field_vec_u8(&mut self, name: &str, value: &mut Vec<u8>);
 }
 
 pub trait DropdownRenderer {
@@ -82,14 +82,14 @@ impl FieldDispatch for f32 {
 	}
 }
 
-impl FieldDispatch for u32 {
+impl FieldDispatch for u16 {
 	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
-		renderer.field_u32(name, self);
+		renderer.field_u16(name, self);
 	}
 }
 
-impl FieldDispatch for Vec<u8> {
+impl FieldDispatch for u32 {
 	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
-		renderer.field_vec_u8(name, self);
+		renderer.field_u32(name, self);
 	}
 }

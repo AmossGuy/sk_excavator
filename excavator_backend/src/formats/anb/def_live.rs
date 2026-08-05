@@ -62,9 +62,9 @@ pub struct NodeTexture {
 
 #[derive(EditableData, Default)]
 pub struct NodeVertex {
-	pub vert_count: u32,
 	pub flags: u32,
-	pub extra_data: Vec<u8>,
+	#[edit(skip)]
+	pub verts: Vec<VertexBodyEntry>,
 }
 
 #[derive(EditableData, Default)]
@@ -137,4 +137,14 @@ pub struct NodeAnimation {
 	pub frame_count: u32,
 	pub single_texture: u32,
 	pub palette_index: u32,
+}
+
+#[derive(EditableData, Default)]
+pub struct VertexBodyEntry {
+	pub position_x: f32,
+	pub position_y: f32,
+	pub texture_x: u16,
+	pub texture_y: u16,
+	pub width: u16,
+	pub height: u16,
 }
