@@ -9,8 +9,9 @@ pub struct Header {
 	pub padding_c: u32,
 }
 
-#[derive(EditableData)]
+#[derive(EditableData, Default)]
 pub enum Node {
+	#[default]
 	Base,
 	Texture(NodeTexture),
 	Vertex(NodeVertex),

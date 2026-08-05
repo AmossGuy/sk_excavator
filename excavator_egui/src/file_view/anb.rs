@@ -3,7 +3,7 @@ use std::io::{BufRead, Seek};
 use std::ops::DerefMut;
 
 use hecs::{Entity, World};
-use hecs_hierarchy::Hierarchy;
+use hecs_hierarchy::{Hierarchy, HierarchyMut};
 
 use excavator_backend::formats::{
 	DropdownRenderer, EditableData, EditableDataRenderer,
@@ -49,16 +49,18 @@ impl FileView for AnbFileView {
 		
 		ui.separator();
 		
+		let mut commands = hecs::CommandBuffer::new();
 		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-			entity_tree_ui(ui, &mut self.ecs_world, self.root);
+			entity_tree_ui(ui, &mut self.ecs_world, self.root, &mut commands);
 		});
+		commands.run_on(&mut self.ecs_world);
 		
 		FileViewEffect::default()
 	}
 }
 
-fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
-	entity_ui(ui, world, root);
+fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity, commands: &mut hecs::CommandBuffer) {
+	entity_ui(ui, world, root, commands);
 	
 	let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
 		left: 20,
@@ -70,13 +72,13 @@ fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity) {
 	indent_frame.show(ui, |ui| {
 		for (i, child) in children.into_iter().enumerate() {
 			ui.push_id(i, |ui| {
-				entity_tree_ui(ui, world, child);
+				entity_tree_ui(ui, world, child, commands);
 			});
 		}
 	});
 }
 
-fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
+fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity, commands: &mut hecs::CommandBuffer) {
 	if !world.satisfies::<&CachedSize>(entity) {
 		world.insert(entity, (CachedSize::default(),)).unwrap();
 	}
@@ -93,21 +95,41 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity) {
 	);
 	
 	if inner_will_be_visible {
-		let response = entity_ui_inner(ui, entity_ref);
+		let response = entity_ui_inner(ui, entity_ref, commands);
 		cached_size.inner_size = response.rect.size();
 	} else {
 		ui.allocate_space(cached_size.inner_size);
 	}
 }
 
-fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>) -> egui::Response {
+fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands: &mut hecs::CommandBuffer) -> egui::Response {
 	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
-		if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
-			struct_ui(ui, header_component.deref_mut());
-		}
-		if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
-			struct_ui(ui, node_component.deref_mut());
-		}
+		ui.horizontal(|ui| {
+			ui.vertical(|ui| {
+				if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
+					struct_ui(ui, header_component.deref_mut());
+				}
+				if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
+					struct_ui(ui, node_component.deref_mut());
+				}
+			});
+			
+			ui.separator();
+			
+			ui.vertical(|ui| {
+				let entity = entity_ref.entity();
+				if ui.button("Delete").clicked() {
+					commands.queue(move |world| {
+						world.despawn_all::<()>(entity);
+					});
+				}
+				if ui.button("Add new child").clicked() {
+					commands.queue(move |world| {
+						let _ = world.attach_new::<(), _>(entity, (Node::default(),));
+					})
+				}
+			});
+		});
 	}).response
 }
 

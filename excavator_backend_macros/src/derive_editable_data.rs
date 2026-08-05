@@ -151,7 +151,7 @@ fn fields_default(fields: &Fields) -> TokenStream {
 }
 
 struct AttributeValues {
-	skip: bool
+	skip: bool,
 }
 
 impl AttributeValues {
@@ -161,14 +161,16 @@ impl AttributeValues {
 		};
 		
 		for attr in attrs {
-			attr.parse_nested_meta(|meta| {
-				if meta.path.is_ident("skip") {
-					this.skip = true;
-					Ok(())
-				} else {
-					Err(meta.error("unrecognized `edit` attribute property"))
-				}
-			})?;
+			if attr.path().is_ident("edit") {
+				attr.parse_nested_meta(|meta| {
+					if meta.path.is_ident("skip") {
+						this.skip = true;
+						Ok(())
+					} else {
+						Err(meta.error("unrecognized `edit` attribute property"))
+					}
+				})?;
+			}
 		}
 		
 		Ok(this)

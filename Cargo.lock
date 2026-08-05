@@ -1493,20 +1493,29 @@ dependencies = [
 ]
 
 [[package]]
-name = "hecs"
-version = "0.11.0"
+name = "hashbrown"
+version = "0.17.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3a2d85ff28b1e1a1c183b6ca9ec1a6b97e7937fb989988a74d9db39760a07b8"
+checksum = "ed5909b6e89a2db4456e54cd5f673791d7eca6732202bbf2a9cc504fe2f9b84a"
 dependencies = [
  "foldhash 0.2.0",
- "hashbrown 0.16.1",
+]
+
+[[package]]
+name = "hecs"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d5d61999272074fd54f3eda7afbfa3f781b0d62ddb89be28fdf56bce30e23576"
+dependencies = [
+ "foldhash 0.2.0",
+ "hashbrown 0.17.1",
  "spin",
 ]
 
 [[package]]
 name = "hecs-hierarchy"
 version = "0.12.1"
-source = "git+https://github.com/AmossGuy/hecs-hierarchy?rev=6b8d5fe#6b8d5fe3d63d971c0f879d8c11e0aa6c4a0bbadb"
+source = "git+https://github.com/AmossGuy/hecs-hierarchy?rev=f457667#f4576670fa2180a55aba04ac9e6ee51035b7599c"
 dependencies = [
  "hecs",
  "smallvec",
@@ -3027,9 +3036,9 @@ dependencies = [
 
 [[package]]
 name = "spin"
-version = "0.10.1"
+version = "0.12.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "023a211cb3138dbc438680b32560ad89f699977624c9f8dbb95a47d5b4c07dd3"
+checksum = "8abadc99fd9c7bbb7d0ca2b31d72a067d0c0dcd7aad25ab8cac71ba91417694b"
 
 [[package]]
 name = "spirv"
