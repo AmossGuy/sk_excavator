@@ -3,57 +3,59 @@ use super::{def_live as live, def_raw as raw};
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
 use std::marker::PhantomData;
-use zerocopy::{FromBytes, IntoBytes, KnownLayout, LE, U32, U64};
+use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
 pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec<u8>> {
-	let mut data = Vec::<u8>::new();
+	let mut saver = Saver::new(world);
 	
-	let header_reser = Reservation::<raw::Header>::reserve(&mut data);
+	let header_reser = saver.reserve::<raw::Header>();
 	let header_component = world.get::<&live::Header>(root_entity)?;
-	header_reser.write(&mut data, save_header(&header_component));
+	header_reser.write(&mut saver.output, save_header(&header_component));
 	
-	let node_entity = world.get::<&hecs_hierarchy::Parent<()>>(root_entity)?.first_child(world)?;
-	save_node(world, node_entity, &mut data, true)?;
+	let node_entity = saver.world.get::<&hecs_hierarchy::Parent<()>>(root_entity)?.first_child(saver.world)?;
+	save_node(&mut saver, node_entity, true)?;
 	
-	Ok(data)
+	save_queued_verts(&mut saver)?;
+	
+	Ok(saver.output)
 }
 
-fn save_node(world: &World, node_entity: Entity, output: &mut Vec<u8>, alt: bool) -> anyhow::Result<usize> {
+fn save_node(saver: &mut Saver<'_>, node_entity: Entity, alt: bool) -> anyhow::Result<usize> {
 	// Before going any further, we need to reserve the spot this node will be saved to.
 	// However, we won't actually write it until later, when we have pointers to all of its children prepared.
-	let node_reser = Reservation::<raw::NodeCommon>::reserve(output);
+	let node_reser = saver.reserve::<raw::NodeCommon>();
 	let node_reser_location = node_reser.location;
 	
-	let node_kind = save_node_attachment(world, node_entity, output)?;
+	let node_kind = save_node_attachment(saver, node_entity)?;
 	
 	// Recursively save all of this node's children
 	let (child_count, child_array_pointer) = if alt {
-		save_children_nodes_alt(world, node_entity, output)?
+		save_children_nodes_alt(saver, node_entity)?
 	} else {
-		save_children_nodes(world, node_entity, output)?
+		save_children_nodes(saver, node_entity)?
 	};
 	
 	// Finally, write the parent, including the pointer to the children pointers.
-	node_reser.write(output, save_node_common(node_kind, child_count as u32, child_array_pointer as u64));
+	node_reser.write(&mut saver.output, save_node_common(node_kind, child_count as u32, child_array_pointer as u64));
 	
 	Ok(node_reser_location)
 }
 
-fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
+fn save_children_nodes(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = world.children::<()>(parent);
+	let children_iter = saver.world.children::<()>(parent);
 	
 	// step two: save each child, recursing for the children's children
 	let mut child_pointers = Vec::<usize>::new();
 	for child_entity in children_iter {
-		let pointer = save_node(world, child_entity, output, false)?;
+		let pointer = save_node(saver, child_entity, false)?;
 		child_pointers.push(pointer);
 	}
 	
 	// step three: write pointers to children
-	let child_array_pointer = output.len();
+	let child_array_pointer = saver.output.len();
 	for &pointer in child_pointers.iter() {
-		output.extend(U64::<LE>::new(pointer as u64).to_bytes());
+		saver.push(U64::<LE>::new(pointer as u64));
 	}
 	
 	if child_pointers.is_empty() {
@@ -64,31 +66,31 @@ fn save_children_nodes(world: &World, parent: Entity, output: &mut Vec<u8>) -> a
 }
 
 // the only difference this has from save_children_nodes is that it writes things in a different order, to imitate a quirk in the vanilla files. it just takes some finagling to do that
-fn save_children_nodes_alt(world: &World, parent: Entity, output: &mut Vec<u8>) -> anyhow::Result<(usize, usize)> {
+fn save_children_nodes_alt(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = world.children::<()>(parent);
+	let children_iter = saver.world.children::<()>(parent);
 	
 	// step two alt: save each child, but save their own children for later
 	let mut child_things = Vec::<(Reservation<raw::NodeCommon>, Entity, u32)>::new();
 	for child_entity in children_iter {
 		// these two lines are basically the first half of save_node alt version
-		let child_reser = Reservation::<raw::NodeCommon>::reserve(output);
-		let child_kind = save_node_attachment(world, child_entity, output)?;
+		let child_reser = saver.reserve::<raw::NodeCommon>();
+		let child_kind = save_node_attachment(saver, child_entity)?;
 		
 		child_things.push((child_reser, child_entity, child_kind));
 	}
 	
 	// step three: write pointers to children
-	let child_array_pointer = output.len();
+	let child_array_pointer = saver.output.len();
 	for (child_reser, _, _) in child_things.iter() {
-		output.extend(U64::<LE>::new(child_reser.location as u64).to_bytes());
+		saver.push(U64::<LE>::new(child_reser.location as u64));
 	}
 	
 	// extra step: do the recursion we saved for later (it's later)
 	let child_things_len = child_things.len();
 	for (child_reser, child_entity, child_kind) in child_things {
-		let (w_child_count, w_child_array_pointer) = save_children_nodes(world, child_entity, output)?;
-		child_reser.write(output, save_node_common(child_kind, w_child_count as u32, w_child_array_pointer as u64));
+		let (w_child_count, w_child_array_pointer) = save_children_nodes(saver, child_entity)?;
+		child_reser.write(&mut saver.output, save_node_common(child_kind, w_child_count as u32, w_child_array_pointer as u64));
 	}
 	
 	if child_things_len == 0 {
@@ -119,51 +121,54 @@ fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) 
 	}
 }
 
-fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>) -> anyhow::Result<u32> {
-	let node_component = world.get::<&live::Node>(node_entity)?;
+fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::Result<u32> {
+	let node_component = saver.world.get::<&live::Node>(node_entity)?;
 	match &*node_component {
 		live::Node::Base => {},
 		live::Node::Texture(node_live) => {
-			output.extend(raw::NodeTexture {
+			saver.push(raw::NodeTexture {
 				width: node_live.width.into(),
 				height: node_live.height.into(),
 				flags: node_live.flags.into(),
 				padding: node_live.padding.into(),
 				data_pointer: PLACEHOLDER_POINTER,
-			}.as_bytes());
+			});
 		},
 		live::Node::Vertex(node_live) => {
-			output.extend(raw::NodeVertex {
+			let reser = saver.reserve::<raw::NodeVertex>();
+			let node_raw = raw::NodeVertex {
 				vert_count: (node_live.verts.len() as u32).into(),
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
-			}.as_bytes());
+			};
+			let datablock = save_vertex_datablock(&node_live.verts)?;
+			saver.vertex_nodes.push((reser, node_raw, datablock));
 		},
 		live::Node::Meta => {},
 		live::Node::MetaScalar(node_live) => {
-			output.extend(raw::NodeMetaScalar {
+			saver.push(raw::NodeMetaScalar {
 				unk_1: node_live.unk_1.into(),
 				unk_2: node_live.unk_2.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::MetaPoint(node_live) => {
-			output.extend(raw::NodeMetaPoint {
+			saver.push(raw::NodeMetaPoint {
 				x: node_live.x.into(),
 				y: node_live.y.into(),
 				z: node_live.z.into(),
 				padding: node_live.padding.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::MetaAnchor(node_live) => {
-			output.extend(raw::NodeMetaAnchor {
+			saver.push(raw::NodeMetaAnchor {
 				x: node_live.x.into(),
 				y: node_live.y.into(),
 				z: node_live.z.into(),
 				angle: node_live.angle.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::MetaRect(node_live) => {
-			output.extend(raw::NodeMetaRect {
+			saver.push(raw::NodeMetaRect {
 				center_x: node_live.center_x.into(),
 				center_y: node_live.center_y.into(),
 				center_z: node_live.center_z.into(),
@@ -172,54 +177,115 @@ fn save_node_attachment(world: &World, node_entity: Entity, output: &mut Vec<u8>
 				extents_z: node_live.extents_z.into(),
 				angle: node_live.angle.into(),
 				padding: node_live.padding.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::MetaString(node_live) => {
-			output.extend(raw::NodeMetaString {
+			saver.push(raw::NodeMetaString {
 				string_length: node_live.string_length.into(),
 				padding: node_live.padding.into(),
 				string_offset: PLACEHOLDER_POINTER,
-			}.as_bytes());
+			});
 		},
 		live::Node::MetaTable(_node_live) => {
-			output.extend(raw::NodeMetaTable {
+			saver.push(raw::NodeMetaTable {
 				hashname_pointer: PLACEHOLDER_POINTER,
-			}.as_bytes());
+			});
 		},
 		live::Node::Frame(node_live) => {
-			output.extend(raw::NodeFrame {
+			saver.push(raw::NodeFrame {
 				min_x: node_live.min_x.into(),
 				max_x: node_live.max_x.into(),
 				min_y: node_live.min_y.into(),
 				max_y: node_live.max_y.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::SequenceFrame(node_live) => {
-			output.extend(raw::NodeSequenceFrame {
+			saver.push(raw::NodeSequenceFrame {
 				frame: node_live.frame.into(),
 				delay: node_live.delay.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::Sequence(node_live) => {
-			output.extend(raw::NodeSequence {
+			saver.push(raw::NodeSequence {
 				hashname: node_live.hashname.into(),
 				frame_count: node_live.frame_count.into(),
-			}.as_bytes());
+			});
 		},
 		live::Node::Animation(node_live) => {
-			output.extend(raw::NodeAnimation {
+			saver.push(raw::NodeAnimation {
 				sequence_count: node_live.sequence_count.into(),
 				frame_count: node_live.frame_count.into(),
 				single_texture: node_live.single_texture.into(),
 				palette_index: node_live.palette_index.into(),
 				hashname_pointer: PLACEHOLDER_POINTER,
-			}.as_bytes());
+			});
 		},
 		live::Node::UnknownKind(kind) => {
 			anyhow::bail!("unknown kind node ({})", kind);
 		},
 	}
 	Ok(node_component.kind())
+}
+
+fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> anyhow::Result<Vec<u8>> {
+	let mut output = Vec::new();
+	for vert_live in verts {
+		output.extend(raw::VertexBodyEntry {
+			position_x: vert_live.position_x.into(),
+			position_y: vert_live.position_y.into(),
+			texture_x: vert_live.texture_x.into(),
+			texture_y: vert_live.texture_y.into(),
+			width: vert_live.width.into(),
+			height: vert_live.height.into(),
+		}.as_bytes())
+	}
+	Ok(output)
+}
+
+fn save_queued_verts(saver: &mut Saver<'_>) -> anyhow::Result<()> {
+	for (reser, mut node_raw, data) in std::mem::take(&mut saver.vertex_nodes) {
+		let datablock_pointer = saver.output.len();
+		
+		saver.push(raw::DataBlockHeader {
+			data_size: (data.len() as u32).into(),
+			magic: [0xFF, 0xFF, 0xFF, 0x00],
+		});
+		saver.output.extend(data);
+		saver.pad_to_alignment(8);
+		
+		node_raw.data_pointer = U64::new(datablock_pointer as u64);
+		reser.write(&mut saver.output, node_raw);
+	}
+	Ok(())
+}
+
+struct Saver<'world> {
+	world: &'world World,
+	output: Vec<u8>,
+	vertex_nodes: Vec<(Reservation<raw::NodeVertex>, raw::NodeVertex, Vec<u8>)>,
+}
+
+impl<'world> Saver<'world> {
+	fn new(world: &'world World) -> Self {
+		Self {
+			world,
+			output: Vec::new(),
+			vertex_nodes: Vec::new(),
+		}
+	}
+	
+	fn push<T: IntoBytes + Immutable>(&mut self, value: T) {
+		self.output.extend(value.as_bytes());
+	}
+	
+	fn reserve<T>(&mut self) -> Reservation<T> {
+		Reservation::reserve(&mut self.output)
+	}
+	
+	fn pad_to_alignment(&mut self, alignment: usize) {
+		let new_len = self.output.len().next_multiple_of(alignment);
+		self.output.resize(new_len, 0);
+	}
 }
 
 #[must_use]
