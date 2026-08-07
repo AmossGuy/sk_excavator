@@ -58,6 +58,8 @@ pub struct NodeTexture {
 	pub height: u32,
 	pub flags: u32,
 	pub padding: u32,
+	#[edit(skip)]
+	pub wflz_data: Vec<u8>,
 }
 
 #[derive(EditableData, Default)]

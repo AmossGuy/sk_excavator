@@ -2,7 +2,7 @@ pub mod anb;
 pub mod ltb;
 pub mod pak;
 pub mod st;
-mod wflz;
+pub mod wflz;
 
 use image::ImageFormat;
 

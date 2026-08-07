@@ -9,6 +9,7 @@ use hecs_hierarchy::{Hierarchy, HierarchyMut};
 use excavator_backend::formats::{
 	DropdownRenderer, EditableData, EditableDataRenderer,
 	anb::{Header, Node},
+	wflz,
 };
 
 pub struct AnbFileView {
@@ -112,6 +113,16 @@ fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands:
 				}
 				if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
 					struct_ui(ui, node_component.deref_mut());
+					if let Node::Texture(texture_node) = &*node_component {
+						if let Some(loaded_texture) = entity_ref.get::<&LoadedTexture>() {
+							let image = egui::Image::new(&*loaded_texture).max_height(100.);
+							ui.add(image);
+						} else {
+							let size = [texture_node.width as usize, texture_node.height as usize];
+							let texture = load_texture(size, &texture_node.wflz_data, ui.ctx());
+							commands.insert_one(entity_ref.entity(), texture);
+						}
+					}
 				}
 			});
 			
@@ -167,6 +178,13 @@ fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 			});
 		});
 	}
+}
+
+fn load_texture(size: [usize; 2], wflz_data: &[u8], ctx: &egui::Context) -> LoadedTexture {
+	let decompressed_data = wflz::decompress(&mut std::io::Cursor::new(wflz_data)).unwrap();
+	let image = egui::ColorImage::from_rgba_unmultiplied(size, &decompressed_data);
+	let handle = ctx.load_texture("anb texture", image, egui::TextureOptions::NEAREST);
+	LoadedTexture { handle }
 }
 
 struct EguiDataRenderer<'a> {
@@ -231,5 +249,15 @@ impl Default for CachedSize {
 	fn default() -> Self {
 		let s = egui::Vec2::splat(f32::INFINITY);
 		Self { /* outer_size: s, */ inner_size: s }
+	}
+}
+
+struct LoadedTexture {
+	handle: egui::TextureHandle,
+}
+
+impl From<&LoadedTexture> for egui::load::SizedTexture {
+	fn from(value: &LoadedTexture) -> Self {
+		Self::from_handle(&value.handle)
 	}
 }

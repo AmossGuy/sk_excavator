@@ -63,11 +63,15 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		1 => {
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			
+			let wflz_bytes = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
+			
 			live::Node::Texture(live::NodeTexture {
 				width: node_raw.width.get(),
 				height: node_raw.height.get(),
 				flags: node_raw.flags.get(),
 				padding: node_raw.padding.get(),
+				wflz_data: wflz_bytes.to_vec(),
 			})
 		},
 		2 => {
