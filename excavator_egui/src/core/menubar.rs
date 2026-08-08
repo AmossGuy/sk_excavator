@@ -6,7 +6,7 @@ use crate::misc::about::AboutWindow;
 use crate::core::settings::SettingsWindow;
 
 pub fn show_menu_bar_panel(ui: &mut egui::Ui, env: &mut ExcavatorContext) {
-	egui::Panel::top("menu bar").show_inside(ui, |ui| {
+	egui::Panel::top("menu bar").show(ui, |ui| {
 		egui::MenuBar::new().ui(ui, |ui| {
 			MENU_BAR.ui(ui, env);
 		});

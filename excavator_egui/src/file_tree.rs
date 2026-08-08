@@ -9,7 +9,7 @@ use std::sync::{Arc, Mutex};
 
 use crate::misc::file_dialog::show_file_extract_dialog;
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 enum NodeId {
 	Node(TreeItemId),
 	Aux,

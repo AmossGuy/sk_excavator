@@ -54,7 +54,7 @@ impl eframe::App for ExcavatorApp {
 		show_menu_bar_panel(ui, &mut self.excavator);
 		
 		if let Some(file_view) = &mut self.file_view {
-			egui::Panel::right("file view").resizable(true).show_inside(ui, |ui| {
+			egui::Panel::right("file view").resizable(true).show(ui, |ui| {
 				file_view.ui(ui);
 			});
 		}
@@ -69,7 +69,7 @@ impl eframe::App for ExcavatorApp {
 			},
 		}
 		
-		egui::CentralPanel::default().show_inside(ui, |ui| {
+		egui::CentralPanel::default().show(ui, |ui| {
 			self.game_dir_ui(ui);
 		});
 		

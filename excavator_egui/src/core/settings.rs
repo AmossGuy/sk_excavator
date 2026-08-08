@@ -56,14 +56,14 @@ impl SettingsWindow {
 
 impl Window for SettingsWindow {
 	fn ui(&mut self, ui: &mut egui::Ui, excavator: &ExcavatorContext) {
-		egui::Panel::top("setting tabs").show_inside(ui, |ui| {
+		egui::Panel::top("setting tabs").show(ui, |ui| {
 			ui.horizontal(|ui| {
 				ui.selectable_value(&mut self.tab, SettingsTab::Excavator, "Excavator");
 				ui.selectable_value(&mut self.tab, SettingsTab::Egui, "egui");
 			});
 		});
 		
-		egui::CentralPanel::default().show_inside(ui, |ui| {
+		egui::CentralPanel::default().show(ui, |ui| {
 			match self.tab {
 				SettingsTab::Excavator => {
 					egui::ScrollArea::vertical().show(ui, |ui| {

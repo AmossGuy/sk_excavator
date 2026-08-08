@@ -30,7 +30,7 @@ impl LtbFileView {
 
 impl FileView for LtbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
-		egui::Panel::top("ltb tabs").show_inside(ui, |ui| ui.horizontal(|ui| {
+		egui::Panel::top("ltb tabs").show(ui, |ui| ui.horizontal(|ui| {
 			for (label, value) in [
 				("Images", Tab::Images),
 				("Tilemap list", Tab::TilemapList),
@@ -48,7 +48,7 @@ impl FileView for LtbFileView {
 			}
 		}));
 		
-		egui::CentralPanel::default().show_inside(ui, |ui| {
+		egui::CentralPanel::default().show(ui, |ui| {
 			match self.tab {
 				Tab::Images => self.images_ui(ui),
 				Tab::TilemapList => self.tilemap_ui(ui),

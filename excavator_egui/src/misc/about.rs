@@ -12,7 +12,7 @@ impl AboutWindow {
 
 impl Window for AboutWindow {
 	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
-		egui::CentralPanel::default().show_inside(ui, |ui| {
+		egui::CentralPanel::default().show(ui, |ui| {
 			ui.heading("Shovel Knight Excavator");
 			ui.label("by AmossGuy");
 			

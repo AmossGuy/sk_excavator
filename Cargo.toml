@@ -15,26 +15,27 @@ opt-level = 1
 # For convenience, we've gathered every dependency in the workspace (not counting intra-workspace ones) in this single place, and lightly categorized them.
 
 # Small and handy things
-anyhow = "1.0.102"
-bstr = { version = "1.12.1", default-features = false, features = ["alloc", "serde"] }
+anyhow = "1.0.104"
+bstr = { version = "1.13.0", default-features = false, features = ["alloc", "serde"] }
 lexical-sort = "0.3.1"
-zerocopy = { version = "0.8.39", features = ["std"] }
-zerocopy-derive = "0.8.39"
+zerocopy = { version = "0.8.56", features = ["std"] }
+zerocopy-derive = "0.8.56"
 
 # Big and handy things
 hecs = "0.11.1"
 hecs-hierarchy = { git = "https://github.com/AmossGuy/hecs-hierarchy", rev = "f457667" } # Upstream hasn't been updated to hecs 0.11.0, so I cobbled together a patch myself.
-image = { version = "0.25.9", default-features = false, features = ["png"] }
-serde = "1.0.228"
+image = { version = "0.25.10", default-features = false, features = ["png"] }
+serde = "1.0.229"
 
 # GUI
-eframe = { version = "0.34.1", features = ["persistence"] }
-egui = "0.34.1"
-egui_extras = "0.34.1"
-egui_ltreeview = { git = "https://github.com/LennysLounge/egui_ltreeview.git", rev = "05f7b4a27033dbfc79578f243bcc9d126b41ff1d" } # Was using a rev because a bugfix hadn't made it to release yet, but it's released now so I'll update it shortly
+# would be egui 0.36.1 if ltreeview updated faster... oh well
+eframe = { version = "0.35.0", features = ["persistence"] }
+egui = "0.35.0"
+egui_extras = "0.35.0"
+egui_ltreeview = "0.8.0"
 rfd = "0.17.2"
 
 # For procedural macros
 proc-macro2 = "1.0.107"
 quote = "1.0.47"
-syn = "3.0.2"
+syn = "3.0.3"

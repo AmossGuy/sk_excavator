@@ -150,7 +150,7 @@ pub enum TreeNodeSource {
 	Pak { pak_path: PathBuf, entry_name: BString },
 }
 
-#[derive(Clone, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum TreeItemId {
 	Fs(PathBuf),
 	Pak(PathBuf, BString),
