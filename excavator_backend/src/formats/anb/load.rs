@@ -64,15 +64,16 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			
-			let (block_flags, wflz_bytes) = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
+			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize, |bytes| {
+				Ok(bytes.to_vec())
+			})?;
 			
 			live::Node::Texture(live::NodeTexture {
 				width: node_raw.width.get(),
 				height: node_raw.height.get(),
 				flags: node_raw.flags.get(),
 				padding: node_raw.padding.get(),
-				datablock_flags: block_flags,
-				wflz_data: wflz_bytes.to_vec(),
+				data_block,
 			})
 		},
 		2 => {
@@ -80,14 +81,15 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			
 			let vert_count = node_raw.vert_count.get();
-			let (block_flags, vert_bytes) = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
-			let vert_slice = <[raw::VertexBodyEntry]>::ref_from_bytes_with_elems(vert_bytes, vert_count as usize)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize, |bytes| {
+				let vert_slice = <[raw::VertexBodyEntry]>::ref_from_bytes_with_elems(bytes, vert_count as usize)
+					.map_err(|e| anyhow::anyhow!("{}", e))?;
+				Ok(vert_slice.into_iter().map(parse_vert).collect::<Vec<_>>())
+			})?;
 			
 			live::Node::Vertex(live::NodeVertex {
 				flags: node_raw.flags.get(),
-				datablock_flags: block_flags,
-				verts: vert_slice.into_iter().map(parse_vert).collect(),
+				data_block,
 			})
 		}
 		3 => live::Node::Meta,
@@ -189,11 +191,22 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 	Ok((node, node_common_raw.child_array_pointer.get(), node_common_raw.child_count.get()))
 }
 
-fn parse_data_block(bytes: &[u8], offset: usize) -> anyhow::Result<(u32, &[u8])> {
+fn parse_data_block<T, F>(bytes: &[u8], offset: usize, f: F) -> anyhow::Result<Option<live::DataBlock<T>>> where
+	F: FnOnce(&[u8]) -> anyhow::Result<T>,
+{
+	if offset == 0 {
+		return Ok(None);
+	}
+	
 	let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&bytes[offset..])
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	let data_size = header.data_size.get() as usize;
-	Ok((header.flags.get(), &followup[..data_size]))
+	let processed_data = f(&followup[..data_size])?;
+	
+	Ok(Some(live::DataBlock { 
+		flags: header.flags.get(),
+		data: processed_data,
+	}))
 }
 
 fn parse_vert(vert_raw: &raw::VertexBodyEntry) -> live::VertexBodyEntry {

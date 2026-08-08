@@ -2,6 +2,7 @@ use super::{def_live as live, def_raw as raw};
 
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
+use std::borrow::Cow;
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
@@ -134,23 +135,22 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				padding: node_live.padding.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
-			let block_flags = node_live.datablock_flags;
-			let block_data = node_live.wflz_data.clone();
+			let data_block = node_live.data_block.clone();
 			saver.deferred_blocks.push(DeferredBlock::Texture {
-				reser, node_raw, block_flags, block_data,
+				reser, node_raw, data_block,
 			});
 		},
 		live::Node::Vertex(node_live) => {
 			let reser = saver.reserve::<raw::NodeVertex>();
+			let vert_count = node_live.data_block.as_ref().map(|b| b.data.len()).unwrap_or(0);
 			let node_raw = raw::NodeVertex {
-				vert_count: (node_live.verts.len() as u32).into(),
+				vert_count: (vert_count as u32).into(),
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
-			let block_data = save_vertex_datablock(&node_live.verts)?;
-			let block_flags = node_live.datablock_flags;
+			let data_block = node_live.data_block.clone();
 			saver.deferred_blocks.push(DeferredBlock::Vertex {
-				reser, node_raw, block_flags, block_data,
+				reser, node_raw, data_block,
 			});
 		},
 		live::Node::Meta => {},
@@ -236,7 +236,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 	Ok(node_component.kind())
 }
 
-fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> anyhow::Result<Vec<u8>> {
+fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> Vec<u8> {
 	let mut output = Vec::new();
 	for vert_live in verts {
 		output.extend(raw::VertexBodyEntry {
@@ -248,14 +248,27 @@ fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> anyhow::Result<Vec<
 			height: vert_live.height.into(),
 		}.as_bytes())
 	}
-	Ok(output)
+	output
 }
 
 fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
-	for entry in std::mem::take(&mut saver.deferred_blocks) {
-		let (flags, data) = match entry {
-			DeferredBlock::Texture { block_flags, ref block_data, .. } => (block_flags, block_data),
-			DeferredBlock::Vertex { block_flags, ref block_data, .. } => (block_flags, block_data),
+	fn actual_block_save(saver: &mut Saver<'_>, entry: &DeferredBlock) -> Option<usize> {
+		let (flags, data): (u32, Cow<'_, [u8]>) = match entry {
+			DeferredBlock::Texture { data_block, .. } => {
+				match data_block {
+					Some(data_block) => (data_block.flags, Cow::from(&data_block.data)),
+					None => return None,
+				}
+			},
+			DeferredBlock::Vertex { data_block, .. } => {
+				match data_block {
+					Some(data_block) => {
+						let bytes: Vec<u8> = save_vertex_datablock(&data_block.data);
+						(data_block.flags, Cow::from(bytes))
+					},
+					None => return None,
+				}
+			},
 		};
 		
 		let datablock_pointer = saver.output.len();
@@ -263,8 +276,16 @@ fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 			data_size: (data.len() as u32).into(),
 			flags: flags.into(),
 		});
-		saver.output.extend(data);
+		saver.output.extend(&*data);
 		saver.pad_to_alignment(8);
+		
+		Some(datablock_pointer)
+	}
+	
+	for entry in std::mem::take(&mut saver.deferred_blocks) {
+		let Some(datablock_pointer) = actual_block_save(saver, &entry) else {
+			continue;
+		};
 		
 		match entry {
 			DeferredBlock::Texture { reser, mut node_raw, .. } => {
@@ -335,13 +356,11 @@ enum DeferredBlock {
 	Texture {
 		reser: Reservation<raw::NodeTexture>,
 		node_raw: raw::NodeTexture,
-		block_flags: u32,
-		block_data: Vec<u8>,
+		data_block: Option<live::DataBlock<Vec<u8>>>,
 	},
 	Vertex {
 		reser: Reservation<raw::NodeVertex>,
 		node_raw: raw::NodeVertex,
-		block_flags: u32,
-		block_data: Vec<u8>,
+		data_block: Option<live::DataBlock<Vec<live::VertexBodyEntry>>>,
 	},
 }

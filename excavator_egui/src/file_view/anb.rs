@@ -118,9 +118,11 @@ fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands:
 							let image = egui::Image::new(&*loaded_texture).max_height(100.);
 							ui.add(image);
 						} else {
-							let size = [texture_node.width as usize, texture_node.height as usize];
-							let texture = load_texture(size, &texture_node.wflz_data, ui.ctx());
-							commands.insert_one(entity_ref.entity(), texture);
+							if let Some(data_block) = &texture_node.data_block {
+								let size = [texture_node.width as usize, texture_node.height as usize];
+								let texture = load_texture(size, &data_block.data, ui.ctx());
+								commands.insert_one(entity_ref.entity(), texture);
+							}
 						}
 					}
 				}
@@ -153,7 +155,9 @@ fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 		thing.display(EguiDataRenderer { ui });
 	});
 	
-	if let Some(Node::Vertex(vertex_node)) = <dyn Any>::downcast_mut::<Node>(thing) {
+	if let Some(Node::Vertex(vertex_node)) = <dyn Any>::downcast_mut::<Node>(thing) 
+		&& let Some(data_block) = &mut vertex_node.data_block
+	{
 		ui.collapsing("vertex table", |ui| {
 			egui::Grid::new("vertex grid").show(ui, |ui| {
 				ui.allocate_space(egui::Vec2::ZERO);
@@ -165,7 +169,7 @@ fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 				ui.label("height");
 				ui.end_row();
 				
-				for (i, vert) in vertex_node.verts.iter_mut().enumerate() {
+				for (i, vert) in data_block.data.iter_mut().enumerate() {
 					ui.label(i.to_string());
 					ui.add(egui::DragValue::new(&mut vert.position_x));
 					ui.add(egui::DragValue::new(&mut vert.position_y));
