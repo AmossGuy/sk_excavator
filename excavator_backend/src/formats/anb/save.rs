@@ -15,7 +15,7 @@ pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec
 	let node_entity = saver.world.get::<&hecs_hierarchy::Parent<()>>(root_entity)?.first_child(saver.world)?;
 	save_node(&mut saver, node_entity, true)?;
 	
-	save_queued_verts(&mut saver)?;
+	save_queued_blocks(&mut saver)?;
 	
 	Ok(saver.output)
 }
@@ -126,12 +126,17 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 	match &*node_component {
 		live::Node::Base => {},
 		live::Node::Texture(node_live) => {
-			saver.push(raw::NodeTexture {
+			let reser = saver.reserve::<raw::NodeTexture>();
+			let node_raw = raw::NodeTexture {
 				width: node_live.width.into(),
 				height: node_live.height.into(),
 				flags: node_live.flags.into(),
 				padding: node_live.padding.into(),
 				data_pointer: PLACEHOLDER_POINTER,
+			};
+			let block_data = node_live.wflz_data.clone();
+			saver.deferred_blocks.push(DeferredBlock::Texture {
+				reser, node_raw, block_data,
 			});
 		},
 		live::Node::Vertex(node_live) => {
@@ -141,8 +146,10 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
-			let datablock = save_vertex_datablock(&node_live.verts)?;
-			saver.vertex_nodes.push((reser, node_raw, datablock));
+			let block_data = save_vertex_datablock(&node_live.verts)?;
+			saver.deferred_blocks.push(DeferredBlock::Vertex {
+				reser, node_raw, block_data,
+			});
 		},
 		live::Node::Meta => {},
 		live::Node::MetaScalar(node_live) => {
@@ -242,10 +249,14 @@ fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> anyhow::Result<Vec<
 	Ok(output)
 }
 
-fn save_queued_verts(saver: &mut Saver<'_>) -> anyhow::Result<()> {
-	for (reser, mut node_raw, data) in std::mem::take(&mut saver.vertex_nodes) {
-		let datablock_pointer = saver.output.len();
+fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
+	for entry in std::mem::take(&mut saver.deferred_blocks) {
+		let data = match entry {
+			DeferredBlock::Texture { ref block_data, .. } => block_data,
+			DeferredBlock::Vertex { ref block_data, .. } => block_data,
+		};
 		
+		let datablock_pointer = saver.output.len();
 		saver.push(raw::DataBlockHeader {
 			data_size: (data.len() as u32).into(),
 			magic: [0xFF, 0xFF, 0xFF, 0x00],
@@ -253,8 +264,16 @@ fn save_queued_verts(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 		saver.output.extend(data);
 		saver.pad_to_alignment(8);
 		
-		node_raw.data_pointer = U64::new(datablock_pointer as u64);
-		reser.write(&mut saver.output, node_raw);
+		match entry {
+			DeferredBlock::Texture { reser, mut node_raw, .. } => {
+				node_raw.data_pointer = U64::new(datablock_pointer as u64);
+				reser.write(&mut saver.output, node_raw);
+			},
+			DeferredBlock::Vertex { reser, mut node_raw, .. } => {
+				node_raw.data_pointer = U64::new(datablock_pointer as u64);
+				reser.write(&mut saver.output, node_raw);
+			},
+		}
 	}
 	Ok(())
 }
@@ -262,7 +281,7 @@ fn save_queued_verts(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 struct Saver<'world> {
 	world: &'world World,
 	output: Vec<u8>,
-	vertex_nodes: Vec<(Reservation<raw::NodeVertex>, raw::NodeVertex, Vec<u8>)>,
+	deferred_blocks: Vec<DeferredBlock>,
 }
 
 impl<'world> Saver<'world> {
@@ -270,7 +289,7 @@ impl<'world> Saver<'world> {
 		Self {
 			world,
 			output: Vec::new(),
-			vertex_nodes: Vec::new(),
+			deferred_blocks: Vec::new(),
 		}
 	}
 	
@@ -308,4 +327,17 @@ impl<T: FromBytes + IntoBytes + KnownLayout> Reservation<T> {
 			.expect("reservation should be within the bounds of the data");
 		*destination = value;
 	}
+}
+
+enum DeferredBlock {
+	Texture {
+		reser: Reservation<raw::NodeTexture>,
+		node_raw: raw::NodeTexture,
+		block_data: Vec<u8>,
+	},
+	Vertex {
+		reser: Reservation<raw::NodeVertex>,
+		node_raw: raw::NodeVertex,
+		block_data: Vec<u8>,
+	},
 }
