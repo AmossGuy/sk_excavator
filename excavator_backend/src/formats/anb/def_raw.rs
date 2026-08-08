@@ -126,7 +126,7 @@ pub struct NodeAnimation {
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct DataBlockHeader {
-	pub magic: [u8; 4], // toolkit says this is "flags" but i'm being stubborn. i'll fix this sometime!
+	pub flags: U32<LE>,
 	pub data_size: U32<LE>,
 }
 

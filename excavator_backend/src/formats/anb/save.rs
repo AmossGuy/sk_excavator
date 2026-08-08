@@ -134,9 +134,10 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				padding: node_live.padding.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
+			let block_flags = node_live.datablock_flags;
 			let block_data = node_live.wflz_data.clone();
 			saver.deferred_blocks.push(DeferredBlock::Texture {
-				reser, node_raw, block_data,
+				reser, node_raw, block_flags, block_data,
 			});
 		},
 		live::Node::Vertex(node_live) => {
@@ -147,8 +148,9 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				data_pointer: PLACEHOLDER_POINTER,
 			};
 			let block_data = save_vertex_datablock(&node_live.verts)?;
+			let block_flags = node_live.datablock_flags;
 			saver.deferred_blocks.push(DeferredBlock::Vertex {
-				reser, node_raw, block_data,
+				reser, node_raw, block_flags, block_data,
 			});
 		},
 		live::Node::Meta => {},
@@ -251,15 +253,15 @@ fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> anyhow::Result<Vec<
 
 fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 	for entry in std::mem::take(&mut saver.deferred_blocks) {
-		let data = match entry {
-			DeferredBlock::Texture { ref block_data, .. } => block_data,
-			DeferredBlock::Vertex { ref block_data, .. } => block_data,
+		let (flags, data) = match entry {
+			DeferredBlock::Texture { block_flags, ref block_data, .. } => (block_flags, block_data),
+			DeferredBlock::Vertex { block_flags, ref block_data, .. } => (block_flags, block_data),
 		};
 		
 		let datablock_pointer = saver.output.len();
 		saver.push(raw::DataBlockHeader {
 			data_size: (data.len() as u32).into(),
-			magic: [0xFF, 0xFF, 0xFF, 0x00],
+			flags: flags.into(),
 		});
 		saver.output.extend(data);
 		saver.pad_to_alignment(8);
@@ -333,11 +335,13 @@ enum DeferredBlock {
 	Texture {
 		reser: Reservation<raw::NodeTexture>,
 		node_raw: raw::NodeTexture,
+		block_flags: u32,
 		block_data: Vec<u8>,
 	},
 	Vertex {
 		reser: Reservation<raw::NodeVertex>,
 		node_raw: raw::NodeVertex,
+		block_flags: u32,
 		block_data: Vec<u8>,
 	},
 }

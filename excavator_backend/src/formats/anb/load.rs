@@ -64,13 +64,14 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			
-			let wflz_bytes = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
+			let (block_flags, wflz_bytes) = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Texture(live::NodeTexture {
 				width: node_raw.width.get(),
 				height: node_raw.height.get(),
 				flags: node_raw.flags.get(),
 				padding: node_raw.padding.get(),
+				datablock_flags: block_flags,
 				wflz_data: wflz_bytes.to_vec(),
 			})
 		},
@@ -79,12 +80,13 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			
 			let vert_count = node_raw.vert_count.get();
-			let vert_bytes = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
+			let (block_flags, vert_bytes) = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			let vert_slice = <[raw::VertexBodyEntry]>::ref_from_bytes_with_elems(vert_bytes, vert_count as usize)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
 			
 			live::Node::Vertex(live::NodeVertex {
 				flags: node_raw.flags.get(),
+				datablock_flags: block_flags,
 				verts: vert_slice.into_iter().map(parse_vert).collect(),
 			})
 		}
@@ -187,14 +189,11 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 	Ok((node, node_common_raw.child_array_pointer.get(), node_common_raw.child_count.get()))
 }
 
-fn parse_data_block(bytes: &[u8], offset: usize) -> anyhow::Result<&[u8]> {
+fn parse_data_block(bytes: &[u8], offset: usize) -> anyhow::Result<(u32, &[u8])> {
 	let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&bytes[offset..])
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
-	if header.magic != [0xFF, 0xFF, 0xFF, 0x00] {
-		anyhow::bail!("wrong data block magic");
-	}
 	let data_size = header.data_size.get() as usize;
-	Ok(&followup[..data_size])
+	Ok((header.flags.get(), &followup[..data_size]))
 }
 
 fn parse_vert(vert_raw: &raw::VertexBodyEntry) -> live::VertexBodyEntry {
