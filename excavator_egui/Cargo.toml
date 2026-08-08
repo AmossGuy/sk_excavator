@@ -4,19 +4,21 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-excavator_backend = { path = "../excavator_backend" }
+excavator_backend.path = "../excavator_backend"
+
+# Small and handy things
+anyhow.workspace = true
+bstr.workspace = true
+
+# Big and handy things
+hecs.workspace = true
+hecs-hierarchy.workspace = true
+image.workspace = true
+serde.workspace = true
 
 # GUI
-eframe = { version = "0.34.1", features = ["persistence"] }
-egui = "0.34.1"
-egui_extras = "0.34.1"
-egui_ltreeview = { git = "https://github.com/LennysLounge/egui_ltreeview.git", rev = "05f7b4a27033dbfc79578f243bcc9d126b41ff1d" } # context menu bug fixed by this commit; replace with released 0.7.1 later
-rfd = "0.17.2"
-
-# miscellaneous
-anyhow = { workspace = true }
-bstr = { workspace = true }
-hecs = { workspace = true }
-hecs-hierarchy = { workspace = true }
-image = { workspace = true }
-serde = { workspace = true }
+eframe.workspace = true
+egui.workspace = true
+egui_extras.workspace = true
+egui_ltreeview.workspace = true
+rfd.workspace = true

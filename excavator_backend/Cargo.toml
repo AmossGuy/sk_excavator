@@ -4,13 +4,17 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = { workspace = true }
-bstr = { workspace = true }
-excavator_backend_macros = { path = "../excavator_backend_macros" }
-hecs = { workspace = true }
-hecs-hierarchy = { workspace = true }
-image = { workspace = true }
-lexical-sort = "0.3.1"
-serde = { workspace = true }
-zerocopy = { version = "0.8.39", features = ["std"] }
-zerocopy-derive = "0.8.39"
+excavator_backend_macros.path = "../excavator_backend_macros"
+
+# Small and handy things
+anyhow.workspace = true
+bstr.workspace = true
+lexical-sort.workspace = true
+zerocopy.workspace = true
+zerocopy-derive.workspace = true
+
+# Big and handy things
+hecs.workspace = true
+hecs-hierarchy.workspace = true
+image.workspace = true
+serde.workspace = true
