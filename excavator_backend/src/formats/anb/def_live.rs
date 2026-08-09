@@ -59,14 +59,14 @@ pub struct NodeTexture {
 	pub flags: u32,
 	pub padding: u32,
 	#[edit(skip)]
-	pub data_block: Option<DataBlock<Vec<u8>>>,
+	pub data_block: Option<DataBlock>,
 }
 
 #[derive(EditableData, Default)]
 pub struct NodeVertex {
 	pub flags: u32,
 	#[edit(skip)]
-	pub data_block: Option<DataBlock<Vec<VertexBodyEntry>>>,
+	pub data_block: Option<DataBlock>,
 }
 
 #[derive(EditableData, Default)]
@@ -107,6 +107,8 @@ pub struct NodeMetaRect {
 pub struct NodeMetaString {
 	pub string_length: u32,
 	pub padding: u32,
+	#[edit(skip)]
+	pub data_block: Option<DataBlock>,
 }
 
 #[derive(EditableData, Default)]
@@ -151,8 +153,12 @@ pub struct VertexBodyEntry {
 	pub height: u16,
 }
 
+use std::sync::Arc;
+use yoke::Yoke;
+pub type ArcBytes = Yoke<&'static [u8], Arc<Vec<u8>>>;
+
 #[derive(Clone)]
-pub struct DataBlock<T> {
+pub struct DataBlock {
 	pub flags: u32,
-	pub data: T,
+	pub data: ArcBytes,
 }

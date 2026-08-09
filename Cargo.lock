@@ -1121,6 +1121,7 @@ dependencies = [
  "image",
  "lexical-sort",
  "serde",
+ "yoke",
  "zerocopy",
  "zerocopy-derive",
 ]
@@ -1150,6 +1151,7 @@ dependencies = [
  "image",
  "rfd",
  "serde",
+ "yoke",
 ]
 
 [[package]]

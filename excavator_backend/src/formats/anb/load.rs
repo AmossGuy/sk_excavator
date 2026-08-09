@@ -1,14 +1,14 @@
-use super::{def_live as live, def_raw as raw};
+use super::{def_live as live, def_raw as raw, def_live::ArcBytes};
 
 use hecs::{Entity, World};
 use hecs_hierarchy::HierarchyMut;
 use zerocopy::{FromBytes, LE, U64};
 
-pub fn load_from_bytes(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
+pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	load_header(bytes, world)
 }
 
-fn load_header(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
+fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let header_component = parse_header(bytes)?;
 	let header_entity = world.spawn((header_component,));
 	
@@ -20,8 +20,9 @@ fn load_header(bytes: &[u8], world: &mut World) -> anyhow::Result<Entity> {
 	Ok(header_entity)
 }
 
-fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, length: u32) -> anyhow::Result<()> {
-	let offset_bytes = &bytes[(offset as usize)..];
+fn load_node_list(bytes: &ArcBytes, world: &mut World, parent: Entity, offset: u64, length: u32) -> anyhow::Result<()> {
+	let offset_bytes = bytes.get().get(offset as usize..)
+		.ok_or_else(|| anyhow::anyhow!("node list out of bounds"))?;
 	let (slice, _) = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize)
 		.map_err(|e| anyhow::anyhow!(e.to_string()))?;
 	
@@ -36,8 +37,8 @@ fn load_node_list(bytes: &[u8], world: &mut World, parent: Entity, offset: u64, 
 	Ok(())
 }
 
-fn parse_header(bytes: &[u8]) -> anyhow::Result<live::Header> {
-	let (header_raw, _) = raw::Header::ref_from_prefix(bytes)
+fn parse_header(bytes: &ArcBytes) -> anyhow::Result<live::Header> {
+	let (header_raw, _) = raw::Header::ref_from_prefix(bytes.get())
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	
 	if header_raw.magic != *b"YCSN" {
@@ -53,8 +54,10 @@ fn parse_header(bytes: &[u8]) -> anyhow::Result<live::Header> {
 	})
 }
 
-fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
-	let (node_common_raw, followup) = raw::NodeCommon::ref_from_prefix(&bytes[offset..])
+fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
+	let offset_bytes = bytes.get().get(offset..)
+		.ok_or_else(|| anyhow::anyhow!("node out of bounds"))?;
+	let (node_common_raw, followup) = raw::NodeCommon::ref_from_prefix(offset_bytes)
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
 	let kind = node_common_raw.kind.get();
 	
@@ -63,10 +66,7 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		1 => {
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
-			
-			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize, |bytes| {
-				Ok(bytes.to_vec())
-			})?;
+			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Texture(live::NodeTexture {
 				width: node_raw.width.get(),
@@ -79,13 +79,7 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		2 => {
 			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
-			
-			let vert_count = node_raw.vert_count.get();
-			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize, |bytes| {
-				let vert_slice = <[raw::VertexBodyEntry]>::ref_from_bytes_with_elems(bytes, vert_count as usize)
-					.map_err(|e| anyhow::anyhow!("{}", e))?;
-				Ok(vert_slice.into_iter().map(parse_vert).collect::<Vec<_>>())
-			})?;
+			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Vertex(live::NodeVertex {
 				flags: node_raw.flags.get(),
@@ -138,9 +132,12 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 		8 => {
 			let (node_raw, _) = raw::NodeMetaString::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			let data_block = parse_data_block(bytes, node_raw.string_offset.get() as usize)?;
+			
 			live::Node::MetaString(live::NodeMetaString {
 				string_length: node_raw.string_length.get(),
 				padding: node_raw.padding.get(),
+				data_block,
 			})
 		},
 		9 => {
@@ -191,31 +188,25 @@ fn parse_node(bytes: &[u8], offset: usize) -> anyhow::Result<(live::Node, u64, u
 	Ok((node, node_common_raw.child_array_pointer.get(), node_common_raw.child_count.get()))
 }
 
-fn parse_data_block<T, F>(bytes: &[u8], offset: usize, f: F) -> anyhow::Result<Option<live::DataBlock<T>>> where
-	F: FnOnce(&[u8]) -> anyhow::Result<T>,
-{
+fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<live::DataBlock>> {
 	if offset == 0 {
 		return Ok(None);
 	}
 	
-	let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&bytes[offset..])
-		.map_err(|e| anyhow::anyhow!("{}", e))?;
-	let data_size = header.data_size.get() as usize;
-	let processed_data = f(&followup[..data_size])?;
+	let temp_yoke: yoke::Yoke<(u32, &[u8]), _> = bytes.try_map_project_cloned(|slice, _| -> anyhow::Result<_> {
+		let slice = slice.get(offset..)
+			.ok_or_else(|| anyhow::anyhow!("data block out of range"))?;
+		let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&slice)
+			.map_err(|e| anyhow::anyhow!("{}", e))?;
+		let flags = header.flags.get();
+		let data_size = header.data_size.get() as usize;
+		let data = followup.get(..data_size)
+			.ok_or_else(|| anyhow::anyhow!("data block data goes past end"))?;
+		Ok((flags, data))
+	})?;
 	
-	Ok(Some(live::DataBlock { 
-		flags: header.flags.get(),
-		data: processed_data,
-	}))
-}
-
-fn parse_vert(vert_raw: &raw::VertexBodyEntry) -> live::VertexBodyEntry {
-	live::VertexBodyEntry {
-		position_x: vert_raw.position_x.get(),
-		position_y: vert_raw.position_y.get(),
-		texture_x: vert_raw.texture_x.get(),
-		texture_y: vert_raw.texture_y.get(),
-		width: vert_raw.width.get(),
-		height: vert_raw.height.get(),
-	}
+	let flags: u32 = temp_yoke.get().0;
+	let data_yoke: ArcBytes = temp_yoke.map_project(|(_, data), _| data);
+	
+	Ok(Some(live::DataBlock { flags, data: data_yoke }))
 }

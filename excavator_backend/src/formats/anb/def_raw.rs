@@ -130,6 +130,7 @@ pub struct DataBlockHeader {
 	pub data_size: U32<LE>,
 }
 
+/*
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct VertexBodyEntry {
@@ -140,3 +141,4 @@ pub struct VertexBodyEntry {
 	pub width: U16<LE>,
 	pub height: U16<LE>,
 }
+*/

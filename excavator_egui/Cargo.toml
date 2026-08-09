@@ -9,6 +9,7 @@ excavator_backend.path = "../excavator_backend"
 # Small and handy things
 anyhow.workspace = true
 bstr.workspace = true
+yoke.workspace = true
 
 # Big and handy things
 hecs.workspace = true

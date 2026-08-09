@@ -8,7 +8,7 @@ use hecs_hierarchy::{Hierarchy, HierarchyMut};
 
 use excavator_backend::formats::{
 	DropdownRenderer, EditableData, EditableDataRenderer,
-	anb::{Header, Node},
+	anb::def_live::{Header, Node},
 	wflz,
 };
 
@@ -21,11 +21,14 @@ pub struct AnbFileView {
 
 impl AnbFileView {
 	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> anyhow::Result<Self> {
+		use {std::sync::Arc, yoke::Yoke};
+		
 		let mut bytes = Vec::new();
 		reader.read_to_end(&mut bytes)?;
+		let yoke_bytes = Yoke::attach_to_cart(Arc::new(bytes), |vec| &vec[..]);
 		
 		let mut ecs_world = World::new();
-		let root = excavator_backend::formats::anb::load_from_bytes(&bytes, &mut ecs_world)?;
+		let root = excavator_backend::formats::anb::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
 		
 		let save_message = String::new();
 		
@@ -120,7 +123,7 @@ fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands:
 						} else {
 							if let Some(data_block) = &texture_node.data_block {
 								let size = [texture_node.width as usize, texture_node.height as usize];
-								let texture = load_texture(size, &data_block.data, ui.ctx());
+								let texture = load_texture(size, &data_block.data.get(), ui.ctx());
 								commands.insert_one(entity_ref.entity(), texture);
 							}
 						}
@@ -169,7 +172,10 @@ fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 				ui.label("height");
 				ui.end_row();
 				
-				for (i, vert) in data_block.data.iter_mut().enumerate() {
+				let _ = data_block;
+				ui.label("todo: reimplement this");
+				/*
+				for (i, vert) in data_block.data.get().iter_mut().enumerate() {
 					ui.label(i.to_string());
 					ui.add(egui::DragValue::new(&mut vert.position_x));
 					ui.add(egui::DragValue::new(&mut vert.position_y));
@@ -179,8 +185,15 @@ fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
 					ui.add(egui::DragValue::new(&mut vert.height));
 					ui.end_row();
 				}
+				*/
 			});
 		});
+	}
+	
+	if let Some(Node::MetaString(string_node)) = <dyn Any>::downcast_mut::<Node>(thing)
+		&& let Some(data_block) = &mut string_node.data_block {
+		let text = String::from_utf8_lossy(&data_block.data.get());
+		ui.label(format!("text: {:?}", text));
 	}
 }
 

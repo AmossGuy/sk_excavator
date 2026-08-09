@@ -2,7 +2,6 @@ use super::{def_live as live, def_raw as raw};
 
 use hecs::{Entity, World};
 use hecs_hierarchy::Hierarchy;
-use std::borrow::Cow;
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
@@ -136,21 +135,27 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				data_pointer: PLACEHOLDER_POINTER,
 			};
 			let data_block = node_live.data_block.clone();
-			saver.deferred_blocks.push(DeferredBlock::Texture {
-				reser, node_raw, data_block,
+			saver.deferred_blocks.push(DeferredBlock {
+				data_block,
+				node: DeferredBlockNode::Texture {
+					node_raw, reser,
+				},
 			});
 		},
 		live::Node::Vertex(node_live) => {
 			let reser = saver.reserve::<raw::NodeVertex>();
-			let vert_count = node_live.data_block.as_ref().map(|b| b.data.len()).unwrap_or(0);
+			let vert_count = node_live.data_block.as_ref().map(|b| b.data.get().len()).unwrap_or(0);
 			let node_raw = raw::NodeVertex {
 				vert_count: (vert_count as u32).into(),
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
 			let data_block = node_live.data_block.clone();
-			saver.deferred_blocks.push(DeferredBlock::Vertex {
-				reser, node_raw, data_block,
+			saver.deferred_blocks.push(DeferredBlock {
+				data_block,
+				node: DeferredBlockNode::Vertex {
+					node_raw, reser,
+				},
 			});
 		},
 		live::Node::Meta => {},
@@ -236,47 +241,18 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 	Ok(node_component.kind())
 }
 
-fn save_vertex_datablock(verts: &[live::VertexBodyEntry]) -> Vec<u8> {
-	let mut output = Vec::new();
-	for vert_live in verts {
-		output.extend(raw::VertexBodyEntry {
-			position_x: vert_live.position_x.into(),
-			position_y: vert_live.position_y.into(),
-			texture_x: vert_live.texture_x.into(),
-			texture_y: vert_live.texture_y.into(),
-			width: vert_live.width.into(),
-			height: vert_live.height.into(),
-		}.as_bytes())
-	}
-	output
-}
-
 fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 	fn actual_block_save(saver: &mut Saver<'_>, entry: &DeferredBlock) -> Option<usize> {
-		let (flags, data): (u32, Cow<'_, [u8]>) = match entry {
-			DeferredBlock::Texture { data_block, .. } => {
-				match data_block {
-					Some(data_block) => (data_block.flags, Cow::from(&data_block.data)),
-					None => return None,
-				}
-			},
-			DeferredBlock::Vertex { data_block, .. } => {
-				match data_block {
-					Some(data_block) => {
-						let bytes: Vec<u8> = save_vertex_datablock(&data_block.data);
-						(data_block.flags, Cow::from(bytes))
-					},
-					None => return None,
-				}
-			},
-		};
+		let data_block = entry.data_block.as_ref()?;
+		let flags = data_block.flags;
+		let data = *data_block.data.get();
 		
 		let datablock_pointer = saver.output.len();
 		saver.push(raw::DataBlockHeader {
 			data_size: (data.len() as u32).into(),
 			flags: flags.into(),
 		});
-		saver.output.extend(&*data);
+		saver.output.extend(data);
 		saver.pad_to_alignment(8);
 		
 		Some(datablock_pointer)
@@ -287,12 +263,12 @@ fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 			continue;
 		};
 		
-		match entry {
-			DeferredBlock::Texture { reser, mut node_raw, .. } => {
+		match entry.node {
+			DeferredBlockNode::Texture { reser, mut node_raw, .. } => {
 				node_raw.data_pointer = U64::new(datablock_pointer as u64);
 				reser.write(&mut saver.output, node_raw);
 			},
-			DeferredBlock::Vertex { reser, mut node_raw, .. } => {
+			DeferredBlockNode::Vertex { reser, mut node_raw, .. } => {
 				node_raw.data_pointer = U64::new(datablock_pointer as u64);
 				reser.write(&mut saver.output, node_raw);
 			},
@@ -352,15 +328,18 @@ impl<T: FromBytes + IntoBytes + KnownLayout> Reservation<T> {
 	}
 }
 
-enum DeferredBlock {
+struct DeferredBlock {
+	data_block: Option<live::DataBlock>,
+	node: DeferredBlockNode,
+}
+
+enum DeferredBlockNode {
 	Texture {
 		reser: Reservation<raw::NodeTexture>,
 		node_raw: raw::NodeTexture,
-		data_block: Option<live::DataBlock<Vec<u8>>>,
 	},
 	Vertex {
 		reser: Reservation<raw::NodeVertex>,
 		node_raw: raw::NodeVertex,
-		data_block: Option<live::DataBlock<Vec<live::VertexBodyEntry>>>,
 	},
 }
