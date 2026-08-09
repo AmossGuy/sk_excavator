@@ -322,9 +322,9 @@ impl<T> Reservation<T> {
 
 impl<T: FromBytes + IntoBytes + KnownLayout> Reservation<T> {
 	pub fn write(self, data: &mut [u8], value: T) {
-		let offset_data = &mut data.get(self.location..)
+		let offset_data = data.get_mut(self.location..)
 			.expect("reservation should be within the bounds of the data");
-		let (destination, _) = T::mut_from_prefix()
+		let (destination, _) = T::mut_from_prefix(offset_data)
 			.expect("reservation should be within the bounds of the data");
 		*destination = value;
 	}
