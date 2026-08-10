@@ -144,9 +144,8 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 		},
 		live::Node::Vertex(node_live) => {
 			let reser = saver.reserve::<raw::NodeVertex>();
-			let vert_count = node_live.data_block.as_ref().map(|b| b.data.get().len()).unwrap_or(0);
 			let node_raw = raw::NodeVertex {
-				vert_count: (vert_count as u32).into(),
+				vert_count: node_live.vert_count.into(),
 				flags: node_live.flags.into(),
 				data_pointer: PLACEHOLDER_POINTER,
 			};
@@ -194,15 +193,31 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 			});
 		},
 		live::Node::MetaString(node_live) => {
-			saver.push(raw::NodeMetaString {
+			let reser = saver.reserve::<raw::NodeMetaString>();
+			let node_raw = raw::NodeMetaString {
 				string_length: node_live.string_length.into(),
 				padding: node_live.padding.into(),
 				string_offset: PLACEHOLDER_POINTER,
+			};
+			let data_block = node_live.data_block.clone();
+			saver.deferred_blocks.push(DeferredBlock {
+				data_block,
+				node: DeferredBlockNode::MetaString {
+					node_raw, reser,
+				},
 			});
 		},
-		live::Node::MetaTable(_node_live) => {
-			saver.push(raw::NodeMetaTable {
+		live::Node::MetaTable(node_live) => {
+			let reser = saver.reserve::<raw::NodeMetaTable>();
+			let node_raw = raw::NodeMetaTable {
 				hashname_pointer: PLACEHOLDER_POINTER,
+			};
+			let data_block = node_live.data_block.clone();
+			saver.deferred_blocks.push(DeferredBlock {
+				data_block,
+				node: DeferredBlockNode::MetaTable {
+					node_raw, reser,
+				},
 			});
 		},
 		live::Node::Frame(node_live) => {
@@ -226,12 +241,20 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 			});
 		},
 		live::Node::Animation(node_live) => {
-			saver.push(raw::NodeAnimation {
+			let reser = saver.reserve::<raw::NodeAnimation>();
+			let node_raw = raw::NodeAnimation {
 				sequence_count: node_live.sequence_count.into(),
 				frame_count: node_live.frame_count.into(),
 				single_texture: node_live.single_texture.into(),
 				palette_index: node_live.palette_index.into(),
 				hashname_pointer: PLACEHOLDER_POINTER,
+			};
+			let data_block = node_live.data_block.clone();
+			saver.deferred_blocks.push(DeferredBlock {
+				data_block,
+				node: DeferredBlockNode::Animation {
+					node_raw, reser,
+				},
 			});
 		},
 		live::Node::UnknownKind(kind) => {
@@ -270,6 +293,18 @@ fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 			},
 			DeferredBlockNode::Vertex { reser, mut node_raw, .. } => {
 				node_raw.data_pointer = U64::new(datablock_pointer as u64);
+				reser.write(&mut saver.output, node_raw);
+			},
+			DeferredBlockNode::MetaString { reser, mut node_raw, .. } => {
+				node_raw.string_offset = U64::new(datablock_pointer as u64);
+				reser.write(&mut saver.output, node_raw);
+			},
+			DeferredBlockNode::MetaTable { reser, mut node_raw, .. } => {
+				node_raw.hashname_pointer = U64::new(datablock_pointer as u64);
+				reser.write(&mut saver.output, node_raw);
+			},
+			DeferredBlockNode::Animation { reser, mut node_raw, .. } => {
+				node_raw.hashname_pointer = U64::new(datablock_pointer as u64);
 				reser.write(&mut saver.output, node_raw);
 			},
 		}
@@ -343,5 +378,17 @@ enum DeferredBlockNode {
 	Vertex {
 		reser: Reservation<raw::NodeVertex>,
 		node_raw: raw::NodeVertex,
+	},
+	MetaString {
+		reser: Reservation<raw::NodeMetaString>,
+		node_raw: raw::NodeMetaString,
+	},
+	MetaTable {
+		reser: Reservation<raw::NodeMetaTable>,
+		node_raw: raw::NodeMetaTable,
+	},
+	Animation {
+		reser: Reservation<raw::NodeAnimation>,
+		node_raw: raw::NodeAnimation,
 	},
 }

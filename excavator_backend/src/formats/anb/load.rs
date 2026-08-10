@@ -82,6 +82,7 @@ fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u6
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Vertex(live::NodeVertex {
+				vert_count: node_raw.vert_count.get(),
 				flags: node_raw.flags.get(),
 				data_block,
 			})
@@ -141,9 +142,12 @@ fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u6
 			})
 		},
 		9 => {
-			let (_node_raw, _) = raw::NodeMetaTable::ref_from_prefix(followup)
+			let (node_raw, _) = raw::NodeMetaTable::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
+			
 			live::Node::MetaTable(live::NodeMetaTable {
+				data_block
 			})
 		},
 		10 => {
@@ -175,11 +179,14 @@ fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u6
 		13 => {
 			let (node_raw, _) = raw::NodeAnimation::ref_from_prefix(followup)
 				.map_err(|e| anyhow::anyhow!("{}", e))?;
+			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
+			
 			live::Node::Animation(live::NodeAnimation {
 				sequence_count: node_raw.sequence_count.get(),
 				frame_count: node_raw.frame_count.get(),
 				single_texture: node_raw.single_texture.get(),
 				palette_index: node_raw.palette_index.get(),
+				data_block,
 			})
 		},
 		_ => live::Node::UnknownKind(kind),

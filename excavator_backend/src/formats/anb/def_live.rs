@@ -64,6 +64,7 @@ pub struct NodeTexture {
 
 #[derive(EditableData, Default)]
 pub struct NodeVertex {
+	pub vert_count: u32,
 	pub flags: u32,
 	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
@@ -113,6 +114,8 @@ pub struct NodeMetaString {
 
 #[derive(EditableData, Default)]
 pub struct NodeMetaTable {
+	#[edit(skip)]
+	pub data_block: Option<DataBlock>,
 }
 
 #[derive(EditableData, Default)]
@@ -141,6 +144,8 @@ pub struct NodeAnimation {
 	pub frame_count: u32,
 	pub single_texture: u32,
 	pub palette_index: u32,
+	#[edit(skip)]
+	pub data_block: Option<DataBlock>,
 }
 
 #[derive(EditableData, Clone, Default)]
