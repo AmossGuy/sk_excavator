@@ -3,8 +3,7 @@ use std::any::Any;
 use std::io::{BufRead, Seek};
 use std::ops::DerefMut;
 
-use hecs::{Entity, World};
-use hecs_hierarchy::{Hierarchy, HierarchyMut};
+use bevy_ecs::{component::Component, entity::Entity, hierarchy::Children, world::{EntityWorldMut, World}};
 
 use excavator_backend::formats::{
 	DropdownRenderer, EditableData, EditableDataRenderer,
@@ -54,45 +53,39 @@ impl FileView for AnbFileView {
 		
 		ui.separator();
 		
-		let mut commands = hecs::CommandBuffer::new();
 		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-			entity_tree_ui(ui, &mut self.ecs_world, self.root, &mut commands);
+			entity_tree_ui(ui, &mut self.ecs_world.entity_mut(self.root));
 		});
-		commands.run_on(&mut self.ecs_world);
 		
 		FileViewEffect::default()
 	}
 }
 
-fn entity_tree_ui(ui: &mut egui::Ui, world: &mut World, root: Entity, commands: &mut hecs::CommandBuffer) {
-	entity_ui(ui, world, root, commands);
+fn entity_tree_ui(ui: &mut egui::Ui, root: &mut EntityWorldMut<'_>) {
+	entity_ui(ui, root);
 	
 	let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
 		left: 20,
 		..egui::Margin::ZERO
 	});
 	
-	// I think I might need to futz with my hecs_hierarchy fork more to avoid this collect
-	let children = world.children::<()>(root).collect::<Vec<_>>();
+	let children = root.get::<Children>()
+		.map(|c| &c[..]).unwrap_or(&[]).to_vec();
 	indent_frame.show(ui, |ui| {
 		for (i, child) in children.into_iter().enumerate() {
 			ui.push_id(i, |ui| {
-				entity_tree_ui(ui, world, child, commands);
+				root.world_scope(|world| {
+					let mut child_mut = world.get_entity_mut(child).unwrap();
+					entity_tree_ui(ui, &mut child_mut);
+				})
 			});
 		}
 	});
 }
 
-fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity, commands: &mut hecs::CommandBuffer) {
-	if !world.satisfies::<&CachedSize>(entity) {
-		world.insert(entity, (CachedSize::default(),)).unwrap();
-	}
-	
-	let entity_ref = world.entity(entity)
-		.expect("entity should be spawned");
-	
-	let mut cached_size = entity_ref.get::<&mut CachedSize>()
-		.expect("we've just ensured the presence of CachedSize");
+fn entity_ui(ui: &mut egui::Ui, entity: &mut EntityWorldMut<'_>) {
+	let mut cached_size_entry = entity.entry::<CachedSize>().or_default();
+	let cached_size = cached_size_entry.get_mut();
 	
 	let next_widget_position = ui.next_widget_position();
 	let inner_will_be_visible = !cached_size.inner_size.is_finite() || ui.is_rect_visible(
@@ -100,31 +93,37 @@ fn entity_ui(ui: &mut egui::Ui, world: &mut World, entity: Entity, commands: &mu
 	);
 	
 	if inner_will_be_visible {
-		let response = entity_ui_inner(ui, entity_ref, commands);
-		cached_size.inner_size = response.rect.size();
+		drop(cached_size_entry);
+		
+		let response = entity_ui_inner(ui, entity);
+		
+		let mut cached_size_entry = entity.entry::<CachedSize>().or_default();
+		cached_size_entry.get_mut().inner_size = response.rect.size();
 	} else {
 		ui.allocate_space(cached_size.inner_size);
 	}
 }
 
-fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands: &mut hecs::CommandBuffer) -> egui::Response {
+fn entity_ui_inner(ui: &mut egui::Ui, entity: &mut EntityWorldMut<'_>) -> egui::Response {
 	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
 		ui.horizontal(|ui| {
 			ui.vertical(|ui| {
-				if let Some(mut header_component) = entity_ref.get::<&mut Header>() {
+				if let Some(mut header_component) = entity.get_mut::<Header>() {
 					struct_ui(ui, header_component.deref_mut());
 				}
-				if let Some(mut node_component) = entity_ref.get::<&mut Node>() {
+				if let Some(mut node_component) = entity.get_mut::<Node>() {
 					struct_ui(ui, node_component.deref_mut());
+				}
+				if let Some(node_component) = entity.get::<Node>() {
 					if let Node::Texture(texture_node) = &*node_component {
-						if let Some(loaded_texture) = entity_ref.get::<&LoadedTexture>() {
+						if let Some(loaded_texture) = entity.get::<LoadedTexture>() {
 							let image = egui::Image::new(&*loaded_texture).max_height(100.);
 							ui.add(image);
 						} else {
 							if let Some(data_block) = &texture_node.data_block {
 								let size = [texture_node.width as usize, texture_node.height as usize];
 								let texture = load_texture(size, &data_block.data.get(), ui.ctx());
-								commands.insert_one(entity_ref.entity(), texture);
+								entity.insert(texture);
 							}
 						}
 					}
@@ -134,16 +133,11 @@ fn entity_ui_inner(ui: &mut egui::Ui, entity_ref: hecs::EntityRef<'_>, commands:
 			ui.separator();
 			
 			ui.vertical(|ui| {
-				let entity = entity_ref.entity();
 				if ui.button("Delete").clicked() {
-					commands.queue(move |world| {
-						world.despawn_all::<()>(entity);
-					});
+					entity.clear(); // i am once again doing sloppy stuff because i know stuff's gonna need refactoring anyway
 				}
 				if ui.button("Add new child").clicked() {
-					commands.queue(move |world| {
-						let _ = world.attach_new::<(), _>(entity, (Node::default(),));
-					})
+					entity.with_child(Node::default());
 				}
 			});
 		});
@@ -255,9 +249,9 @@ impl DropdownRenderer for EguiDropdownRenderer<'_> {
 	}
 }
 
+#[derive(Component)]
 struct CachedSize {
-	// i'll try the outer culling again later. i'm pondering if switching the editing to commands instead of mut will help with that
-	// or perhaps ditching the tree iteration entirely for something with binary search... we'll see when i get around to it
+	// i'll try the outer culling again later
 	// outer_size: egui::Vec2,
 	inner_size: egui::Vec2,
 }
@@ -269,6 +263,7 @@ impl Default for CachedSize {
 	}
 }
 
+#[derive(Component)]
 struct LoadedTexture {
 	handle: egui::TextureHandle,
 }

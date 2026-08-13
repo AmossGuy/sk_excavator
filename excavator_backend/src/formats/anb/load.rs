@@ -1,7 +1,6 @@
 use super::{def_live as live, def_raw as raw, def_live::ArcBytes};
 
-use hecs::{Entity, World};
-use hecs_hierarchy::HierarchyMut;
+use bevy_ecs::{entity::Entity, world::{EntityWorldMut, World}};
 use zerocopy::{FromBytes, LE, U64};
 
 pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
@@ -10,17 +9,17 @@ pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<En
 
 fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let header_component = parse_header(bytes)?;
-	let header_entity = world.spawn((header_component,));
+	let mut header_entity = world.spawn(header_component);
 	
 	let (root_component, root_child_offset, root_child_count) = parse_node(bytes, std::mem::size_of::<raw::Header>())?;
-	let root_entity = world.attach_new::<(), _>(header_entity, (root_component,))?;
+	let root_entity = header_entity.with_child(root_component);
 	
-	load_node_list(bytes, world, root_entity, root_child_offset, root_child_count)?;
+	load_node_list(bytes, root_entity, root_child_offset, root_child_count)?;
 	
-	Ok(header_entity)
+	Ok(header_entity.id())
 }
 
-fn load_node_list(bytes: &ArcBytes, world: &mut World, parent: Entity, offset: u64, length: u32) -> anyhow::Result<()> {
+fn load_node_list(bytes: &ArcBytes, parent: &mut EntityWorldMut<'_>, offset: u64, length: u32) -> anyhow::Result<()> {
 	let offset_bytes = bytes.get().get(offset as usize..)
 		.ok_or_else(|| anyhow::anyhow!("node list out of bounds"))?;
 	let (slice, _) = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize)
@@ -29,9 +28,9 @@ fn load_node_list(bytes: &ArcBytes, world: &mut World, parent: Entity, offset: u
 	for pointer in slice {
 		let pointer = pointer.get();
 		let (node_component, children_offset, children_count) = parse_node(bytes, pointer as usize)?;
-		let node_entity = world.attach_new::<(), _>(parent, (node_component,))?;
+		let node_entity = parent.with_child(node_component);
 		
-		load_node_list(bytes, world, node_entity, children_offset, children_count)?;
+		load_node_list(bytes, node_entity, children_offset, children_count)?;
 	}
 	
 	Ok(())

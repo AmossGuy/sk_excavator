@@ -23,8 +23,7 @@ zerocopy = { version = "0.8.56", features = ["std"] }
 zerocopy-derive = "0.8.56"
 
 # Big and handy things
-hecs = "0.11.1"
-hecs-hierarchy = { git = "https://github.com/AmossGuy/hecs-hierarchy", rev = "f457667" } # Upstream hasn't been updated to hecs 0.11.0, so I cobbled together a patch myself.
+bevy_ecs = { version = "0.19.1", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde = "1.0.229"
 

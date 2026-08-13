@@ -1,6 +1,7 @@
 use excavator_backend_macros::EditableData;
+use bevy_ecs::component::Component;
 
-#[derive(EditableData)]
+#[derive(EditableData, Component)]
 pub struct Header {
 	pub fixup: u32,
 	pub version: u32,
@@ -9,7 +10,7 @@ pub struct Header {
 	pub padding_c: u32,
 }
 
-#[derive(EditableData, Default)]
+#[derive(EditableData, Component, Default)]
 pub enum Node {
 	#[default]
 	Base,

@@ -1,7 +1,6 @@
 use super::{def_live as live, def_raw as raw};
 
-use hecs::{Entity, World};
-use hecs_hierarchy::Hierarchy;
+use bevy_ecs::{entity::Entity, hierarchy::Children, world::World};
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
@@ -9,10 +8,11 @@ pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec
 	let mut saver = Saver::new(world);
 	
 	let header_reser = saver.reserve::<raw::Header>();
-	let header_component = world.get::<&live::Header>(root_entity)?;
+	let header_component = world.get::<live::Header>(root_entity)
+		.expect("root entity should exist and have header component");
 	header_reser.write(&mut saver.output, save_header(&header_component));
 	
-	let node_entity = saver.world.get::<&hecs_hierarchy::Parent<()>>(root_entity)?.first_child(saver.world)?;
+	let node_entity = saver.world.get::<Children>(root_entity).unwrap()[0];
 	save_node(&mut saver, node_entity, true)?;
 	
 	save_queued_blocks(&mut saver)?;
@@ -43,7 +43,8 @@ fn save_node(saver: &mut Saver<'_>, node_entity: Entity, alt: bool) -> anyhow::R
 
 fn save_children_nodes(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = saver.world.children::<()>(parent);
+	let children_iter = saver.world.get::<Children>(parent)
+		.map(|c| &c[..]).unwrap_or(&[]).into_iter().copied();
 	
 	// step two: save each child, recursing for the children's children
 	let mut child_pointers = Vec::<usize>::new();
@@ -68,7 +69,8 @@ fn save_children_nodes(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<
 // the only difference this has from save_children_nodes is that it writes things in a different order, to imitate a quirk in the vanilla files. it just takes some finagling to do that
 fn save_children_nodes_alt(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = saver.world.children::<()>(parent);
+	let children_iter = saver.world.get::<Children>(parent)
+		.map(|c| &c[..]).unwrap_or(&[]).into_iter().copied();
 	
 	// step two alt: save each child, but save their own children for later
 	let mut child_things = Vec::<(Reservation<raw::NodeCommon>, Entity, u32)>::new();
@@ -122,7 +124,8 @@ fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) 
 }
 
 fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::Result<u32> {
-	let node_component = saver.world.get::<&live::Node>(node_entity)?;
+	let node_component = saver.world.get::<live::Node>(node_entity)
+		.expect("entity should exist and have node component");
 	match &*node_component {
 		live::Node::Base => {},
 		live::Node::Texture(node_live) => {

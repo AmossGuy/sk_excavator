@@ -12,8 +12,7 @@ bstr.workspace = true
 yoke.workspace = true
 
 # Big and handy things
-hecs.workspace = true
-hecs-hierarchy.workspace = true
+bevy_ecs.workspace = true
 image.workspace = true
 serde.workspace = true
 
