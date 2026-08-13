@@ -1,6 +1,6 @@
 use super::{def_live as live, def_raw as raw, def_live::ArcBytes};
 
-use bevy_ecs::{entity::Entity, world::{EntityWorldMut, World}};
+use bevy_ecs::{entity::Entity, hierarchy::ChildSpawner, world::World};
 use zerocopy::{FromBytes, LE, U64};
 
 pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
@@ -12,14 +12,19 @@ fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let mut header_entity = world.spawn(header_component);
 	
 	let (root_component, root_child_offset, root_child_count) = parse_node(bytes, std::mem::size_of::<raw::Header>())?;
-	let root_entity = header_entity.with_child(root_component);
-	
-	load_node_list(bytes, root_entity, root_child_offset, root_child_count)?;
+	header_entity.with_children(|spawner| {
+		let mut root_entity = spawner.spawn(root_component);
+		
+		root_entity.with_children(|spawner| {
+			// TODO: i want to make parsing continue on error, saving the error on the entity for inspection
+			let _ = load_node_list(bytes, spawner, root_child_offset, root_child_count);
+		});
+	});
 	
 	Ok(header_entity.id())
 }
 
-fn load_node_list(bytes: &ArcBytes, parent: &mut EntityWorldMut<'_>, offset: u64, length: u32) -> anyhow::Result<()> {
+fn load_node_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, offset: u64, length: u32) -> anyhow::Result<()> {
 	let offset_bytes = bytes.get().get(offset as usize..)
 		.ok_or_else(|| anyhow::anyhow!("node list out of bounds"))?;
 	let (slice, _) = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize)
@@ -28,9 +33,12 @@ fn load_node_list(bytes: &ArcBytes, parent: &mut EntityWorldMut<'_>, offset: u64
 	for pointer in slice {
 		let pointer = pointer.get();
 		let (node_component, children_offset, children_count) = parse_node(bytes, pointer as usize)?;
-		let node_entity = parent.with_child(node_component);
+		let mut node_entity = spawner.spawn(node_component);
 		
-		load_node_list(bytes, node_entity, children_offset, children_count)?;
+		node_entity.with_children(|spawner| {
+			// TODO: i want to make parsing continue on error, saving the error on the entity for inspection
+			let _ = load_node_list(bytes, spawner, children_offset, children_count);
+		});
 	}
 	
 	Ok(())
