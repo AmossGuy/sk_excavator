@@ -77,6 +77,8 @@ impl Window for SettingsWindow {
 					});
 				},
 				SettingsTab::Egui => {
+					ui.label("The settings below are provided by egui, the library used for Excavator’s UI. Some settings may be pointless, overly technical, or cause issues.");
+					
 					egui::ScrollArea::vertical().show(ui, |ui| {
 						ui.ctx().clone().settings_ui(ui);
 					});
