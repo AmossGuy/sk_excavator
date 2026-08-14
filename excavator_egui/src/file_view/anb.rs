@@ -1,10 +1,16 @@
 use crate::file_view::{FileView, FileViewEffect};
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
+use crate::file_view::common::tree::EguiDataRenderer;
 
 use std::io::{BufRead, Seek};
 
-use bevy_ecs::{component::Component, entity::Entity, world::World};
+use bevy_ecs::{
+	component::Component, entity::Entity, system::Commands,
+	world::{EntityRef, World},
+};
 
+use excavator_backend::formats::EditableData;
+use excavator_backend::formats::anb::def_live as anb;
 use excavator_backend::formats::wflz;
 
 pub struct AnbFileView {
@@ -57,7 +63,35 @@ impl FileView for AnbFileView {
 	}
 }
 
-const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new();
+const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new()
+	.entity_ui(entity_ui);
+
+fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) {
+	match entity.components::<(Option<&anb::Header>, Option<&anb::Node>)>() {
+		(Some(header), None) => {
+			// i want to make writing edited fields done via commands, but i haven't updated this renderer concept for that just yet; the clone is a stopgap for until that's sorted out
+			let mut header_clone = header.clone();
+			
+			egui::Grid::new("header fields").show(ui, |ui| {
+				let renderer = EguiDataRenderer { ui };
+				header_clone.display(renderer);
+			});
+		},
+		(None, Some(node)) => {
+			// ditto
+			let mut node_clone = node.clone();
+			
+			egui::Grid::new("node fields").show(ui, |ui| {
+				let renderer = EguiDataRenderer { ui };
+				node_clone.display(renderer);
+			});
+		},
+		_ => {
+			let error_fg_color = ui.visuals().error_fg_color;
+			ui.colored_label(error_fg_color, "Entity has an unexpected component setup");
+		},
+	}
+}
 
 fn load_texture(size: [usize; 2], wflz_data: &[u8], ctx: &egui::Context) -> LoadedTexture {
 	let decompressed_data = wflz::decompress(&mut std::io::Cursor::new(wflz_data)).unwrap();

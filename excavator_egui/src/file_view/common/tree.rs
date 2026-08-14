@@ -14,6 +14,11 @@ impl EntityTreeCallbacks {
 			entity_ui: |_, _, _| {},
 		}
 	}
+	
+	pub const fn entity_ui(mut self, f: fn(&mut egui::Ui, EntityRef<'_>, &mut Commands)) -> Self {
+		self.entity_ui = f;
+		self
+	}
 }
 
 pub fn entity_tree_ui(
@@ -98,8 +103,8 @@ fn is_size_visible(ui: &egui::Ui, size: egui::Vec2) -> bool {
 	)
 }
 
-struct EguiDataRenderer<'a> {
-	ui: &'a mut egui::Ui,
+pub struct EguiDataRenderer<'a> {
+	pub ui: &'a mut egui::Ui,
 }
 
 impl EditableDataRenderer for EguiDataRenderer<'_> {
@@ -138,8 +143,8 @@ impl EditableDataRenderer for EguiDataRenderer<'_> {
 	}
 }
 
-struct EguiDropdownRenderer<'a> {
-	ui: &'a mut egui::Ui,
+pub struct EguiDropdownRenderer<'a> {
+	pub ui: &'a mut egui::Ui,
 }
 
 impl DropdownRenderer for EguiDropdownRenderer<'_> {
