@@ -1,4 +1,5 @@
-use super::{def_live as live, def_raw as raw, def_live::ArcBytes};
+use crate::formats::ArcBytes;
+use super::{def_live as live, def_raw as raw};
 
 use bevy_ecs::{entity::Entity, hierarchy::ChildSpawner, world::World};
 use zerocopy::{FromBytes, LE, U64};

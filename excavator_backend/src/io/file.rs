@@ -21,7 +21,7 @@ impl FileSource {
 				Ok(take)
 			},
 			Self::Pak { outer_path, inner_path } => {
-				crate::formats::pak::open_pak_entry(outer_path.clone(), inner_path.clone())
+				crate::formats::pak_old::open_pak_entry(outer_path.clone(), inner_path.clone())
 			},
 		}
 	}

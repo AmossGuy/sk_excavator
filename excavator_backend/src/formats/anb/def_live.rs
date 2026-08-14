@@ -1,3 +1,4 @@
+use crate::formats::ArcBytes;
 use excavator_backend_macros::EditableData;
 use bevy_ecs::component::Component;
 
@@ -158,10 +159,6 @@ pub struct VertexBodyEntry {
 	pub width: u16,
 	pub height: u16,
 }
-
-use std::sync::Arc;
-use yoke::Yoke;
-pub type ArcBytes = Yoke<&'static [u8], Arc<Vec<u8>>>;
 
 #[derive(Clone)]
 pub struct DataBlock {

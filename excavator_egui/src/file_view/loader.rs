@@ -23,6 +23,12 @@ impl FileViewLoader {
 	pub fn from_file_source(source: FileSource, ctx: &egui::Context) -> Option<Self> {
 		let ctx = ctx.clone();
 		match source.file_format() {
+			Some(FileFormat::Pak) => Some(Self::with_load_fn(move || {
+				let file = source.open()?;
+				let buf = std::io::BufReader::new(file);
+				
+				Ok(Box::new(super::pak::PakFileView::load(buf, &ctx)))
+			})),
 			Some(FileFormat::Stb | FileFormat::Stm) => Some(Self::with_load_fn(move || {
 				let file = source.open()?;
 				let buf = std::io::BufReader::new(file);

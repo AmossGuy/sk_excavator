@@ -3,7 +3,7 @@ use rfd::FileDialog;
 
 use bstr::{BString, ByteSlice};
 use std::path::PathBuf;
-use excavator_backend::formats::pak::do_single_pak_extract;
+use excavator_backend::formats::pak_old::do_single_pak_extract;
 
 pub fn show_game_path_dialog(ctx: &egui::Context, excavator: &ExcavatorContext) {
 	let dialog = FileDialog::new()

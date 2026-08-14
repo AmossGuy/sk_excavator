@@ -204,7 +204,7 @@ impl ThreadRequest for LoadRequest {
 			Self::Pak { path, target } => {
 				let result = (|| {
 					use std::{fs::File, io::BufReader};
-					use crate::formats::pak::PakParser;
+					use crate::formats::pak_old::PakParser;
 					
 					let file = File::open(&path)?;
 					let bufreader = BufReader::new(file);

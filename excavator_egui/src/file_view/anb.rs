@@ -1,15 +1,11 @@
-use super::{FileView, FileViewEffect};
-use std::any::Any;
+use crate::file_view::{FileView, FileViewEffect};
+use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
+
 use std::io::{BufRead, Seek};
-use std::ops::DerefMut;
 
-use bevy_ecs::{component::Component, entity::Entity, hierarchy::Children, world::{EntityWorldMut, World}};
+use bevy_ecs::{component::Component, entity::Entity, world::World};
 
-use excavator_backend::formats::{
-	DropdownRenderer, EditableData, EditableDataRenderer,
-	anb::def_live::{Header, Node},
-	wflz,
-};
+use excavator_backend::formats::wflz;
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -54,213 +50,20 @@ impl FileView for AnbFileView {
 		ui.separator();
 		
 		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-			entity_tree_ui(ui, &mut self.ecs_world.entity_mut(self.root));
+			entity_tree_ui(ui, &mut self.ecs_world, self.root, &TREE_CALLBACKS);
 		});
 		
 		FileViewEffect::default()
 	}
 }
 
-fn entity_tree_ui(ui: &mut egui::Ui, root: &mut EntityWorldMut<'_>) {
-	entity_ui(ui, root);
-	
-	let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
-		left: 20,
-		..egui::Margin::ZERO
-	});
-	
-	let children = root.get::<Children>()
-		.map(|c| &c[..]).unwrap_or(&[]).to_vec();
-	indent_frame.show(ui, |ui| {
-		for (i, child) in children.into_iter().enumerate() {
-			ui.push_id(i, |ui| {
-				root.world_scope(|world| {
-					let mut child_mut = world.get_entity_mut(child).unwrap();
-					entity_tree_ui(ui, &mut child_mut);
-				})
-			});
-		}
-	});
-}
-
-fn entity_ui(ui: &mut egui::Ui, entity: &mut EntityWorldMut<'_>) {
-	let mut cached_size_entry = entity.entry::<CachedSize>().or_default();
-	let cached_size = cached_size_entry.get_mut();
-	
-	let next_widget_position = ui.next_widget_position();
-	let inner_will_be_visible = !cached_size.inner_size.is_finite() || ui.is_rect_visible(
-		egui::Rect::from_min_size(next_widget_position, cached_size.inner_size),
-	);
-	
-	if inner_will_be_visible {
-		drop(cached_size_entry);
-		
-		let response = entity_ui_inner(ui, entity);
-		
-		let mut cached_size_entry = entity.entry::<CachedSize>().or_default();
-		cached_size_entry.get_mut().inner_size = response.rect.size();
-	} else {
-		ui.allocate_space(cached_size.inner_size);
-	}
-}
-
-fn entity_ui_inner(ui: &mut egui::Ui, entity: &mut EntityWorldMut<'_>) -> egui::Response {
-	egui::containers::Frame::group(ui.style()).show(ui, |ui| {
-		ui.horizontal(|ui| {
-			ui.vertical(|ui| {
-				if let Some(mut header_component) = entity.get_mut::<Header>() {
-					struct_ui(ui, header_component.deref_mut());
-				}
-				if let Some(mut node_component) = entity.get_mut::<Node>() {
-					struct_ui(ui, node_component.deref_mut());
-				}
-				if let Some(node_component) = entity.get::<Node>() {
-					if let Node::Texture(texture_node) = &*node_component {
-						if let Some(loaded_texture) = entity.get::<LoadedTexture>() {
-							let image = egui::Image::new(&*loaded_texture).max_height(100.);
-							ui.add(image);
-						} else {
-							if let Some(data_block) = &texture_node.data_block {
-								let size = [texture_node.width as usize, texture_node.height as usize];
-								let texture = load_texture(size, &data_block.data.get(), ui.ctx());
-								entity.insert(texture);
-							}
-						}
-					}
-				}
-			});
-			
-			ui.separator();
-			
-			ui.vertical(|ui| {
-				if ui.button("Delete").clicked() {
-					entity.clear(); // i am once again doing sloppy stuff because i know stuff's gonna need refactoring anyway
-				}
-				if ui.button("Add new child").clicked() {
-					entity.with_child(Node::default());
-				}
-			});
-		});
-	}).response
-}
-
-fn struct_ui(ui: &mut egui::Ui, thing: &mut (impl EditableData + Any)) {
-	let struct_name = thing.struct_name();
-	ui.heading(struct_name);
-	
-	egui::Grid::new(struct_name).show(ui, |ui| {
-		thing.display(EguiDataRenderer { ui });
-	});
-	
-	if let Some(Node::Vertex(vertex_node)) = <dyn Any>::downcast_mut::<Node>(thing) 
-		&& let Some(data_block) = &mut vertex_node.data_block
-	{
-		ui.collapsing("vertex table", |ui| {
-			egui::Grid::new("vertex grid").show(ui, |ui| {
-				ui.allocate_space(egui::Vec2::ZERO);
-				ui.label("position_x");
-				ui.label("position_y");
-				ui.label("texture_x");
-				ui.label("texture_y");
-				ui.label("width");
-				ui.label("height");
-				ui.end_row();
-				
-				let _ = data_block;
-				ui.label("todo: reimplement this");
-				/*
-				for (i, vert) in data_block.data.get().iter_mut().enumerate() {
-					ui.label(i.to_string());
-					ui.add(egui::DragValue::new(&mut vert.position_x));
-					ui.add(egui::DragValue::new(&mut vert.position_y));
-					ui.add(egui::DragValue::new(&mut vert.texture_x));
-					ui.add(egui::DragValue::new(&mut vert.texture_y));
-					ui.add(egui::DragValue::new(&mut vert.width));
-					ui.add(egui::DragValue::new(&mut vert.height));
-					ui.end_row();
-				}
-				*/
-			});
-		});
-	}
-	
-	if let Some(Node::MetaString(string_node)) = <dyn Any>::downcast_mut::<Node>(thing)
-		&& let Some(data_block) = &mut string_node.data_block {
-		let text = String::from_utf8_lossy(&data_block.data.get());
-		ui.label(format!("text: {:?}", text));
-	}
-}
+const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new();
 
 fn load_texture(size: [usize; 2], wflz_data: &[u8], ctx: &egui::Context) -> LoadedTexture {
 	let decompressed_data = wflz::decompress(&mut std::io::Cursor::new(wflz_data)).unwrap();
 	let image = egui::ColorImage::from_rgba_unmultiplied(size, &decompressed_data);
 	let handle = ctx.load_texture("anb texture", image, egui::TextureOptions::NEAREST);
 	LoadedTexture { handle }
-}
-
-struct EguiDataRenderer<'a> {
-	ui: &'a mut egui::Ui,
-}
-
-impl EditableDataRenderer for EguiDataRenderer<'_> {
-	type Dropdown<'a> = EguiDropdownRenderer<'a>;
-	
-	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>)) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		egui::ComboBox::from_id_salt(name)
-			.selected_text(selected_text)
-			.show_ui(ui, |ui| {
-				contents(EguiDropdownRenderer { ui })
-			});
-		ui.end_row();
-	}
-	
-	fn field_f32(&mut self, name: &str, value: &mut f32) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-	
-	fn field_u16(&mut self, name: &str, value: &mut u16) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-	
-	fn field_u32(&mut self, name: &str, value: &mut u32) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-}
-
-struct EguiDropdownRenderer<'a> {
-	ui: &'a mut egui::Ui,
-}
-
-impl DropdownRenderer for EguiDropdownRenderer<'_> {
-	fn choice(&mut self, name: &str, selected: bool) -> bool {
-		let ui = &mut self.ui;
-		ui.selectable_label(selected, name).clicked()
-	}
-}
-
-#[derive(Component)]
-struct CachedSize {
-	// i'll try the outer culling again later
-	// outer_size: egui::Vec2,
-	inner_size: egui::Vec2,
-}
-
-impl Default for CachedSize {
-	fn default() -> Self {
-		let s = egui::Vec2::splat(f32::INFINITY);
-		Self { /* outer_size: s, */ inner_size: s }
-	}
 }
 
 #[derive(Component)]

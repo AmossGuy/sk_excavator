@@ -1,6 +1,7 @@
 pub mod anb;
 pub mod ltb;
 pub mod pak;
+pub mod pak_old;
 pub mod st;
 pub mod wflz;
 
@@ -53,6 +54,9 @@ impl FileFormat {
 		}
 	}
 }
+
+// I have no clue where the most fitting place to put this would be
+pub type ArcBytes = yoke::Yoke<&'static [u8], std::sync::Arc<Vec<u8>>>;
 
 pub trait EditableData {
 	fn struct_name(&self) -> &str;
