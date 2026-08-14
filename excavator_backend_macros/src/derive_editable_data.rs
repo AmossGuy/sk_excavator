@@ -16,12 +16,12 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 	let input_ident_string = input_ident.to_string();
 	quote! {
 		#[automatically_derived]
-		impl crate::formats::EditableData for #input_ident {
+		impl crate::formats::common::EditableData for #input_ident {
 			fn struct_name(&self) -> &str {
 				#input_ident_string
 			}
 			
-			fn display(&mut self, mut renderer: impl crate::formats::EditableDataRenderer) {
+			fn display(&mut self, mut renderer: impl crate::formats::common::EditableDataRenderer) {
 				#display_body
 			}
 		}
@@ -54,7 +54,7 @@ fn struct_display_body(struct_data: DataStruct) -> TokenStream {
 			quote! {}
 		} else {
 			quote! {
-				crate::formats::FieldDispatch::dispatch(&mut self.#field, &mut renderer, #field_name);
+				crate::formats::common::FieldDispatch::dispatch(&mut self.#field, &mut renderer, #field_name);
 			}
 		}
 	}).collect()
@@ -103,7 +103,7 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 			let variant_ident = &variant.ident;
 			let display_code = match values.skip {
 				true => quote! {}, // That's right, nothing (again)
-				false => quote! { crate::formats::EditableData::display(value, renderer); },
+				false => quote! { crate::formats::common::EditableData::display(value, renderer); },
 			};
 			quote! {
 				Self::#variant_ident(value) => { #display_code },
@@ -127,7 +127,7 @@ fn enum_display_body(enum_data: DataEnum) -> TokenStream {
 		};
 		
 		renderer.dropdown("enum variant", selected_text, |mut contents| {
-			use crate::formats::DropdownRenderer;
+			use crate::formats::common::DropdownRenderer;
 			#(#choices)*
 		});
 		

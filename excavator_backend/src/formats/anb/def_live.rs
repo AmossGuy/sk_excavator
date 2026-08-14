@@ -1,4 +1,4 @@
-use crate::formats::ArcBytes;
+use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
 use bevy_ecs::component::Component;
 

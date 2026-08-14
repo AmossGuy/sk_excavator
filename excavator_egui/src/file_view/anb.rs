@@ -1,6 +1,6 @@
 use crate::file_view::{FileView, FileViewEffect};
+use crate::file_view::common::editable::EguiDataRenderer;
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
-use crate::file_view::common::tree::EguiDataRenderer;
 
 use std::io::{BufRead, Seek};
 
@@ -9,7 +9,7 @@ use bevy_ecs::{
 	world::{EntityRef, World},
 };
 
-use excavator_backend::formats::EditableData;
+use excavator_backend::formats::common::EditableData;
 use excavator_backend::formats::anb::def_live as anb;
 use excavator_backend::formats::wflz;
 
