@@ -1,7 +1,7 @@
-use excavator_backend_macros::EditableData;
 use bevy_ecs::component::Component;
+use bevy_reflect::Reflect;
 
-#[derive(EditableData, Component)]
+#[derive(Component, Reflect)]
 pub struct Header {
 	pub file_count: u32,
 }

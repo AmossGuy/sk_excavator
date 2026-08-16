@@ -1,8 +1,8 @@
 use crate::formats::common::ArcBytes;
-use excavator_backend_macros::EditableData;
 use bevy_ecs::component::Component;
+use bevy_reflect::Reflect;
 
-#[derive(EditableData, Component, Clone)]
+#[derive(Component, Reflect, Clone)]
 pub struct Header {
 	pub fixup: u32,
 	pub version: u32,
@@ -11,7 +11,7 @@ pub struct Header {
 	pub padding_c: u32,
 }
 
-#[derive(EditableData, Component, Clone, Default)]
+#[derive(Component, Reflect, Clone, Default)]
 pub enum Node {
 	#[default]
 	Base,
@@ -28,7 +28,6 @@ pub enum Node {
 	SequenceFrame(NodeSequenceFrame),
 	Sequence(NodeSequence),
 	Animation(NodeAnimation),
-	#[edit(skip)]
 	UnknownKind(u32),
 }
 
@@ -54,31 +53,29 @@ impl Node {
 	}
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeTexture {
 	pub width: u32,
 	pub height: u32,
 	pub flags: u32,
 	pub padding: u32,
-	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeVertex {
 	pub vert_count: u32,
 	pub flags: u32,
-	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaScalar {
 	pub unk_1: u32,
 	pub unk_2: u32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaPoint {
 	pub x: f32,
 	pub y: f32,
@@ -86,7 +83,7 @@ pub struct NodeMetaPoint {
 	pub padding: u32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaAnchor {
 	pub x: f32,
 	pub y: f32,
@@ -94,7 +91,7 @@ pub struct NodeMetaAnchor {
 	pub angle: f32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaRect {
 	pub center_x: f32,
 	pub center_y: f32,
@@ -106,21 +103,19 @@ pub struct NodeMetaRect {
 	pub padding: u32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaString {
 	pub string_length: u32,
 	pub padding: u32,
-	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeMetaTable {
-	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeFrame {
 	pub min_x: f32,
 	pub max_x: f32,
@@ -128,29 +123,28 @@ pub struct NodeFrame {
 	pub max_y: f32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeSequenceFrame {
 	pub frame: u32,
 	pub delay: f32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeSequence {
 	pub hashname: u32,
 	pub frame_count: u32,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct NodeAnimation {
 	pub sequence_count: u32,
 	pub frame_count: u32,
 	pub single_texture: u32,
 	pub palette_index: u32,
-	#[edit(skip)]
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
+#[derive(Reflect, Clone, Default)]
 pub struct VertexBodyEntry {
 	pub position_x: f32,
 	pub position_y: f32,
@@ -160,7 +154,8 @@ pub struct VertexBodyEntry {
 	pub height: u16,
 }
 
-#[derive(Clone)]
+#[derive(Reflect, Clone)]
+#[reflect(opaque)]
 pub struct DataBlock {
 	pub flags: u32,
 	pub data: ArcBytes,

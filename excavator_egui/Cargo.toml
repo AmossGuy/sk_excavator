@@ -13,6 +13,7 @@ yoke.workspace = true
 
 # Big and handy things
 bevy_ecs.workspace = true
+bevy_reflect.workspace = true
 image.workspace = true
 serde.workspace = true
 

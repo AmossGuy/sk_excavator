@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["excavator_backend", "excavator_backend_macros", "excavator_egui"]
+members = ["excavator_backend", "excavator_egui"]
 default-members = ["excavator_egui"]
 
 [profile.dev.package."*"]
@@ -24,6 +24,7 @@ zerocopy-derive = "0.8.56"
 
 # Big and handy things
 bevy_ecs = { version = "0.19.1", default-features = false }
+bevy_reflect = { version = "0.19.1", default-features = false }
 image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde = "1.0.229"
 

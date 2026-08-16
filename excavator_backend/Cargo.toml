@@ -4,8 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-excavator_backend_macros.path = "../excavator_backend_macros"
-
 # Small and handy things
 anyhow.workspace = true
 bstr.workspace = true
@@ -16,5 +14,6 @@ zerocopy-derive.workspace = true
 
 # Big and handy things
 bevy_ecs.workspace = true
+bevy_reflect.workspace = true
 image.workspace = true
 serde.workspace = true
