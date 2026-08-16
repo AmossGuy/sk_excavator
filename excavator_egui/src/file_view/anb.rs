@@ -8,6 +8,7 @@ use bevy_ecs::{
 	component::Component, entity::Entity, system::Commands,
 	world::{EntityRef, World},
 };
+use bevy_reflect::PartialReflect;
 
 use excavator_backend::formats::anb::def_live as anb;
 use excavator_backend::formats::wflz;
@@ -69,7 +70,16 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 	match entity.components::<(Option<&anb::Header>, Option<&anb::Node>)>() {
 		(Some(header), None) => {
 			egui::Grid::new("header edit").show(ui, |ui| {
-				struct_edit_ui(ui, header);
+				if let Some(edited) = struct_edit_ui(ui, header) {
+					let entity_id = entity.id();
+					commands.queue(move |world: &mut World| -> anyhow::Result<()> {
+						let mut entity = world.get_entity_mut(entity_id)?;
+						let mut component = entity.get_mut::<anb::Header>()
+							.ok_or_else(|| anyhow::anyhow!("component not there lol"))?;
+						PartialReflect::apply(component.as_mut(), &edited);
+						Ok(())
+					});
+				}
 			});
 		},
 		(None, Some(node)) => {
