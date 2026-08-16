@@ -1,5 +1,5 @@
 use crate::file_view::{FileView, FileViewEffect};
-use crate::file_view::common::editable::EguiDataRenderer;
+use crate::file_view::common::editable::struct_edit_ui;
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
 
 use std::io::{BufRead, Seek};
@@ -9,7 +9,6 @@ use bevy_ecs::{
 	world::{EntityRef, World},
 };
 
-use excavator_backend::formats::common::EditableData;
 use excavator_backend::formats::anb::def_live as anb;
 use excavator_backend::formats::wflz;
 
@@ -69,22 +68,12 @@ const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new()
 fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) {
 	match entity.components::<(Option<&anb::Header>, Option<&anb::Node>)>() {
 		(Some(header), None) => {
-			// i want to make writing edited fields done via commands, but i haven't updated this renderer concept for that just yet; the clone is a stopgap for until that's sorted out
-			let mut header_clone = header.clone();
-			
-			egui::Grid::new("header fields").show(ui, |ui| {
-				let renderer = EguiDataRenderer { ui };
-				header_clone.display(renderer);
+			egui::Grid::new("header edit").show(ui, |ui| {
+				struct_edit_ui(ui, header);
 			});
 		},
 		(None, Some(node)) => {
-			// ditto
-			let mut node_clone = node.clone();
-			
-			egui::Grid::new("node fields").show(ui, |ui| {
-				let renderer = EguiDataRenderer { ui };
-				node_clone.display(renderer);
-			});
+			ui.label("todo");
 		},
 		_ => {
 			let error_fg_color = ui.visuals().error_fg_color;

@@ -1,52 +1,44 @@
-use excavator_backend::formats::common::{DropdownRenderer, EditableDataRenderer};
+use excavator_backend::formats::common::FieldRef;
+use bevy_reflect::{PartialReflect, structs::{DynamicStruct, Struct}};
 
-pub struct EguiDataRenderer<'a> {
-	pub ui: &'a mut egui::Ui,
+#[must_use = "value must be used to apply edits"]
+pub fn struct_edit_ui<T: Struct>(ui: &mut egui::Ui, item: &T) -> Option<DynamicStruct> {
+	let mut edited: Option<DynamicStruct> = None;
+	
+	for (name, value) in item.iter_fields() {
+		ui.label(name);
+		
+		match FieldRef::try_from(value) {
+			Ok(v) => {
+				if let Some(new_value) = field_edit_widget(ui, v) {
+					edited.get_or_insert_default().insert_boxed(name, new_value);
+				}
+			},
+			Err(e) => {
+				let warn_fg_color = ui.visuals().warn_fg_color;
+				ui.colored_label(warn_fg_color, e.to_string());
+			},
+		}
+		
+		ui.end_row();
+	}
+	
+	edited
 }
 
-impl EditableDataRenderer for EguiDataRenderer<'_> {
-	type Dropdown<'a> = EguiDropdownRenderer<'a>;
-	
-	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>)) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		egui::ComboBox::from_id_salt(name)
-			.selected_text(selected_text)
-			.show_ui(ui, |ui| {
-				contents(EguiDropdownRenderer { ui })
-			});
-		ui.end_row();
+#[must_use = "value must be used to apply edits"]
+pub fn field_edit_widget(ui: &mut egui::Ui, value: FieldRef<'_>) -> Option<Box<dyn PartialReflect>> {
+	macro_rules! drag_value {
+		($ref:expr) => { {
+			let mut value = ($ref).clone();
+			let response = ui.add(egui::DragValue::new(&mut value));
+			if response.changed() { Some(Box::new(value)) } else { None }
+		} };
 	}
 	
-	fn field_f32(&mut self, name: &str, value: &mut f32) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-	
-	fn field_u16(&mut self, name: &str, value: &mut u16) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-	
-	fn field_u32(&mut self, name: &str, value: &mut u32) {
-		let ui = &mut self.ui;
-		ui.label(name);
-		ui.add(egui::DragValue::new(value));
-		ui.end_row();
-	}
-}
-
-pub struct EguiDropdownRenderer<'a> {
-	pub ui: &'a mut egui::Ui,
-}
-
-impl DropdownRenderer for EguiDropdownRenderer<'_> {
-	fn choice(&mut self, name: &str, selected: bool) -> bool {
-		let ui = &mut self.ui;
-		ui.selectable_label(selected, name).clicked()
+	match value {
+		FieldRef::F32(value) => drag_value!(value),
+		FieldRef::U16(value) => drag_value!(value),
+		FieldRef::U32(value) => drag_value!(value),
 	}
 }
