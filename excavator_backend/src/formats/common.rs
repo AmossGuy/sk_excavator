@@ -1,41 +1,46 @@
-pub type ArcBytes = yoke::Yoke<&'static [u8], std::sync::Arc<Vec<u8>>>;
+use std::{any::Any, convert::TryFrom, sync::Arc};
+use yoke::Yoke;
+
+pub type ArcBytes = Yoke<&'static [u8], Arc<Vec<u8>>>;
+
+// Add variants as needed
+pub enum FieldRef<'a> {
+	F32(&'a f32),
+	U16(&'a u16),
+	U32(&'a u32),
+}
+
+impl<'a> TryFrom<&'a dyn Any> for FieldRef<'a> {
+	type Error = anyhow::Error;
+	
+	fn try_from(value: &'a dyn Any) -> anyhow::Result<Self> {
+		 if let Some(v) = value.downcast_ref() {
+			  Ok(Self::F32(v))
+		 } else if let Some(v) = value.downcast_ref() {
+			  Ok(Self::U16(v))
+		 } else if let Some(v) = value.downcast_ref() {
+			  Ok(Self::U32(v))
+		 } else {
+			  Err(anyhow::anyhow!("unimplemented field type"))
+		 }
+	}
+}
+
 
 pub trait EditableData {
 	fn struct_name(&self) -> &str;
-	fn display(&mut self, renderer: impl EditableDataRenderer);
-}
-
-pub trait EditableDataRenderer {
-	type Dropdown<'a>: DropdownRenderer;
 	
-	fn dropdown(&mut self, name: &str, selected_text: &str, contents: impl FnOnce(Self::Dropdown<'_>));
-	fn field_f32(&mut self, name: &str, value: &mut f32);
-	fn field_u16(&mut self, name: &str, value: &mut u16);
-	fn field_u32(&mut self, name: &str, value: &mut u32);
-}
-
-pub trait DropdownRenderer {
-	fn choice(&mut self, name: &str, selected: bool) -> bool;
-}
-
-pub trait FieldDispatch {
-	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str);
-}
-
-impl FieldDispatch for f32 {
-	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
-		renderer.field_f32(name, self);
+	fn field_count(&self) -> usize;
+	fn field_name(&self, index: usize) -> &str;
+	fn field_ref(&self, index: usize) -> FieldRef<'_>;
+	
+	fn variant_count(&self) -> usize {
+		0
 	}
-}
-
-impl FieldDispatch for u16 {
-	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
-		renderer.field_u16(name, self);
+	fn variant_name(&self, index: usize) -> &str {
+		panic!("`EditableStruct::variant_name called on non-enum")
 	}
-}
-
-impl FieldDispatch for u32 {
-	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
-		renderer.field_u32(name, self);
+	fn variant_current(&self) -> usize {
+		panic!("`EditableStruct::variant_current called on non-enum")
 	}
 }
