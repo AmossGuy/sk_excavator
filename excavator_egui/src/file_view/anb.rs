@@ -1,5 +1,5 @@
 use crate::file_view::{FileView, FileViewEffect};
-use crate::file_view::common::editable::struct_edit_ui;
+use crate::file_view::common::editable::{enum_edit_ui, struct_edit_ui};
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
 
 use std::io::{BufRead, Seek};
@@ -83,7 +83,18 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 			});
 		},
 		(None, Some(node)) => {
-			ui.label("todo");
+			egui::Grid::new("node edit").show(ui, |ui| {
+				if let Some(edited) = enum_edit_ui(ui, node) {
+					let entity_id = entity.id();
+					commands.queue(move |world: &mut World| -> anyhow::Result<()> {
+						let mut entity = world.get_entity_mut(entity_id)?;
+						let mut component = entity.get_mut::<anb::Node>()
+							.ok_or_else(|| anyhow::anyhow!("component not there lol"))?;
+						PartialReflect::apply(component.as_mut(), &edited);
+						Ok(())
+					});
+				}
+			});
 		},
 		_ => {
 			let error_fg_color = ui.visuals().error_fg_color;

@@ -1,5 +1,5 @@
 use excavator_backend::formats::common::FieldRef;
-use bevy_reflect::{PartialReflect, structs::{DynamicStruct, Struct}};
+use bevy_reflect::{PartialReflect, enums::{DynamicEnum, Enum}, structs::{DynamicStruct, Struct}};
 
 #[must_use = "value must be used to apply edits"]
 pub fn struct_edit_ui<T: Struct>(ui: &mut egui::Ui, item: &T) -> Option<DynamicStruct> {
@@ -22,6 +22,23 @@ pub fn struct_edit_ui<T: Struct>(ui: &mut egui::Ui, item: &T) -> Option<DynamicS
 		
 		ui.end_row();
 	}
+	
+	edited
+}
+
+#[must_use = "value must be used to apply edits"]
+pub fn enum_edit_ui<T: Enum>(ui: &mut egui::Ui, item: &T) -> Option<DynamicEnum> {
+	let mut edited: Option<DynamicEnum> = None;
+	
+	ui.label("enum variant");
+	egui::ComboBox::from_id_salt("enum variant")
+		.selected_text(item.variant_name())
+		.show_ui(ui, |ui| {
+			ui.label("todo");
+		});
+	ui.end_row();
+	
+	ui.label("todo");
 	
 	edited
 }
