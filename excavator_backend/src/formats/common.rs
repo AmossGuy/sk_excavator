@@ -31,14 +31,7 @@ pub trait EditableData {
 	fn field_name(&self, index: usize) -> &str;
 	fn field_ref(&self, index: usize) -> FieldRef<'_>;
 	
-	fn variant_count(&self) -> usize {
-		0
-	}
-	fn variant_name(&self, index: usize) -> &str {
-		let _ = index;
-		panic!("`EditableStruct::variant_name called on non-enum")
-	}
-	fn variant_current(&self) -> usize {
-		panic!("`EditableStruct::variant_current called on non-enum")
-	}
+	fn variant_count(&self) -> usize;
+	fn variant_name(&self, index: usize) -> &str;
+	fn variant_current(&self) -> usize;
 }

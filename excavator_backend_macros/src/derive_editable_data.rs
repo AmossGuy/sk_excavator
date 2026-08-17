@@ -14,7 +14,12 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 		},
 	};
 	
-	let Methods { field_count, field_name, field_ref, errors } = methods;
+	let Methods {
+		field_count, field_name, field_ref,
+		variant_count, variant_name, variant_current,
+		errors,
+	} = methods;
+		
 	let input_ident = input.ident;
 	let input_ident_string = input_ident.to_string();
 	
@@ -35,19 +40,9 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 			fn field_name(&self, index: usize) -> &str { #field_name }
 			fn field_ref(&self, index: usize) -> crate::formats::common::FieldRef<'_> { #field_ref }
 			
-			/*
-			fn variant_count(&self) -> usize {
-				todo!()
-			}
-			
-			fn variant_name(&self, index: usize) -> &str {
-				todo!()
-			}
-			
-			fn variant_current(&self) -> usize {
-				todo!()
-			}
-			*/
+			fn variant_count(&self) -> usize { #variant_count }
+			fn variant_name(&self, index: usize) -> &str { #variant_name }
+			fn variant_current(&self) -> usize { #variant_current }
 		}
 	}
 }
@@ -56,6 +51,10 @@ struct Methods {
 	field_count: TokenStream,
 	field_name: TokenStream,
 	field_ref: TokenStream,
+	
+	variant_count: TokenStream,
+	variant_name: TokenStream,
+	variant_current: TokenStream,
 	
 	errors: Vec<syn::Error>,
 }
@@ -110,6 +109,17 @@ fn struct_methods(struct_data: &DataStruct, struct_ident: &Ident) -> Methods {
 				#(#field_ref_arms)*
 				_ => panic!("`{}::field_ref` called with out-of-range index", #struct_name),
 			}
+		},
+		
+		variant_count: quote! {
+			0
+		},
+		variant_name: quote! {
+			let _ = index;
+			panic!("`EditableStruct::variant_name called on non-enum")
+		},
+		variant_current: quote! {
+			panic!("`EditableStruct::variant_current called on non-enum")
 		},
 		
 		errors,
