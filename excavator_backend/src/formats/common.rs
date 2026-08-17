@@ -1,4 +1,4 @@
-use std::{any::Any, convert::TryFrom, sync::Arc};
+use std::sync::Arc;
 use yoke::Yoke;
 
 pub type ArcBytes = Yoke<&'static [u8], Arc<Vec<u8>>>;
@@ -10,22 +10,19 @@ pub enum FieldRef<'a> {
 	U32(&'a u32),
 }
 
-impl<'a> TryFrom<&'a dyn Any> for FieldRef<'a> {
-	type Error = anyhow::Error;
-	
-	fn try_from(value: &'a dyn Any) -> anyhow::Result<Self> {
-		 if let Some(v) = value.downcast_ref() {
-			  Ok(Self::F32(v))
-		 } else if let Some(v) = value.downcast_ref() {
-			  Ok(Self::U16(v))
-		 } else if let Some(v) = value.downcast_ref() {
-			  Ok(Self::U32(v))
-		 } else {
-			  Err(anyhow::anyhow!("unimplemented field type"))
-		 }
-	}
+macro_rules! field_ref_from {
+	($type:ty, $variant:ident) => {
+		impl<'a> From<&'a $type> for FieldRef<'a> {
+			fn from(value: &'a $type) -> Self {
+				Self::$variant(value)
+			}
+		}
+	};
 }
 
+field_ref_from!(f32, F32);
+field_ref_from!(u16, U16);
+field_ref_from!(u32, U32);
 
 pub trait EditableData {
 	fn struct_name(&self) -> &str;
@@ -38,6 +35,7 @@ pub trait EditableData {
 		0
 	}
 	fn variant_name(&self, index: usize) -> &str {
+		let _ = index;
 		panic!("`EditableStruct::variant_name called on non-enum")
 	}
 	fn variant_current(&self) -> usize {

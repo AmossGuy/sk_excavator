@@ -1,11 +1,11 @@
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::TokenStream;
 use quote::{quote, quote_spanned};
-use syn::{*, spanned::Spanned};
+use syn::*;
 
 pub fn macro_main(input: DeriveInput) -> TokenStream {
 	let methods = match input.data {
-		Data::Struct(struct_data) => struct_methods(struct_data),
-		Data::Enum(enum_data) => enum_methods(enum_data),
+		Data::Struct(struct_data) => struct_methods(&struct_data, &input.ident),
+		Data::Enum(enum_data) => enum_methods(&enum_data, &input.ident),
 		Data::Union(union_data) => {
 			let span = union_data.union_token.span;
 			return quote_spanned! {span=>
@@ -52,22 +52,59 @@ struct Methods {
 	field_ref: TokenStream,
 }
 
-fn struct_methods(struct_data: DataStruct) -> Methods {
-	let fields = struct_data.fields.iter().enumerate().map(|(i, field)| {
+fn struct_methods(struct_data: &DataStruct, struct_ident: &Ident) -> Methods {
+	let fields = struct_data.fields.iter().enumerate().filter_map(|(i, field)| {
 		let values = AttributeValues::parse(field.attrs.iter());
-		(i, field, values)
+		if values.skip {
+			None
+		} else {
+			Some((i, field, values))
+		}
 	}).collect::<Vec<_>>();
 	
+	let struct_name = struct_ident.to_string();
 	let field_count = fields.len();
 	
+	let field_name_arms = fields.iter().map(|(i, field, _values)| {
+		let field_name = match &field.ident {
+			Some(ident) => ident.to_string(),
+			None => i.to_string(),
+		};
+		quote! {
+			#i => #field_name,
+		}
+	});
+	
+	let field_ref_arms = fields.iter().map(|(i, field, _values)| {
+		let access = match &field.ident {
+			Some(ident) => quote! { self.#ident },
+			None => quote! { self.#i },
+		};
+		quote! {
+			#i => crate::formats::common::FieldRef::from(&#access),
+		}
+	});
+	
 	Methods {
-		field_count: quote! { #field_count },
-		field_name: quote! { todo!() },
-		field_ref: quote! { todo!() },
+		field_count: quote! {
+			#field_count
+		},
+		field_name: quote! {
+			match index {
+				#(#field_name_arms)*
+				_ => panic!("`{}::field_name` called with out-of-range index", #struct_name),
+			}
+		},
+		field_ref: quote! {
+			match index {
+				#(#field_ref_arms)*
+				_ => panic!("`{}::field_ref` called with out-of-range index", #struct_name),
+			}
+		},
 	}
 }
 
-fn enum_methods(enum_data: DataEnum) -> Methods {
+fn enum_methods(enum_data: &DataEnum, struct_ident: &Ident) -> Methods {
 	todo!("enum_methods")
 }
 
