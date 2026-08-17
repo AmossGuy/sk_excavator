@@ -14,11 +14,17 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 		},
 	};
 	
-	let Methods { field_count, field_name, field_ref } = methods;
+	let Methods { field_count, field_name, field_ref, errors } = methods;
 	let input_ident = input.ident;
 	let input_ident_string = input_ident.to_string();
 	
+	let errors = errors.into_iter()
+		.map(|e| e.into_compile_error())
+		.collect::<Vec<_>>();
+	
 	quote! {
+		#(#errors)*
+		
 		#[automatically_derived]
 		impl crate::formats::common::EditableData for #input_ident {
 			fn struct_name(&self) -> &str {
@@ -50,11 +56,15 @@ struct Methods {
 	field_count: TokenStream,
 	field_name: TokenStream,
 	field_ref: TokenStream,
+	
+	errors: Vec<syn::Error>,
 }
 
 fn struct_methods(struct_data: &DataStruct, struct_ident: &Ident) -> Methods {
+	let mut errors = Vec::<syn::Error>::new();
+	
 	let fields = struct_data.fields.iter().enumerate().filter_map(|(i, field)| {
-		let values = AttributeValues::parse(field.attrs.iter());
+		let values = AttributeValues::parse(field.attrs.iter(), &mut errors);
 		if values.skip {
 			None
 		} else {
@@ -101,6 +111,8 @@ fn struct_methods(struct_data: &DataStruct, struct_ident: &Ident) -> Methods {
 				_ => panic!("`{}::field_ref` called with out-of-range index", #struct_name),
 			}
 		},
+		
+		errors,
 	}
 }
 
@@ -110,14 +122,12 @@ fn enum_methods(enum_data: &DataEnum, struct_ident: &Ident) -> Methods {
 
 struct AttributeValues {
 	skip: bool,
-	parse_errors: Vec<syn::Error>,
 }
 
 impl AttributeValues {
-	fn parse<'a>(attrs: impl Iterator<Item = &'a Attribute>) -> Self {
+	fn parse<'a>(attrs: impl Iterator<Item = &'a Attribute>, errors: &mut Vec<syn::Error>) -> Self {
 		let mut this = Self {
 			skip: false,
-			parse_errors: Vec::new(),
 		};
 		
 		for attr in attrs {
@@ -132,7 +142,7 @@ impl AttributeValues {
 				});
 				
 				if let Err(e) = result {
-					this.parse_errors.push(e);
+					errors.push(e);
 				}
 			}
 		}
