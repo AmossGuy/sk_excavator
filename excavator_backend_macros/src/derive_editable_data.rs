@@ -21,7 +21,7 @@ pub fn macro_main(input: DeriveInput) -> TokenStream {
 				#input_ident_string
 			}
 			
-			fn display(&mut self, mut renderer: impl crate::formats::common::EditableDataRenderer) {
+			fn display<T: crate::formats::common::EditableDataRenderer>(&mut self, renderer: &mut T) {
 				#display_body
 			}
 		}
@@ -54,7 +54,7 @@ fn struct_display_body(struct_data: DataStruct) -> TokenStream {
 			quote! {}
 		} else {
 			quote! {
-				crate::formats::common::FieldDispatch::dispatch(&mut self.#field, &mut renderer, #field_name);
+				crate::formats::common::FieldDispatch::dispatch(&mut self.#field, renderer, #field_name);
 			}
 		}
 	}).collect()
