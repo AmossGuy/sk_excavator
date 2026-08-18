@@ -1,6 +1,6 @@
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, quote_spanned};
-use syn::*;
+use syn::{*, Ident};
 
 pub fn macro_main(input: DeriveInput) -> TokenStream {
 	let methods = match input.data {
@@ -126,8 +126,42 @@ fn struct_methods(struct_data: &DataStruct, struct_ident: &Ident) -> Methods {
 	}
 }
 
-fn enum_methods(enum_data: &DataEnum, struct_ident: &Ident) -> Methods {
-	todo!("enum_methods")
+fn enum_methods(enum_data: &DataEnum, enum_ident: &Ident) -> Methods {
+	let mut errors = Vec::<syn::Error>::new();
+	
+	let delegate_to_struct = |method_name: &str| -> TokenStream {
+		let method_ident = Ident::new(method_name, Span::call_site());
+		let arms = enum_data.variants.iter().map(|variant| {
+			let variant_ident = &variant.ident;
+			quote! {
+				Self::#variant_ident(inner) => crate::formats::common::EditableData::#method_ident(inner),
+			}
+		});
+		
+		quote! {
+			match self {
+				#(#arms)*
+			}
+		}
+	};
+	
+	Methods {
+		field_count: delegate_to_struct("field_count"),
+		field_name: delegate_to_struct("field_name"),
+		field_ref: delegate_to_struct("field_ref"),
+		
+		variant_count: quote! {
+			todo!()
+		},
+		variant_name: quote! {
+			todo!()
+		},
+		variant_current: quote! {
+			todo!()
+		},
+		
+		errors,
+	}
 }
 
 struct AttributeValues {
