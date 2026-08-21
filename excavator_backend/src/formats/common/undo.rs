@@ -3,7 +3,7 @@ use std::{mem, ops::DerefMut};
 
 #[derive(Resource, Default)]
 pub struct UndoResource {
-	commands: undo_2::Commands<Box<dyn UndoEntry>>,
+	pub commands: undo_2::Commands<Box<dyn UndoEntry>>,
 }
 
 pub trait UndoEntry: Send + Sync + 'static {

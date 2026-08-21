@@ -10,7 +10,7 @@ use bevy_ecs::{
 };
 
 use excavator_backend::formats::anb::def_live as anb;
-use excavator_backend::formats::common::undo::{UndoResource, undoable_replace_component};
+use excavator_backend::formats::common::undo::{UndoEntry, UndoResource, undoable_replace_component};
 use excavator_backend::formats::wflz;
 
 pub struct AnbFileView {
@@ -52,6 +52,20 @@ impl FileView for AnbFileView {
 				}
 			}
 		}
+		if ui.button("Undo").clicked() {
+			self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
+				for action in undo.commands.undo() {
+					interpret_action(world, action);
+				}
+			});
+		}
+		if ui.button("Redo").clicked() {
+			self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
+				for action in undo.commands.redo() {
+					interpret_action(world, action);
+				}
+			});
+		}
 		ui.label(&self.save_message);
 		
 		ui.separator();
@@ -87,6 +101,13 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 			let error_fg_color = ui.visuals().error_fg_color;
 			ui.colored_label(error_fg_color, "Entity has an unexpected component setup");
 		},
+	}
+}
+
+fn interpret_action(world: &mut World, action: (undo_2::Action, &Box<dyn UndoEntry>)) {
+	match action.0 {
+		undo_2::Action::Do => action.1.redo(world),
+		undo_2::Action::Undo => action.1.undo(world),
 	}
 }
 
