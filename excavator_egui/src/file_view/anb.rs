@@ -10,6 +10,7 @@ use bevy_ecs::{
 };
 
 use excavator_backend::formats::anb::def_live as anb;
+use excavator_backend::formats::common::undo::{UndoResource, undoable_replace_component};
 use excavator_backend::formats::wflz;
 
 pub struct AnbFileView {
@@ -29,6 +30,7 @@ impl AnbFileView {
 		
 		let mut ecs_world = World::new();
 		let root = excavator_backend::formats::anb::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
+		ecs_world.init_resource::<UndoResource>();
 		
 		let save_message = String::new();
 		
@@ -70,16 +72,14 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 		(Some(header), None) => {
 			egui::Grid::new("header fields").show(ui, |ui| {
 				if let Some(edited_header) = edit_editable_data(ui, header) {
-					commands.get_spawned_entity(entity.id()).unwrap()
-						.insert(edited_header);
+					commands.queue(undoable_replace_component(entity.id(), edited_header));
 				}
 			});
 		},
 		(None, Some(node)) => {
 			egui::Grid::new("node fields").show(ui, |ui| {
 				if let Some(edited_node) = edit_editable_data(ui, node) {
-					commands.get_spawned_entity(entity.id()).unwrap()
-						.insert(edited_node);
+					commands.queue(undoable_replace_component(entity.id(), edited_node));
 				}
 			});
 		},

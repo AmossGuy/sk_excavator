@@ -1292,6 +1292,7 @@ dependencies = [
  "image",
  "lexical-sort",
  "serde",
+ "undo_2",
  "yoke",
  "zerocopy",
  "zerocopy-derive",
@@ -1321,6 +1322,7 @@ dependencies = [
  "image",
  "rfd",
  "serde",
+ "undo_2",
  "yoke",
 ]
 
@@ -3631,6 +3633,15 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "undo_2"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e76d34df022a54c3e2799eab2f02af6c90eca56aad8bba8f8eb356ce283907dc"
+dependencies = [
+ "serde",
 ]
 
 [[package]]

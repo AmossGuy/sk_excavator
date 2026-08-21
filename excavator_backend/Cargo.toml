@@ -10,6 +10,7 @@ excavator_backend_macros.path = "../excavator_backend_macros"
 anyhow.workspace = true
 bstr.workspace = true
 lexical-sort.workspace = true
+undo_2.workspace = true
 yoke.workspace = true
 zerocopy.workspace = true
 zerocopy-derive.workspace = true

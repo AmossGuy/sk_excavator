@@ -18,6 +18,7 @@ opt-level = 1
 anyhow = "1.0.104"
 bstr = { version = "1.13.0", default-features = false, features = ["alloc", "serde"] }
 lexical-sort = "0.3.1"
+undo_2 = "0.2.1"
 yoke = "0.8.3"
 zerocopy = { version = "0.8.56", features = ["std"] }
 zerocopy-derive = "0.8.56"
