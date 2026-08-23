@@ -6,12 +6,12 @@ use bstr::ByteSlice;
 use std::io::{BufRead, Seek};
 
 use bevy_ecs::{
-	component::Component, entity::Entity, system::Commands,
+	entity::Entity, system::Commands,
 	world::{EntityRef, World},
 };
 
 use excavator_backend::formats::pak::def_live as pak;
-use excavator_backend::formats::common::undo::{UndoEntry, UndoResource, undoable_replace_component};
+use excavator_backend::formats::common::undo::undoable_replace_component;
 
 pub struct PakFileView {
 	ecs_world: World,

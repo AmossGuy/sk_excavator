@@ -11,7 +11,7 @@ use bevy_ecs::{
 
 use excavator_backend::formats::anb::def_live as anb;
 use excavator_backend::formats::common::undo::{UndoEntry, UndoResource, undoable_replace_component};
-use excavator_backend::formats::wflz;
+// use excavator_backend::formats::wflz;
 
 pub struct AnbFileView {
 	ecs_world: World,
@@ -111,12 +111,14 @@ fn interpret_action(world: &mut World, action: (undo_2::Action, &Box<dyn UndoEnt
 	}
 }
 
+/*
 fn load_texture(size: [usize; 2], wflz_data: &[u8], ctx: &egui::Context) -> LoadedTexture {
 	let decompressed_data = wflz::decompress(&mut std::io::Cursor::new(wflz_data)).unwrap();
 	let image = egui::ColorImage::from_rgba_unmultiplied(size, &decompressed_data);
 	let handle = ctx.load_texture("anb texture", image, egui::TextureOptions::NEAREST);
 	LoadedTexture { handle }
 }
+*/
 
 #[derive(Component)]
 struct LoadedTexture {
