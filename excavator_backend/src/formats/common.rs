@@ -14,6 +14,7 @@ pub trait EditableDataRenderer {
 	fn field_f32(&mut self, name: &str, value: &mut f32);
 	fn field_u16(&mut self, name: &str, value: &mut u16);
 	fn field_u32(&mut self, name: &str, value: &mut u32);
+	fn field_u64(&mut self, name: &str, value: &mut u64);
 }
 
 pub trait DropdownRenderer {
@@ -39,5 +40,11 @@ impl FieldDispatch for u16 {
 impl FieldDispatch for u32 {
 	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
 		renderer.field_u32(name, self);
+	}
+}
+
+impl FieldDispatch for u64 {
+	fn dispatch(&mut self, renderer: &mut impl EditableDataRenderer, name: &str) {
+		renderer.field_u64(name, self);
 	}
 }
