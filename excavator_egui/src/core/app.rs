@@ -1,18 +1,12 @@
-use crate::file_tree::FileTreeView;
 use crate::file_view::FileViewLoader;
-use super::menu::MenuAction;
-use super::menubar::{MenuBarAction, show_menu_bar_panel};
+use super::menubar::show_menu_bar_panel;
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
-use excavator_backend::io::file::FileSource;
-
-use std::sync::Arc;
+use std::{path::{Path, PathBuf}, sync::Arc};
 
 pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
-	
-	file_tree: Option<FileTreeView>,
 	file_view: Option<FileViewLoader>,
 }
 
@@ -36,13 +30,12 @@ impl ExcavatorApp {
 		
 		let settings = ExcavatorSettings::load(storage);
 		let windows = WindowHolder::new();
-		let file_tree = Option::map(settings.game_root_path.clone(), FileTreeView::new);
 		let file_view = None;
 		
 		let excavator = ExcavatorContext::new(
-			ExcavatorInner { settings, windows, file_to_open: None }
+			ExcavatorInner { settings, windows, new_file_path: None }
 		);
-		Self { excavator, file_tree, file_view }
+		Self { excavator, file_view }
 	}
 }
 
@@ -53,32 +46,17 @@ impl eframe::App for ExcavatorApp {
 		
 		show_menu_bar_panel(ui, &mut self.excavator);
 		
-		if let Some(file_view) = &mut self.file_view {
-			egui::Panel::right("file view").resizable(true).show(ui, |ui| {
-				file_view.ui(ui);
-			});
-		}
-		
-		match self.excavator.settings(|s| s.game_root_path.clone()) {
-			None => { self.file_tree = None; },
-			Some(new_root_path) => {
-				let file_tree = self.file_tree.get_or_insert_with(|| FileTreeView::new(new_root_path.clone()));
-				if new_root_path != file_tree.root_path {
-					file_tree.root_path = new_root_path;
-				}
-			},
+		if let Some(path) = self.excavator.inner.write().new_file_path.take() {
+			self.file_view = FileViewLoader::from_path(path, ui.ctx());
 		}
 		
 		egui::CentralPanel::default().show(ui, |ui| {
-			self.game_dir_ui(ui);
-		});
-		
-		if let Some(file_to_open) = self.excavator.take_file_to_open() {
-			self.file_view = FileViewLoader::from_file_source(file_to_open.clone(), ui.ctx());
-			if self.file_view.is_some() {
-				self.excavator.add_recent_file(file_to_open);
+			if let Some(file_view) = &mut self.file_view {
+				file_view.ui(ui);
+			} else {
+				ui.label("no file open");
 			}
-		}
+		});
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -86,40 +64,12 @@ impl eframe::App for ExcavatorApp {
 	}
 }
 
-impl ExcavatorApp {
-	fn game_dir_ui(&mut self, ui: &mut egui::Ui) {
-		if let Some(file_tree) = &mut self.file_tree {
-			let effect = file_tree.ui(ui);
-			if effect.close_clicked {
-				MenuBarAction::CloseGameDir.execute(ui.ctx(), &mut self.excavator);
-			}
-			for pls in effect.pls_app {
-				pls(ui.ctx(), &mut self.excavator);
-			}
-			if let Some(new_selection) = effect.new_selection {
-				match new_selection.len() {
-					1 => {
-						self.excavator.open_file(new_selection[0].clone());
-					},
-					_ => { 
-						self.file_view = None
-						
-					},
-				}
-			}
-		} else {
-			if ui.button("Select game path...").clicked() {
-				MenuBarAction::SelectGameDir.execute(ui.ctx(), &mut self.excavator);
-			}
-		}
-	}
-}
-
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	windows: WindowHolder,
 	
-	file_to_open: Option<FileSource>,
+	// temporary solution:
+	new_file_path: Option<PathBuf>,
 }
 
 #[derive(Clone)]
@@ -146,28 +96,18 @@ impl ExcavatorContext {
 		self.inner.write().windows.add(window);
 	}
 	
-	pub fn open_file(&self, file_source: FileSource) {
-		self.inner.write().file_to_open = Some(file_source);
-	}
-	
-	fn add_recent_file(&self, file_source: FileSource) {
-		self.settings_mut(|s| {
-			if let Some(index) = s.recent_files.iter().position(|item| *item == file_source) {
-				s.recent_files.remove(index);
-			}
-			
-			s.recent_files.push_back(file_source);
-			while s.recent_files.len() > usize::from(s.max_recent_files) {
-				s.recent_files.pop_front();
+	pub fn open_file_dialog(&self) {
+		let excavator = self.clone();
+		std::thread::spawn(move || {
+			if let Some(path) = rfd::FileDialog::new().pick_file() {
+				excavator.open_file(path);
 			}
 		});
 	}
 	
-	pub fn clear_recent_files(&self) {
-		self.settings_mut(|s| s.recent_files.clear());
-	}
-	
-	fn take_file_to_open(&self) -> Option<FileSource> {
-		self.inner.write().file_to_open.take()
+	pub fn open_file<P: AsRef<Path>>(&self, path: P) {
+		let path = path.as_ref().to_path_buf();
+		self.settings_mut(|s| s.add_recent_file(path.clone()));
+		self.inner.write().new_file_path = Some(path);
 	}
 }

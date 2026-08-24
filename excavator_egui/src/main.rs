@@ -1,7 +1,6 @@
 #![forbid(unsafe_code)]
 
 mod core;
-mod file_tree;
 mod file_view;
 mod misc;
 

@@ -15,8 +15,7 @@ pub fn show_menu_bar_panel(ui: &mut egui::Ui, env: &mut ExcavatorContext) {
 
 static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 	MenuItem::SubMenu("File", &[
-		MenuItem::Action(MenuBarAction::SelectGameDir),
-		MenuItem::Action(MenuBarAction::CloseGameDir),
+		MenuItem::Action(MenuBarAction::OpenFile),
 		MenuItem::SubMenu("Recent files", &[
 			MenuItem::CustomUi(recent_file_list),
 			MenuItem::CustomCondition(recent_files_not_empty, &[
@@ -38,8 +37,7 @@ static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
 
 #[derive(Copy, Clone, Debug)]
 pub enum MenuBarAction {
-	SelectGameDir,
-	CloseGameDir,
+	OpenFile,
 	ClearRecentFiles,
 	Quit,
 	
@@ -54,8 +52,7 @@ impl MenuAction for MenuBarAction {
 	
 	fn static_name(&self) -> &'static str {
 		match self {
-			Self::SelectGameDir => "Select game directory...",
-			Self::CloseGameDir => "Close game directory",
+			Self::OpenFile => "Open...",
 			Self::ClearRecentFiles => "Clear recent files",
 			Self::Quit => "Quit",
 			
@@ -82,9 +79,8 @@ impl MenuAction for MenuBarAction {
 	
 	fn execute(&self, ctx: &egui::Context, excavator: &mut ExcavatorContext) {
 		match self {
-			Self::SelectGameDir => crate::misc::file_dialog::show_game_path_dialog(ctx, excavator),
-			Self::CloseGameDir => excavator.settings_mut(|s| s.game_root_path = None),
-			Self::ClearRecentFiles => excavator.clear_recent_files(),
+			Self::OpenFile => excavator.open_file_dialog(),
+			Self::ClearRecentFiles => excavator.settings_mut(|s| s.clear_recent_files()),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
 			Self::SettingsExcavator => excavator.add_window(SettingsWindow::excavator_tab()),
@@ -103,7 +99,8 @@ fn recent_file_list(ui: &mut egui::Ui, excavator: &mut ExcavatorContext) {
 		});
 	} else {
 		for item in list.into_iter().rev() {
-			if ui.button(item.file_name_lossy()).clicked() {
+			let file_name_string = item.file_name().unwrap_or_default().to_string_lossy();
+			if ui.button(file_name_string).clicked() {
 				excavator.open_file(item);
 			}
 		}

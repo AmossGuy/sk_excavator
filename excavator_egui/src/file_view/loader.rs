@@ -1,9 +1,9 @@
-use std::io::BufReader;
+use std::io::{BufRead, BufReader, Seek};
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 use std::thread::JoinHandle;
 
 use excavator_backend::formats::FileFormat;
-use excavator_backend::io::file::FileSource;
 use image::ImageFormat;
 
 use super::{FileView, FileViewEffect};
@@ -20,41 +20,41 @@ enum LoaderState {
 }
 
 impl FileViewLoader {
-	pub fn from_file_source(source: FileSource, ctx: &egui::Context) -> Option<Self> {
+	pub fn from_path(path: PathBuf, ctx: &egui::Context) -> Option<Self> {
 		let ctx = ctx.clone();
-		match source.file_format() {
+		match FileFormat::from_path(&path) {
 			Some(FileFormat::Pak) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = std::io::BufReader::new(file);
 				
 				Ok(Box::new(super::pak::PakFileView::load(buf, &ctx)))
 			})),
 			Some(FileFormat::Stb | FileFormat::Stm) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = std::io::BufReader::new(file);
 				
 				Ok(Box::new(super::st::StFileView::load_not_stl(buf, &ctx)))
 			})),
 			Some(FileFormat::Stl) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = std::io::BufReader::new(file);
 				
 				Ok(Box::new(super::st::StFileView::load_stl(buf, &ctx)))
 			})),
 			Some(FileFormat::Anb) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = std::io::BufReader::new(file);
 				
 				Ok(Box::new(super::anb::AnbFileView::load(buf, &ctx)))
 			})),
 			Some(FileFormat::Image(ImageFormat::Png)) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = BufReader::new(file);
 				
 				Ok(Box::new(super::image::ImageFileView::load(buf, &ctx)))
 			})),
 			Some(FileFormat::Ltb) => Some(Self::with_load_fn(move || {
-				let file = source.open()?;
+				let file = open(path)?;
 				let buf = BufReader::new(file);
 				
 				Ok(Box::new(super::ltb::LtbFileView::load(buf, &ctx)))
@@ -105,4 +105,9 @@ impl FileViewLoader {
 		ui.take_available_space();
 		effect
 	}
+}
+
+fn open<P: AsRef<Path>>(path: P) -> anyhow::Result<impl BufRead + Seek> {
+	let reader = std::fs::File::open(path)?;
+	Ok(std::io::BufReader::new(reader))
 }
