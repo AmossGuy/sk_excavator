@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 
 use excavator_backend::formats::FileFormat;
-use image::ImageFormat;
 
 use super::{FileView, FileViewEffect};
 
@@ -29,35 +28,11 @@ impl FileViewLoader {
 				
 				Ok(Box::new(super::pak::PakFileView::load(buf, &ctx)))
 			})),
-			Some(FileFormat::Stb | FileFormat::Stm) => Some(Self::with_load_fn(move || {
-				let file = open(path)?;
-				let buf = std::io::BufReader::new(file);
-				
-				Ok(Box::new(super::st::StFileView::load_not_stl(buf, &ctx)))
-			})),
-			Some(FileFormat::Stl) => Some(Self::with_load_fn(move || {
-				let file = open(path)?;
-				let buf = std::io::BufReader::new(file);
-				
-				Ok(Box::new(super::st::StFileView::load_stl(buf, &ctx)))
-			})),
 			Some(FileFormat::Anb) => Some(Self::with_load_fn(move || {
 				let file = open(path)?;
 				let buf = std::io::BufReader::new(file);
 				
 				Ok(Box::new(super::anb::AnbFileView::load(buf, &ctx)))
-			})),
-			Some(FileFormat::Image(ImageFormat::Png)) => Some(Self::with_load_fn(move || {
-				let file = open(path)?;
-				let buf = BufReader::new(file);
-				
-				Ok(Box::new(super::image::ImageFileView::load(buf, &ctx)))
-			})),
-			Some(FileFormat::Ltb) => Some(Self::with_load_fn(move || {
-				let file = open(path)?;
-				let buf = BufReader::new(file);
-				
-				Ok(Box::new(super::ltb::LtbFileView::load(buf, &ctx)))
 			})),
 			_ => None,
 		}
@@ -109,5 +84,5 @@ impl FileViewLoader {
 
 fn open<P: AsRef<Path>>(path: P) -> anyhow::Result<impl BufRead + Seek> {
 	let reader = std::fs::File::open(path)?;
-	Ok(std::io::BufReader::new(reader))
+	Ok(BufReader::new(reader))
 }
