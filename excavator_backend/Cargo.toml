@@ -8,8 +8,6 @@ excavator_backend_macros.path = "../excavator_backend_macros"
 
 # Small and handy things
 anyhow.workspace = true
-bstr.workspace = true
-lexical-sort.workspace = true
 undo_2.workspace = true
 yoke.workspace = true
 zerocopy.workspace = true
@@ -17,5 +15,4 @@ zerocopy-derive.workspace = true
 
 # Big and handy things
 bevy_ecs.workspace = true
-image.workspace = true
 serde.workspace = true

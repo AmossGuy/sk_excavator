@@ -16,8 +16,6 @@ opt-level = 1
 
 # Small and handy things
 anyhow = "1.0.104"
-bstr = { version = "1.13.0", default-features = false, features = ["alloc", "serde"] }
-lexical-sort = "0.3.1"
 undo_2 = "0.2.1"
 yoke = "0.8.3"
 zerocopy = { version = "0.8.56", features = ["std"] }
@@ -25,15 +23,12 @@ zerocopy-derive = "0.8.56"
 
 # Big and handy things
 bevy_ecs = { version = "0.19.1", default-features = false }
-image = { version = "0.25.10", default-features = false, features = ["png"] }
 serde = "1.0.229"
 
 # GUI
 # would be egui 0.36.1 if ltreeview updated faster... oh well
 eframe = { version = "0.35.0", features = ["persistence"] }
 egui = "0.35.0"
-egui_extras = "0.35.0"
-egui_ltreeview = "0.8.0"
 rfd = "0.17.2"
 
 # For procedural macros

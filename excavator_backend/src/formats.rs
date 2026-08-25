@@ -3,7 +3,6 @@ pub mod common;
 pub mod pak;
 pub mod wflz;
 
-use image::ImageFormat;
 use std::{ffi::OsStr, path::Path};
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -19,7 +18,6 @@ pub enum FileFormat {
 	
 	// graphics
 	Anb,
-	Image(ImageFormat),
 	
 	// level data
 	Ltb,
@@ -42,14 +40,7 @@ impl FileFormat {
 			b"anb" => Some(Self::Anb),
 			b"ltb" => Some(Self::Ltb),
 			b"lvb" => Some(Self::Lvb),
-			
-			// If it isn't one of the extensions above, see whether it's one of the extensions the image crate knows.
-			// We only return None if the image crate doesn't handle this file extension either.
-			_ => {
-				let ext_str = ext.to_str()?;
-				let format = ImageFormat::from_extension(ext_str)?;
-				Some(Self::Image(format))
-			},
+			_ => None,
 		}
 	}
 }

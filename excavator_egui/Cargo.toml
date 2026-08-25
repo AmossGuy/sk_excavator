@@ -8,18 +8,14 @@ excavator_backend.path = "../excavator_backend"
 
 # Small and handy things
 anyhow.workspace = true
-bstr.workspace = true
 undo_2.workspace = true
 yoke.workspace = true
 
 # Big and handy things
 bevy_ecs.workspace = true
-image.workspace = true
 serde.workspace = true
 
 # GUI
 eframe.workspace = true
 egui.workspace = true
-egui_extras.workspace = true
-egui_ltreeview.workspace = true
 rfd.workspace = true

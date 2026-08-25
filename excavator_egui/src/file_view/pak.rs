@@ -2,7 +2,6 @@ use super::{FileView, FileViewEffect};
 use crate::file_view::common::editable::edit_editable_data;
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
 
-use bstr::ByteSlice;
 use std::io::{BufRead, Seek};
 
 use bevy_ecs::{
@@ -60,7 +59,7 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 		(None, Some(metadata), Some(name)) => {
 			egui::Grid::new("file fields").show(ui, |ui| {
 				ui.label("name");
-				ui.label(name.name.get().to_str_lossy()); // needs to be made editable
+				ui.label(String::from_utf8_lossy(name.name.get())); // needs to be made editable
 				ui.end_row();
 				
 				if let Some(edited_metadata) = edit_editable_data(ui, metadata) {
