@@ -86,30 +86,6 @@ fn recent_file_list(ui: &mut Ui, excavator: &mut ExcavatorContext) {
 	}
 }
 
-/*
-static MENU_BAR: RootMenu<MenuBarAction> = RootMenu::new(&[
-	MenuItem::SubMenu("File", &[
-		MenuItem::Action(MenuBarAction::OpenFile),
-		MenuItem::SubMenu("Recent files", &[
-			MenuItem::CustomUi(recent_file_list),
-			MenuItem::CustomCondition(recent_files_not_empty, &[
-				MenuItem::Separator,
-				MenuItem::Action(MenuBarAction::ClearRecentFiles),
-			]),
-		]),
-		MenuItem::Separator,
-		MenuItem::Action(MenuBarAction::Quit),
-	]),
-	MenuItem::SubMenu("Settings", &[
-		MenuItem::Action(MenuBarAction::SettingsExcavator),
-		MenuItem::Action(MenuBarAction::SettingsEgui),
-	]),
-	MenuItem::SubMenu("Help", &[
-		MenuItem::Action(MenuBarAction::About),
-	]),
-]);
-*/
-
 #[derive(Copy, Clone, Debug)]
 pub enum MenuAction {
 	OpenFile,
@@ -123,35 +99,6 @@ pub enum MenuAction {
 }
 
 impl MenuAction {
-	/*
-	fn static_name(&self) -> &'static str {
-		match self {
-			Self::OpenFile => "Open...",
-			Self::ClearRecentFiles => "Clear recent files",
-			Self::Quit => "Quit",
-			
-			Self::SettingsExcavator => "Configure Excavator...",
-			Self::SettingsEgui => "Configure egui...",
-			
-			Self::About => "About Shovel Knight Excavator",
-		}
-	}
-	
-	fn default_shortcut(&self) -> Option<KeyboardShortcut> {
-		type KS = KeyboardShortcut;
-		type Mod = Modifiers;
-		
-		match self {
-			Self::Quit => Some(KS::new(Mod::COMMAND, Key::Q)),
-			/*
-			Self::Undo => Some(KS::new(Mod::COMMAND, Key::Z)),
-			Self::Redo => Some(KS::new(Mod::COMMAND | Mod::SHIFT, Key::Z)),
-			*/
-			_ => None,
-		}
-	}
-	*/
-	
 	fn execute(&self, ctx: &Context, excavator: &mut ExcavatorContext) {
 		match self {
 			Self::OpenFile => excavator.open_file_dialog(),
