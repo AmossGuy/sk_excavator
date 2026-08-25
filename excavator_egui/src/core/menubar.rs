@@ -69,7 +69,14 @@ fn recent_file_list(ui: &mut Ui, excavator: &mut ExcavatorContext) {
 	} else {
 		for item in list.into_iter().rev() {
 			let file_name_string = item.file_name().unwrap_or_default().to_string_lossy();
-			if ui.button(file_name_string).clicked() {
+			let response = ui.button(file_name_string);
+			
+			let response = response.on_hover_ui(|ui| {
+				let full_path_string = item.to_string_lossy();
+				ui.label(full_path_string);
+			});
+			
+			if response.clicked() {
 				excavator.open_file(item);
 			}
 		}
