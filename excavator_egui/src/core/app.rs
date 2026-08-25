@@ -97,9 +97,19 @@ impl ExcavatorContext {
 	}
 	
 	pub fn open_file_dialog(&self) {
+		let mut dialog = rfd::FileDialog::new();
+		dialog = dialog.set_title("Open File — Excavator");
+		
+		if let Some(path) = self.settings(|s| s.open_dialog_dir.clone()) {
+			dialog = dialog.set_directory(path);
+		}
+		
 		let excavator = self.clone();
 		std::thread::spawn(move || {
-			if let Some(path) = rfd::FileDialog::new().pick_file() {
+			if let Some(path) = dialog.pick_file() {
+				let parent = path.parent().map(|p| p.to_path_buf());
+				excavator.settings_mut(|s| s.open_dialog_dir = parent);
+				
 				excavator.open_file(path);
 			}
 		});

@@ -7,15 +7,19 @@ use std::{collections::VecDeque, path::PathBuf};
 #[derive(Serialize, Deserialize)]
 #[serde(default)]
 pub struct ExcavatorSettings {
-	pub recent_files: VecDeque<PathBuf>,
 	pub max_recent_files: u8,
+	
+	pub recent_files: VecDeque<PathBuf>,
+	pub open_dialog_dir: Option<PathBuf>,
 }
 
 impl Default for ExcavatorSettings {
 	fn default() -> Self {
 		Self {
-			recent_files: VecDeque::new(),
 			max_recent_files: 10,
+			
+			recent_files: VecDeque::new(),
+			open_dialog_dir: None,
 		}
 	}
 }
