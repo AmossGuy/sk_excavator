@@ -44,7 +44,7 @@ impl eframe::App for ExcavatorApp {
 		// depending on exactly how Ui::ui.show_viewport_deferred works, this might be bad?
 		self.excavator.inner.write().windows.show_as_viewports(ui, &self.excavator);
 		
-		show_menu_bar_panel(ui, &mut self.excavator);
+		show_menu_bar_panel(ui, &self.excavator);
 		
 		if let Some(path) = self.excavator.inner.write().new_file_path.take() {
 			self.file_view = FileViewLoader::from_path(path, ui.ctx());

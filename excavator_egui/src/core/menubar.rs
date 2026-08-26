@@ -4,7 +4,7 @@ use super::app::ExcavatorContext;
 use crate::misc::about::AboutWindow;
 use crate::core::settings::SettingsWindow;
 
-pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &mut ExcavatorContext) {
+pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 	egui::Panel::top("menu bar").show(ui, |ui| {
 		MenuBar::new().ui(ui, |ui| {
 			file_menu_button(ui, excavator);
@@ -14,7 +14,7 @@ pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &mut ExcavatorContext) {
 	});
 }
 
-fn file_menu_button(ui: &mut Ui, excavator: &mut ExcavatorContext) {
+fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("File", |ui| {
 		menu_action(ui, excavator, "Open...", MenuAction::OpenFile);
 		ui.menu_button("Recent files", |ui| {
@@ -25,21 +25,21 @@ fn file_menu_button(ui: &mut Ui, excavator: &mut ExcavatorContext) {
 	});
 }
 
-fn settings_menu_button(ui: &mut Ui, excavator: &mut ExcavatorContext) {
+fn settings_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Settings", |ui| {
 		menu_action(ui, excavator, "Configure Excavator...", MenuAction::SettingsExcavator);
 		menu_action(ui, excavator, "Configure egui...", MenuAction::SettingsEgui);
 	});
 }
 
-fn help_menu_button(ui: &mut Ui, excavator: &mut ExcavatorContext) {
+fn help_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Help", |ui| {
 		menu_action(ui, excavator, "About Excavator...", MenuAction::About);
 	});
 }
 
 fn menu_action<'a>(
-	ui: &mut Ui, excavator: &mut ExcavatorContext,
+	ui: &mut Ui, excavator: &ExcavatorContext,
 	atoms: impl IntoAtoms<'a>, action: MenuAction,
 ) {
 	let button = Button::new(atoms);
@@ -59,7 +59,7 @@ fn text_wrap_hack(ui: &mut Ui) {
 	ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
 }
 
-fn recent_file_list(ui: &mut Ui, excavator: &mut ExcavatorContext) {
+fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 	text_wrap_hack(ui);
 	
 	let list = excavator.settings(|s| s.recent_files.iter().cloned().collect::<Vec<_>>());
@@ -99,7 +99,7 @@ pub enum MenuAction {
 }
 
 impl MenuAction {
-	fn execute(&self, ctx: &Context, excavator: &mut ExcavatorContext) {
+	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext) {
 		match self {
 			Self::OpenFile => excavator.open_file_dialog(),
 			Self::ClearRecentFiles => excavator.settings_mut(|s| s.clear_recent_files()),
