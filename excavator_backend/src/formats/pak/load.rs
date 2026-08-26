@@ -10,13 +10,13 @@ pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<En
 
 fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let (header_component, pointers) = parse_header(bytes)?;
-	let mut header_entity = world.spawn(header_component);
+	let header_entity = world.spawn(header_component);
 	
-	header_entity.with_children(|spawner| {
-		let _ = load_file_list(bytes, spawner, pointers);
-	});
+	let header_id = header_entity.id();
+	let mut spawner = ChildSpawner::new(world, header_id);
+	load_file_list(bytes, &mut spawner, pointers)?;
 	
-	Ok(header_entity.id())
+	Ok(header_id)
 }
 
 fn load_file_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, pointers: FileListPointers) -> anyhow::Result<()> {

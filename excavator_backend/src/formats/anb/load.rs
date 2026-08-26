@@ -10,19 +10,19 @@ pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<En
 
 fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let header_component = parse_header(bytes)?;
-	let mut header_entity = world.spawn(header_component);
+	let header_entity = world.spawn(header_component);
 	
 	let (root_component, root_child_offset, root_child_count) = parse_node(bytes, std::mem::size_of::<raw::Header>())?;
-	header_entity.with_children(|spawner| {
-		let mut root_entity = spawner.spawn(root_component);
-		
-		root_entity.with_children(|spawner| {
-			// TODO: i want to make parsing continue on error, saving the error on the entity for inspection
-			let _ = load_node_list(bytes, spawner, root_child_offset, root_child_count);
-		});
-	});
+	let header_id = header_entity.id();
+	let mut spawner = ChildSpawner::new(world, header_id);
 	
-	Ok(header_entity.id())
+	let root_entity = spawner.spawn(root_component);
+	let root_id = root_entity.id();
+	
+	let mut spawner_2 = ChildSpawner::new(world, root_id);
+	load_node_list(bytes, &mut spawner_2, root_child_offset, root_child_count)?;
+	
+	Ok(header_id)
 }
 
 fn load_node_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, offset: u64, length: u32) -> anyhow::Result<()> {
@@ -34,12 +34,11 @@ fn load_node_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, offset: u64,
 	for pointer in slice {
 		let pointer = pointer.get();
 		let (node_component, children_offset, children_count) = parse_node(bytes, pointer as usize)?;
-		let mut node_entity = spawner.spawn(node_component);
+		let node_entity = spawner.spawn(node_component);
 		
-		node_entity.with_children(|spawner| {
-			// TODO: i want to make parsing continue on error, saving the error on the entity for inspection
-			let _ = load_node_list(bytes, spawner, children_offset, children_count);
-		});
+		let node_id = node_entity.id();
+		let mut spawner_2 = ChildSpawner::new(spawner.world_mut(), node_id);
+		load_node_list(bytes, &mut spawner_2, children_offset, children_count)?;
 	}
 	
 	Ok(())
