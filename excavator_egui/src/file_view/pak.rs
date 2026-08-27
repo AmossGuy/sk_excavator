@@ -1,7 +1,7 @@
 use crate::core::app::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
+use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks, ShowInTree};
 
 use std::sync::Arc;
 use yoke::Yoke;
@@ -24,8 +24,12 @@ impl PakFileView {
 		let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
 		
 		let mut ecs_world = World::new();
+		
+		ecs_world.register_required_components::<pak::Header, ShowInTree>();
+		ecs_world.register_required_components::<pak::FileMetadata, ShowInTree>();
 		// EntityRef::components panics if component not registered
 		ecs_world.register_component::<pak::FileMetadata>();
+		
 		let root = excavator_backend::formats::pak::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
 		
 		Ok(Self { ecs_world, root })

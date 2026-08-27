@@ -41,17 +41,19 @@ fn entity_tree_ui_inner(
 	commands: &mut Commands,
 ) {
 	let entity_ref = world.get_entity(entity).expect("entity should exist");
-	let outer_size_option = entity_ref.get::<CachedOuterSize>();
-	let inner_size_option = entity_ref.get::<CachedInnerSize>();
+	let Some(tree_component) = entity_ref.get::<ShowInTree>() else { return };
 	
-	let should_render_outer = outer_size_option
-		.map(|outer_size| is_size_visible(ui, outer_size.size))
+	let mut new_outer_height: Option<f32> = None;
+	let mut new_inner_height: Option<f32> = None;
+	
+	let should_render_outer = tree_component.cached_height_outer
+		.map(|height| is_height_visible(ui, height))
 		.unwrap_or(true);
 	
 	if should_render_outer {
 		let response = egui::containers::Frame::NONE.show(ui, |ui| {
-			let should_render_inner = inner_size_option
-				.map(|inner_size| is_size_visible(ui, inner_size.size))
+			let should_render_inner = tree_component.cached_height_inner
+				.map(|height| is_height_visible(ui, height))
 				.unwrap_or(true);
 			
 			if should_render_inner {
@@ -61,14 +63,11 @@ fn entity_tree_ui_inner(
 					});
 				}).response;
 				
-				let new_inner_size = CachedInnerSize { size: response.rect.size() };
-				if Some(&new_inner_size) != inner_size_option {
-					commands.entity(entity).insert(new_inner_size);
-				}
+				new_inner_height = Some(response.rect.height());
 			} else {
-				let inner_size = inner_size_option
-					.expect("`should_render_inner` condition should ensure `inner_size_option` is Some in this branch");
-				ui.allocate_space(inner_size.size);
+				let height = tree_component.cached_height_inner
+					.expect("`should_render_inner` condition should ensure `cached_height_inner` is Some in this branch");
+				ui.allocate_space(egui::Vec2::new(1.0, height));
 			}
 			
 			let indent_frame = egui::containers::Frame::NONE.outer_margin(egui::Margin {
@@ -84,30 +83,32 @@ fn entity_tree_ui_inner(
 			});
 		}).response;
 		
-		let new_outer_size = CachedOuterSize { size: response.rect.size() };
-		if Some(&new_outer_size) != outer_size_option {
-			commands.entity(entity).insert(new_outer_size);
-		}
+		new_outer_height = Some(response.rect.height());
 	} else {
-		let outer_size = outer_size_option
+		let height = tree_component.cached_height_outer
 			.expect("`should_render_outer` condition should ensure `outer_size_option` is Some in this branch");
-		ui.allocate_space(outer_size.size);
+		ui.allocate_space(egui::Vec2::new(1.0, height));
+	}
+	
+	if new_outer_height.is_some() || new_inner_height.is_some() {
+		let new_tree_component = ShowInTree {
+			cached_height_outer: new_outer_height.or(tree_component.cached_height_outer),
+			cached_height_inner: new_inner_height.or(tree_component.cached_height_inner),
+		};
+		commands.entity(entity).insert(new_tree_component);
 	}
 }
 
-fn is_size_visible(ui: &egui::Ui, size: egui::Vec2) -> bool {
+fn is_height_visible(ui: &egui::Ui, height: f32) -> bool {
 	let next_widget_position = ui.next_widget_position();
-	ui.is_rect_visible(
-		egui::Rect::from_min_size(next_widget_position, size),
-	)
+	ui.is_rect_visible(egui::Rect::from_min_size(
+		next_widget_position,
+		egui::Vec2::new(1.0, height),
+	))
 }
 
-#[derive(Component, PartialEq)]
-struct CachedOuterSize {
-	size: egui::Vec2,
-}
-
-#[derive(Component, PartialEq)]
-struct CachedInnerSize {
-	size: egui::Vec2,
+#[derive(Component, Default)]
+pub struct ShowInTree {
+	cached_height_outer: Option<f32>,
+	cached_height_inner: Option<f32>,
 }
