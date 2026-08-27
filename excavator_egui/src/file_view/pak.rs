@@ -1,8 +1,10 @@
-use super::{FileView, FileViewEffect};
+use crate::core::app::ExcavatorContext;
+use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks};
 
-use std::io::{BufRead, Seek};
+use std::sync::Arc;
+use yoke::Yoke;
 
 use bevy_ecs::{
 	entity::Entity, system::Commands,
@@ -18,12 +20,8 @@ pub struct PakFileView {
 }
 
 impl PakFileView {
-	pub fn load(mut reader: impl BufRead + Seek, _ctx: &egui::Context) -> anyhow::Result<Self> {
-		use {std::sync::Arc, yoke::Yoke};
-		
-		let mut bytes = Vec::new();
-		reader.read_to_end(&mut bytes)?;
-		let yoke_bytes = Yoke::attach_to_cart(Arc::new(bytes), |vec| &vec[..]);
+	pub fn parse(file_contents: Vec<u8>) -> anyhow::Result<Self> {
+		let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
 		
 		let mut ecs_world = World::new();
 		// EntityRef::components panics if component not registered
@@ -35,12 +33,10 @@ impl PakFileView {
 }
 
 impl FileView for PakFileView {
-	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
+	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
 		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
 			entity_tree_ui(ui, &mut self.ecs_world, self.root, &TREE_CALLBACKS);
 		});
-		
-		FileViewEffect::default()
 	}
 }
 

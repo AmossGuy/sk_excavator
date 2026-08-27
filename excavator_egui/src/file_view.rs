@@ -1,30 +1,20 @@
 pub mod anb;
 mod common;
-pub mod loader;
 pub mod pak;
 
-pub use loader::FileViewLoader;
+use crate::core::app::ExcavatorContext;
+use excavator_backend::formats::FileFormat;
+use egui::Ui;
 
-trait FileView: Send {
-	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect;
+pub trait FileView: Send + Sync + 'static {
+	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext);
 }
 
-impl<T, E> FileView for Result<T, E> where
-	T: FileView + Send,
-	E: ToString + Send,
-{
-	fn ui(&mut self, ui: &mut egui::Ui) -> FileViewEffect {
-		match self {
-			Ok(file_view) => file_view.ui(ui),
-			Err(e) => {
-				ui.label("Error");
-				ui.label(e.to_string());
-				FileViewEffect::default()
-			},
-		}
-	}
-}
-
-#[derive(Default)]
-pub struct FileViewEffect {
+pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {
+	let view: Box<dyn FileView> = match format {
+		Some(FileFormat::Pak) => Box::new(pak::PakFileView::parse(file_contents)?),
+		Some(FileFormat::Anb) => Box::new(anb::AnbFileView::parse(file_contents)?),
+		Some(_) | None => anyhow::bail!("unsupported format"),
+	};
+	Ok(view)
 }

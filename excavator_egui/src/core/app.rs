@@ -1,13 +1,12 @@
-use crate::file_view::FileViewLoader;
+use crate::file_view::FileView;
 use super::menubar::show_menu_bar_panel;
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
-use std::{path::{Path, PathBuf}, sync::Arc};
+use std::{path::PathBuf, sync::Arc};
 
 pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
-	file_view: Option<FileViewLoader>,
 }
 
 impl ExcavatorApp {
@@ -30,12 +29,10 @@ impl ExcavatorApp {
 		
 		let settings = ExcavatorSettings::load(storage);
 		let windows = WindowHolder::new();
-		let file_view = None;
 		
-		let excavator = ExcavatorContext::new(
-			ExcavatorInner { settings, windows, new_file_path: None }
-		);
-		Self { excavator, file_view }
+		let inner = ExcavatorInner { settings, windows, file_view: None };
+		let excavator = ExcavatorContext::new(inner);
+		Self { excavator }
 	}
 }
 
@@ -46,15 +43,9 @@ impl eframe::App for ExcavatorApp {
 		
 		show_menu_bar_panel(ui, &self.excavator);
 		
-		if let Some(path) = self.excavator.inner.write().new_file_path.take() {
-			self.file_view = FileViewLoader::from_path(path, ui.ctx());
-		}
-		
 		egui::CentralPanel::default().show(ui, |ui| {
-			if let Some(file_view) = &mut self.file_view {
-				file_view.ui(ui);
-			} else {
-				ui.label("no file open");
+			if let Some(file_view) = self.excavator.get_file_view() {
+				file_view.write().ui(ui, &self.excavator);
 			}
 		});
 	}
@@ -67,9 +58,7 @@ impl eframe::App for ExcavatorApp {
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	windows: WindowHolder,
-	
-	// temporary solution:
-	new_file_path: Option<PathBuf>,
+	file_view: Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>>,
 }
 
 #[derive(Clone)]
@@ -115,9 +104,16 @@ impl ExcavatorContext {
 		});
 	}
 	
-	pub fn open_file<P: AsRef<Path>>(&self, path: P) {
-		let path = path.as_ref().to_path_buf();
+	pub fn open_file(&self, path: PathBuf) {
 		self.settings_mut(|s| s.add_recent_file(path.clone()));
-		self.inner.write().new_file_path = Some(path);
+		crate::core::load::spawn_load_thread(path, self);
+	}
+	
+	pub fn set_file_view(&self, view: Box<dyn FileView>) {
+		self.inner.write().file_view = Some(Arc::new(egui::mutex::RwLock::new(view)));
+	}
+	
+	pub fn get_file_view(&self) -> Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>> {
+		self.inner.read().file_view.clone()
 	}
 }
