@@ -8,6 +8,7 @@ pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 	egui::Panel::top("menu bar").show(ui, |ui| {
 		MenuBar::new().ui(ui, |ui| {
 			file_menu_button(ui, excavator);
+			edit_menu_button(ui, excavator);
 			settings_menu_button(ui, excavator);
 			help_menu_button(ui, excavator);
 		});
@@ -16,31 +17,41 @@ pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 
 fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("File", |ui| {
-		menu_action(ui, excavator, "Open...", MenuAction::OpenFile);
+		menu_action(ui, excavator, "Open...", AppAction::OpenFile);
 		ui.menu_button("Recent files", |ui| {
 			recent_file_list(ui, excavator);
 		});
 		ui.separator();
-		menu_action(ui, excavator, "Quit", MenuAction::Quit);
+		menu_action(ui, excavator, "Save", ViewAction::Save);
+		menu_action(ui, excavator, "Save as...", ViewAction::SaveAs);
+		ui.separator();
+		menu_action(ui, excavator, "Quit", AppAction::Quit);
+	});
+}
+
+fn edit_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
+	ui.menu_button("Edit", |ui| {
+		menu_action(ui, excavator, "Undo", ViewAction::Undo);
+		menu_action(ui, excavator, "Redo", ViewAction::Redo);
 	});
 }
 
 fn settings_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Settings", |ui| {
-		menu_action(ui, excavator, "Configure Excavator...", MenuAction::SettingsExcavator);
-		menu_action(ui, excavator, "Configure egui...", MenuAction::SettingsEgui);
+		menu_action(ui, excavator, "Configure Excavator...", AppAction::SettingsExcavator);
+		menu_action(ui, excavator, "Configure egui...", AppAction::SettingsEgui);
 	});
 }
 
 fn help_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Help", |ui| {
-		menu_action(ui, excavator, "About Excavator...", MenuAction::About);
+		menu_action(ui, excavator, "About Excavator...", AppAction::About);
 	});
 }
 
-fn menu_action<'a>(
+fn menu_action<'a, A: MenuAction>(
 	ui: &mut Ui, excavator: &ExcavatorContext,
-	atoms: impl IntoAtoms<'a>, action: MenuAction,
+	atoms: impl IntoAtoms<'a>, action: A,
 ) {
 	let button = Button::new(atoms);
 	/*
@@ -48,7 +59,9 @@ fn menu_action<'a>(
 		button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 	}
 	*/
-	if ui.add(button).clicked() {
+	
+	let enabled = action.should_be_enabled(ui.ctx(), excavator);
+	if ui.add_enabled(enabled, button).clicked() {
 		action.execute(ui.ctx(), excavator);
 	}
 }
@@ -82,12 +95,17 @@ fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 		}
 		
 		ui.separator();
-		menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
+		menu_action(ui, excavator, "Clear recent files", AppAction::ClearRecentFiles);
 	}
 }
 
+trait MenuAction {
+	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext);
+	fn should_be_enabled(&self, ctx: &Context, excavator: &ExcavatorContext) -> bool;
+}
+
 #[derive(Copy, Clone, Debug)]
-pub enum MenuAction {
+enum AppAction {
 	OpenFile,
 	ClearRecentFiles,
 	Quit,
@@ -98,7 +116,7 @@ pub enum MenuAction {
 	About,
 }
 
-impl MenuAction {
+impl MenuAction for AppAction {
 	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext) {
 		match self {
 			Self::OpenFile => excavator.open_file_dialog(),
@@ -109,6 +127,34 @@ impl MenuAction {
 			Self::SettingsEgui => excavator.add_window(SettingsWindow::egui_tab()),
 			
 			Self::About => excavator.add_window(AboutWindow::new()),
+		}
+	}
+	
+	fn should_be_enabled(&self, _ctx: &Context, _excavator: &ExcavatorContext) -> bool {
+		true
+	}
+}
+
+#[derive(Copy, Clone, Debug)]
+enum ViewAction {
+	Save,
+	SaveAs,
+	
+	Undo,
+	Redo,
+}
+
+impl MenuAction for ViewAction {
+	fn execute(&self, _ctx: &Context, _excavator: &ExcavatorContext) {
+		// todo
+	}
+	
+	fn should_be_enabled(&self, _ctx: &Context, excavator: &ExcavatorContext) -> bool {
+		if let Some(_view) = excavator.get_file_view() {
+			// todo
+			true
+		} else {
+			false
 		}
 	}
 }
