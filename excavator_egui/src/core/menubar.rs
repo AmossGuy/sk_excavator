@@ -136,7 +136,7 @@ impl MenuAction for AppAction {
 }
 
 #[derive(Copy, Clone, Debug)]
-enum ViewAction {
+pub enum ViewAction {
 	Save,
 	SaveAs,
 	
@@ -145,14 +145,17 @@ enum ViewAction {
 }
 
 impl MenuAction for ViewAction {
-	fn execute(&self, _ctx: &Context, _excavator: &ExcavatorContext) {
-		// todo
+	fn execute(&self, _ctx: &Context, excavator: &ExcavatorContext) {
+		if let Some(view) = excavator.get_file_view() {
+			let mut view_lock = view.write();
+			view_lock.menubar_execute(*self);
+		}
 	}
 	
 	fn should_be_enabled(&self, _ctx: &Context, excavator: &ExcavatorContext) -> bool {
-		if let Some(_view) = excavator.get_file_view() {
-			// todo
-			true
+		if let Some(view) = excavator.get_file_view() {
+			let view_lock = view.read();
+			view_lock.menubar_should_be_enabled(*self)
 		} else {
 			false
 		}

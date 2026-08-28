@@ -1,4 +1,5 @@
 use crate::core::app::ExcavatorContext;
+use crate::core::menubar::ViewAction;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks, ShowInTree};
@@ -36,43 +37,59 @@ impl AnbFileView {
 		
 		Ok(Self { ecs_world, root, save_message: String::new() })
 	}
+	fn save_as(&mut self) {
+		// another case of using blocking thingy because i'm lazy
+		if let Some(path) = rfd::FileDialog::new().save_file() {
+			match excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root) {
+				Err(e) => { self.save_message = format!("error while serializing: {}", e); },
+				Ok(data) => match std::fs::write(path, data) {
+					Err(e) => { self.save_message = format!("error while writing file: {}", e); },
+					Ok(()) => { self.save_message = "Success".to_string(); },
+				},
+			}
+		}
+	}
+	
+	fn undo(&mut self) {
+		self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
+			for action in undo.commands.undo() {
+				interpret_action(world, action);
+			}
+		});
+	}
+	
+	fn redo(&mut self) {
+		self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
+			for action in undo.commands.redo() {
+				interpret_action(world, action);
+			}
+		});
+	}
 }
 
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
-		if ui.button("Save as (WIP)").clicked() {
-			// another case of using blocking thingy because i'm lazy
-			if let Some(path) = rfd::FileDialog::new().save_file() {
-				match excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root) {
-					Err(e) => { self.save_message = format!("error while serializing: {}", e); },
-					Ok(data) => match std::fs::write(path, data) {
-						Err(e) => { self.save_message = format!("error while writing file: {}", e); },
-						Ok(()) => { self.save_message = "Success".to_string(); },
-					},
-				}
-			}
-		}
-		if ui.button("Undo").clicked() {
-			self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
-				for action in undo.commands.undo() {
-					interpret_action(world, action);
-				}
-			});
-		}
-		if ui.button("Redo").clicked() {
-			self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
-				for action in undo.commands.redo() {
-					interpret_action(world, action);
-				}
-			});
-		}
-		ui.label(&self.save_message);
-		
-		ui.separator();
-		
-		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
+		egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
 			entity_tree_ui(ui, &mut self.ecs_world, self.root, &TREE_CALLBACKS);
 		});
+	}
+	
+	fn menubar_execute(&mut self, action: ViewAction) {
+		match action {
+			ViewAction::SaveAs => self.save_as(),
+			ViewAction::Undo => self.undo(),
+			ViewAction::Redo => self.redo(),
+			_ => {},
+		}
+	}
+	
+	fn menubar_should_be_enabled(&self, action: ViewAction) -> bool {
+		match action {
+			ViewAction::SaveAs => true,
+			ViewAction::Undo => true,
+			ViewAction::Redo => true,
+			_ => false,
+		}
 	}
 }
 
