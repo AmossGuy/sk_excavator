@@ -1,8 +1,5 @@
-use crate::core::app::ExcavatorContext;
-use crate::core::menubar::ViewAction;
-use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks, ShowInTree};
+use crate::file_view::common::tree::{EntityTreeCallbacks, ShowInTree, TreeFileView};
 
 use std::sync::Arc;
 use yoke::Yoke;
@@ -19,8 +16,6 @@ use excavator_backend::formats::common::undo::{UndoEntry, UndoResource, undoable
 pub struct AnbFileView {
 	ecs_world: World,
 	root: Entity,
-	
-	save_message: String,
 }
 
 impl AnbFileView {
@@ -35,66 +30,29 @@ impl AnbFileView {
 		
 		let root = excavator_backend::formats::anb::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
 		
-		Ok(Self { ecs_world, root, save_message: String::new() })
-	}
-	fn save_as(&mut self) {
-		// another case of using blocking thingy because i'm lazy
-		if let Some(path) = rfd::FileDialog::new().save_file() {
-			match excavator_backend::formats::anb::save_from_world(&self.ecs_world, self.root) {
-				Err(e) => { self.save_message = format!("error while serializing: {}", e); },
-				Ok(data) => match std::fs::write(path, data) {
-					Err(e) => { self.save_message = format!("error while writing file: {}", e); },
-					Ok(()) => { self.save_message = "Success".to_string(); },
-				},
-			}
-		}
-	}
-	
-	fn undo(&mut self) {
-		self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
-			for action in undo.commands.undo() {
-				interpret_action(world, action);
-			}
-		});
-	}
-	
-	fn redo(&mut self) {
-		self.ecs_world.resource_scope::<UndoResource, _>(|world, mut undo| {
-			for action in undo.commands.redo() {
-				interpret_action(world, action);
-			}
-		});
+		Ok(Self { ecs_world, root })
 	}
 }
 
-impl FileView for AnbFileView {
-	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
-		egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-			entity_tree_ui(ui, &mut self.ecs_world, self.root, &TREE_CALLBACKS);
-		});
+impl TreeFileView for AnbFileView {
+	fn ecs_world(&self) -> &World {
+		&self.ecs_world
 	}
 	
-	fn menubar_execute(&mut self, action: ViewAction) {
-		match action {
-			ViewAction::SaveAs => self.save_as(),
-			ViewAction::Undo => self.undo(),
-			ViewAction::Redo => self.redo(),
-			_ => {},
-		}
+	fn ecs_world_mut(&mut self) -> &mut World {
+		&mut self.ecs_world
 	}
 	
-	fn menubar_should_be_enabled(&self, action: ViewAction) -> bool {
-		match action {
-			ViewAction::SaveAs => true,
-			ViewAction::Undo => true,
-			ViewAction::Redo => true,
-			_ => false,
+	fn root_id(&self) -> Entity {
+		self.root
+	}
+	
+	fn tree_callbacks(&self) -> EntityTreeCallbacks {
+		EntityTreeCallbacks {
+			entity_ui: entity_ui,
 		}
 	}
 }
-
-const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new()
-	.entity_ui(entity_ui);
 
 fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) {
 	match entity.components::<(Option<&anb::Header>, Option<&anb::Node>)>() {
@@ -116,13 +74,6 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 			let error_fg_color = ui.visuals().error_fg_color;
 			ui.colored_label(error_fg_color, "Entity has an unexpected component setup");
 		},
-	}
-}
-
-fn interpret_action(world: &mut World, action: (undo_2::Action, &Box<dyn UndoEntry>)) {
-	match action.0 {
-		undo_2::Action::Do => action.1.redo(world),
-		undo_2::Action::Undo => action.1.undo(world),
 	}
 }
 

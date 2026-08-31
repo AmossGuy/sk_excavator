@@ -1,26 +1,36 @@
+use crate::core::app::ExcavatorContext;
+use crate::file_view::FileView;
 use bevy_ecs::{
 	component::Component, entity::Entity, hierarchy::Children, system::Commands,
 	world::{CommandQueue, EntityRef, World},
 };
 
-pub struct EntityTreeCallbacks {
-	entity_ui: fn(&mut egui::Ui, EntityRef<'_>, &mut Commands),
-}
-
-impl EntityTreeCallbacks {
-	pub const fn new() -> Self {
-		Self {
-			entity_ui: |_, _, _| {},
-		}
-	}
+pub trait TreeFileView: Send + Sync + 'static {
+	#[allow(dead_code)] // not hard to mantain at all
+	fn ecs_world(&self) -> &World;
+	fn ecs_world_mut(&mut self) -> &mut World;
+	fn root_id(&self) -> Entity;
 	
-	pub const fn entity_ui(mut self, f: fn(&mut egui::Ui, EntityRef<'_>, &mut Commands)) -> Self {
-		self.entity_ui = f;
-		self
+	fn tree_callbacks(&self) -> EntityTreeCallbacks;
+}
+
+impl<T> FileView for T where T: TreeFileView {
+	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
+		let root_id = self.root_id();
+		let callbacks = self.tree_callbacks();
+		
+		let world = self.ecs_world_mut();
+		egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
+			entity_tree_ui(ui, world, root_id, &callbacks);
+		});
 	}
 }
 
-pub fn entity_tree_ui(
+pub struct EntityTreeCallbacks {
+	pub entity_ui: fn(&mut egui::Ui, EntityRef<'_>, &mut Commands),
+}
+
+fn entity_tree_ui(
 	ui: &mut egui::Ui,
 	world: &mut World, entity: Entity,
 	callbacks: &EntityTreeCallbacks,

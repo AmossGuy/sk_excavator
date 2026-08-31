@@ -1,7 +1,5 @@
-use crate::core::app::ExcavatorContext;
-use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use crate::file_view::common::tree::{entity_tree_ui, EntityTreeCallbacks, ShowInTree};
+use crate::file_view::common::tree::{EntityTreeCallbacks, ShowInTree, TreeFileView};
 
 use std::sync::Arc;
 use yoke::Yoke;
@@ -36,16 +34,25 @@ impl PakFileView {
 	}
 }
 
-impl FileView for PakFileView {
-	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
-		egui::ScrollArea::both().auto_shrink([false, false]).show(ui, |ui| {
-			entity_tree_ui(ui, &mut self.ecs_world, self.root, &TREE_CALLBACKS);
-		});
+impl TreeFileView for PakFileView {
+	fn ecs_world(&self) -> &World {
+		&self.ecs_world
+	}
+	
+	fn ecs_world_mut(&mut self) -> &mut World {
+		&mut self.ecs_world
+	}
+	
+	fn root_id(&self) -> Entity {
+		self.root
+	}
+	
+	fn tree_callbacks(&self) -> EntityTreeCallbacks {
+		EntityTreeCallbacks {
+			entity_ui: entity_ui,
+		}
 	}
 }
-
-const TREE_CALLBACKS: EntityTreeCallbacks = EntityTreeCallbacks::new()
-	.entity_ui(entity_ui);
 
 fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) {
 	match entity.components::<(Option<&pak::Header>, Option<&pak::FileMetadata>, Option<&pak::FileName>)>() {
