@@ -1,9 +1,9 @@
 use super::{def_live as live, def_raw as raw};
 
-use bevy_ecs::{entity::Entity, hierarchy::Children, world::World};
 use std::marker::PhantomData;
 use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
+/*
 pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec<u8>> {
 	let mut saver = Saver::new(world);
 	
@@ -395,3 +395,4 @@ enum DeferredBlockNode {
 		node_raw: raw::NodeAnimation,
 	},
 }
+*/

@@ -6,13 +6,11 @@ edition = "2024"
 [dependencies]
 excavator_backend.path = "../excavator_backend"
 
-# Small and handy things
-anyhow.workspace = true
-undo_2.workspace = true
+# Data structures and whatnot
 yoke.workspace = true
 
-# Big and handy things
-bevy_ecs.workspace = true
+# Miscellaneous
+anyhow.workspace = true
 serde.workspace = true
 
 # GUI

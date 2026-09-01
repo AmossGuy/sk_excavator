@@ -1,13 +1,17 @@
 use crate::formats::common::ArcBytes;
 use super::{def_live as live, def_raw as raw};
 
-use bevy_ecs::{entity::Entity, hierarchy::ChildSpawner, world::World};
+use undoredo::Recorder;
 use zerocopy::{FromBytes, LE, U64};
 
-pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
-	load_header(bytes, world)
+pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
+	let (header, _continuation) = parse_header(bytes)?;
+	Ok(live::Pak {
+		header: Recorder::new([header]),
+	})
 }
 
+/*
 fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let (header_component, pointers) = parse_header(bytes)?;
 	let header_entity = world.spawn(header_component);
@@ -58,6 +62,7 @@ fn load_file_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, pointers: Fi
 	
 	Ok(())
 }
+*/
 
 #[derive(Copy, Clone)]
 struct FileListPointers {

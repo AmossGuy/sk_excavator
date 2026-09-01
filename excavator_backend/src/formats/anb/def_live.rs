@@ -1,8 +1,15 @@
-use crate::formats::common::ArcBytes;
+use crate::formats::common::{ArcBytes, TreeFormat};
 use excavator_backend_macros::EditableData;
-use bevy_ecs::component::Component;
 
-#[derive(EditableData, Component, Clone)]
+use undoredo::Recorder;
+
+pub struct Anb {
+	pub header: Recorder<[Header; 1]>,
+}
+
+impl TreeFormat for Anb {}
+
+#[derive(EditableData, Clone)]
 pub struct Header {
 	pub fixup: u32,
 	pub version: u32,
@@ -11,7 +18,7 @@ pub struct Header {
 	pub padding_c: u32,
 }
 
-#[derive(EditableData, Component, Clone, Default)]
+#[derive(EditableData, Clone, Default)]
 pub enum Node {
 	#[default]
 	Base,

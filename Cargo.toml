@@ -14,15 +14,15 @@ opt-level = 1
 [workspace.dependencies]
 # For convenience, we've gathered every dependency in the workspace (not counting intra-workspace ones) in this single place, and lightly categorized them.
 
-# Small and handy things
-anyhow = "1.0.104"
-undo_2 = "0.2.1"
+# Data structures and whatnot
+thunderdome = "0.6.1"
+undoredo = { version = "0.14.1", features = ["thunderdome"] }
 yoke = "0.8.3"
 zerocopy = { version = "0.8.56", features = ["std"] }
 zerocopy-derive = "0.8.56"
 
-# Big and handy things
-bevy_ecs = { version = "0.19.1", default-features = false }
+# Miscellaneous
+anyhow = "1.0.104"
 serde = "1.0.229"
 
 # GUI

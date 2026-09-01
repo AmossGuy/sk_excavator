@@ -1,13 +1,17 @@
 use crate::formats::common::ArcBytes;
 use super::{def_live as live, def_raw as raw};
 
-use bevy_ecs::{entity::Entity, hierarchy::ChildSpawner, world::World};
+use undoredo::Recorder;
 use zerocopy::{FromBytes, LE, U64};
 
-pub fn load_from_bytes(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
-	load_header(bytes, world)
+pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
+	let header = parse_header(bytes)?;
+	Ok(live::Anb {
+		header: Recorder::new([header]),
+	})
 }
 
+/*
 fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
 	let header_component = parse_header(bytes)?;
 	let header_entity = world.spawn(header_component);
@@ -43,6 +47,7 @@ fn load_node_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, offset: u64,
 	
 	Ok(())
 }
+*/
 
 fn parse_header(bytes: &ArcBytes) -> anyhow::Result<live::Header> {
 	let (header_raw, _) = raw::Header::ref_from_prefix(bytes.get())
@@ -61,6 +66,7 @@ fn parse_header(bytes: &ArcBytes) -> anyhow::Result<live::Header> {
 	})
 }
 
+/*
 fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
 	let offset_bytes = bytes.get().get(offset..)
 		.ok_or_else(|| anyhow::anyhow!("node out of bounds"))?;
@@ -224,3 +230,4 @@ fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<li
 	
 	Ok(Some(live::DataBlock { flags, data: data_yoke }))
 }
+*/

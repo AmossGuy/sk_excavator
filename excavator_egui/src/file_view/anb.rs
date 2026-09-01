@@ -1,18 +1,18 @@
-use crate::file_view::common::editable::edit_editable_data;
-use crate::file_view::common::tree::{EntityTreeCallbacks, ShowInTree, TreeFileView};
+use crate::file_view::FileView;
+use crate::file_view::common::tree::TreeFileView;
+use excavator_backend::formats::anb::{def_live as anb, load_from_bytes};
+// use excavator_backend::formats::wflz;
 
 use std::sync::Arc;
 use yoke::Yoke;
 
-use bevy_ecs::{
-	component::Component, entity::Entity, system::Commands,
-	world::{EntityRef, World},
-};
+pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
+	let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
+	let anb = load_from_bytes(&yoke_bytes)?;
+	Ok(TreeFileView::new(anb))
+}
 
-use excavator_backend::formats::anb::def_live as anb;
-use excavator_backend::formats::common::undo::{UndoEntry, UndoResource, undoable_replace_component};
-// use excavator_backend::formats::wflz;
-
+/*
 pub struct AnbFileView {
 	ecs_world: World,
 	root: Entity,
@@ -21,15 +21,7 @@ pub struct AnbFileView {
 impl AnbFileView {
 	pub fn parse(file_contents: Vec<u8>) -> anyhow::Result<Self> {
 		let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
-		
-		let mut ecs_world = World::new();
-		
-		ecs_world.init_resource::<UndoResource>();
-		ecs_world.register_required_components::<anb::Header, ShowInTree>();
-		ecs_world.register_required_components::<anb::Node, ShowInTree>();
-		
-		let root = excavator_backend::formats::anb::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
-		
+		let root = excavator_backend::formats::anb::load_from_bytes(&yoke_bytes)?;
 		Ok(Self { ecs_world, root })
 	}
 }
@@ -77,14 +69,12 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 	}
 }
 
-/*
 fn load_texture(size: [usize; 2], wflz_data: &[u8], ctx: &egui::Context) -> LoadedTexture {
 	let decompressed_data = wflz::decompress(&mut std::io::Cursor::new(wflz_data)).unwrap();
 	let image = egui::ColorImage::from_rgba_unmultiplied(size, &decompressed_data);
 	let handle = ctx.load_texture("anb texture", image, egui::TextureOptions::NEAREST);
 	LoadedTexture { handle }
 }
-*/
 
 #[derive(Component)]
 struct LoadedTexture {
@@ -96,3 +86,4 @@ impl From<&LoadedTexture> for egui::load::SizedTexture {
 		Self::from_handle(&value.handle)
 	}
 }
+*/

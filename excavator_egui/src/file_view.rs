@@ -23,8 +23,8 @@ pub trait FileView: Send + Sync + 'static {
 
 pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {
 	let view: Box<dyn FileView> = match format {
-		Some(FileFormat::Pak) => Box::new(pak::PakFileView::parse(file_contents)?),
-		Some(FileFormat::Anb) => Box::new(anb::AnbFileView::parse(file_contents)?),
+		Some(FileFormat::Pak) => Box::new(pak::parse_pak(file_contents)?),
+		Some(FileFormat::Anb) => Box::new(anb::parse_anb(file_contents)?),
 		Some(_) | None => anyhow::bail!("unsupported format"),
 	};
 	Ok(view)

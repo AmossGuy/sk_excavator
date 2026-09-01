@@ -6,13 +6,13 @@ edition = "2024"
 [dependencies]
 excavator_backend_macros.path = "../excavator_backend_macros"
 
-# Small and handy things
-anyhow.workspace = true
-undo_2.workspace = true
+# Data structures and whatnot
+thunderdome.workspace = true
+undoredo.workspace = true
 yoke.workspace = true
 zerocopy.workspace = true
 zerocopy-derive.workspace = true
 
-# Big and handy things
-bevy_ecs.workspace = true
+# Miscellaneous
+anyhow.workspace = true
 serde.workspace = true

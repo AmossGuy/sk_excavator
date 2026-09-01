@@ -1,17 +1,17 @@
-use crate::file_view::common::editable::edit_editable_data;
-use crate::file_view::common::tree::{EntityTreeCallbacks, ShowInTree, TreeFileView};
+use crate::file_view::FileView;
+use crate::file_view::common::tree::TreeFileView;
+use excavator_backend::formats::pak::{def_live as pak, load_from_bytes};
 
 use std::sync::Arc;
 use yoke::Yoke;
 
-use bevy_ecs::{
-	entity::Entity, system::Commands,
-	world::{EntityRef, World},
-};
+pub fn parse_pak(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
+	let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
+	let pak = load_from_bytes(&yoke_bytes)?;
+	Ok(TreeFileView::new(pak))
+}
 
-use excavator_backend::formats::pak::def_live as pak;
-use excavator_backend::formats::common::undo::undoable_replace_component;
-
+/*
 pub struct PakFileView {
 	ecs_world: World,
 	root: Entity,
@@ -20,16 +20,7 @@ pub struct PakFileView {
 impl PakFileView {
 	pub fn parse(file_contents: Vec<u8>) -> anyhow::Result<Self> {
 		let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
-		
-		let mut ecs_world = World::new();
-		
-		ecs_world.register_required_components::<pak::Header, ShowInTree>();
-		ecs_world.register_required_components::<pak::FileMetadata, ShowInTree>();
-		// EntityRef::components panics if component not registered
-		ecs_world.register_component::<pak::FileMetadata>();
-		
-		let root = excavator_backend::formats::pak::load_from_bytes(&yoke_bytes, &mut ecs_world)?;
-		
+		let root = excavator_backend::formats::pak::load_from_bytes(&yoke_bytes)?;
 		Ok(Self { ecs_world, root })
 	}
 }
@@ -80,3 +71,4 @@ fn entity_ui(ui: &mut egui::Ui, entity: EntityRef<'_>, commands: &mut Commands) 
 		},
 	}
 }
+*/

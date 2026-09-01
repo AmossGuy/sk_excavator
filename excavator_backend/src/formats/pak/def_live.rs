@@ -1,17 +1,24 @@
-use crate::formats::common::ArcBytes;
+use crate::formats::common::{ArcBytes, TreeFormat};
 use excavator_backend_macros::EditableData;
-use bevy_ecs::component::Component;
 
-#[derive(EditableData, Component, Clone)]
+use undoredo::Recorder;
+
+pub struct Pak {
+	pub header: Recorder<[Header; 1]>,
+}
+
+impl TreeFormat for Pak {}
+
+#[derive(EditableData, Clone)]
 pub struct Header {
 }
 
-#[derive(Component, Clone)]
+#[derive(Clone)]
 pub struct FileName {
 	pub name: ArcBytes,
 }
 
-#[derive(EditableData, Component, Clone)]
+#[derive(EditableData, Clone)]
 pub struct FileMetadata {
 	pub time: u64,
 	pub filename_hash: u32,
@@ -20,7 +27,7 @@ pub struct FileMetadata {
 	pub padding: u32,
 }
 
-#[derive(Component, Clone)]
+#[derive(Clone)]
 pub struct FileData {
 	pub data: ArcBytes,
 }
