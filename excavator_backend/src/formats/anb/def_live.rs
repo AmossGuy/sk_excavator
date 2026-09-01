@@ -7,7 +7,18 @@ pub struct Anb {
 	pub header: Recorder<[Header; 1]>,
 }
 
-impl TreeFormat for Anb {}
+#[derive(Copy, Clone)]
+pub enum ItemId {
+	Header,
+}
+
+impl TreeFormat for Anb {
+	type ItemId = ItemId;
+	
+	fn root_id(&self) -> ItemId {
+		ItemId::Header
+	}
+}
 
 #[derive(EditableData, Clone)]
 pub struct Header {
