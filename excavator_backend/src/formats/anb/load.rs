@@ -3,7 +3,7 @@ use super::{def_live as live, def_raw as raw};
 
 use thunderdome::Arena;
 use undoredo::Recorder;
-use zerocopy::{FromBytes, LE, U64};
+use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	let header = parse_header(bytes)?;

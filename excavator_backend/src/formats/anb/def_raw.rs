@@ -1,3 +1,6 @@
+// in progress
+#![expect(dead_code)]
+
 use zerocopy::byteorder::*;
 use zerocopy_derive::*;
 
