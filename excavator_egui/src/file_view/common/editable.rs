@@ -1,4 +1,4 @@
-use excavator_backend::formats::common::{DropdownRenderer, EditableData, EditableDataRenderer};
+use excavator_backend::formats::common::editable::{DropdownRenderer, EditableData, EditableDataRenderer};
 
 #[must_use = "value must be used to apply edits"]
 pub fn edit_editable_data<T: EditableData + Clone>(ui: &mut egui::Ui, data: &T) -> Option<T> {
