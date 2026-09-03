@@ -1,10 +1,12 @@
 use crate::formats::common::{ArcBytes, TreeFormat};
 use excavator_backend_macros::EditableData;
 
+use thunderdome::Arena;
 use undoredo::Recorder;
 
 pub struct Anb {
 	pub header: Recorder<[Header; 1]>,
+	pub nodes: Recorder<Arena<Node>>,
 }
 
 #[derive(Copy, Clone)]
@@ -46,8 +48,6 @@ pub enum Node {
 	SequenceFrame(NodeSequenceFrame),
 	Sequence(NodeSequence),
 	Animation(NodeAnimation),
-	#[edit(skip)]
-	UnknownKind(u32),
 }
 
 impl Node {
@@ -67,7 +67,6 @@ impl Node {
 			Self::SequenceFrame(_) => 11,
 			Self::Sequence(_) => 12,
 			Self::Animation(_) => 13,
-			Self::UnknownKind(kind) => *kind,
 		}
 	}
 }

@@ -1,13 +1,18 @@
 use crate::formats::common::ArcBytes;
 use super::{def_live as live, def_raw as raw};
 
+use thunderdome::Arena;
 use undoredo::Recorder;
 use zerocopy::{FromBytes, LE, U64};
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	let header = parse_header(bytes)?;
+	
+	// todo: node loading
+	
 	Ok(live::Anb {
 		header: Recorder::new([header]),
+		nodes: Recorder::new(Arena::new()),
 	})
 }
 
