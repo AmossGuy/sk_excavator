@@ -87,9 +87,16 @@ impl FileContinuation {
 	}
 	
 	fn get_file_data<'a>(&self, bytes: &'a ArcBytes) -> anyhow::Result<(&'a raw::FileHeader, ArcBytes)> {
-		let (header, after_header) = raw::FileHeader::ref_from_prefix(bytes.get())
+		// TODO: feels like the two halves of this should be different functions
+		// get file header
+		let offset_u = self.data_pointer as usize;
+		let offset_slice = bytes.get().get(offset_u..)
+			.ok_or_else(|| anyhow::anyhow!("out of bounds"))?;
+		
+		let (header, after_header) = raw::FileHeader::ref_from_prefix(offset_slice)
 			.map_err(|e| e.map_src(<[_]>::to_vec))?;
 		
+		// get file contents
 		let file_size = header.size.get() as usize;
 		let data_slice = after_header.get(..file_size)
 			.ok_or_else(|| anyhow::anyhow!("file goes past end"))?;
