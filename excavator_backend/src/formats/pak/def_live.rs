@@ -1,29 +1,38 @@
-use crate::formats::common::{ArcBytes, TreeFormat};
+use crate::formats::common::{ArcBytes, tree::{TreeFormat, TreeItem, TreeItemType}};
 use excavator_backend_macros::EditableData;
 
-use thunderdome::Arena;
+use thunderdome::{Arena, Index as ArenaIndex};
 use undoredo::Recorder;
 
 pub struct Pak {
-	pub header: Recorder<[Header; 1]>,
-	pub files: Recorder<Arena<File>>,
+	pub(super) header: Recorder<[TreeItem<Header>; 1]>,
+	pub(super) files: Recorder<Arena<TreeItem<File>>>,
 }
 
 #[derive(Copy, Clone)]
 pub enum ItemId {
-	Header,
+	Header(HeaderId),
+	File(FileId),
 }
 
 impl TreeFormat for Pak {
 	type ItemId = ItemId;
 	
 	fn root_id(&self) -> ItemId {
-		ItemId::Header
+		ItemId::Header(HeaderId)
 	}
 }
 
 #[derive(EditableData, Clone)]
 pub struct Header {
+}
+
+#[derive(Copy, Clone)]
+pub struct HeaderId;
+
+impl TreeItemType for Header {
+	type ParentId = ();
+	type ChildrenIdList = Vec<FileId>;
 }
 
 #[derive(EditableData, Clone)]
@@ -37,4 +46,12 @@ pub struct File {
 	pub padding: u32,
 	#[edit(skip)]
 	pub data: ArcBytes,
+}
+
+#[derive(Copy, Clone)]
+pub struct FileId(pub(super) ArenaIndex);
+
+impl TreeItemType for File {
+	type ParentId = HeaderId;
+	type ChildrenIdList = ();
 }

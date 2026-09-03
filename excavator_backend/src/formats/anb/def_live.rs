@@ -1,4 +1,4 @@
-use crate::formats::common::{ArcBytes, TreeFormat};
+use crate::formats::common::{ArcBytes, tree::TreeFormat};
 use excavator_backend_macros::EditableData;
 
 use thunderdome::Arena;

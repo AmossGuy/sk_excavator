@@ -1,4 +1,4 @@
-use crate::formats::common::ArcBytes;
+use crate::formats::common::{ArcBytes, tree::TreeItem};
 use super::{def_live as live, def_raw as raw};
 
 use std::iter;
@@ -10,12 +10,16 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
 	let (header, file_list_cont) = parse_header(bytes)?;
 	
 	let mut files = Arena::new();
+	let mut file_ids = Vec::new();
+	
 	for file_cont in file_list_cont.iter_pointers(bytes.get())? {
-		files.insert(file_cont.parse_file(bytes)?);
+		let parsed = file_cont.parse_file(bytes)?;
+		let file_index = files.insert(TreeItem::new(parsed, live::HeaderId, ()));
+		file_ids.push(live::FileId(file_index));
 	}
 	
 	Ok(live::Pak {
-		header: Recorder::new([header]),
+		header: Recorder::new([TreeItem::new(header, (), file_ids)]),
 		files: Recorder::new(files),
 	})
 }

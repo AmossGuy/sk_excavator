@@ -1,6 +1,6 @@
 use crate::core::app::ExcavatorContext;
 use crate::file_view::FileView;
-use excavator_backend::formats::common::TreeFormat;
+use excavator_backend::formats::common::tree::TreeFormat;
 
 use egui::Ui;
 

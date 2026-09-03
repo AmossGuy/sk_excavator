@@ -16,7 +16,7 @@ pub fn parse_pak(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
 impl TreeFormatUi for pak::Pak {
 	fn item_ui(&self, ui: &mut Ui, item: pak::ItemId) {
 		match item {
-			pak::ItemId::Header => {
+			pak::ItemId::Header(pak::HeaderId) => {
 				egui::Grid::new("header fields").show(ui, |ui| {
 					if let Some(edited_header) = edit_editable_data(ui, &self.header[0]) {
 						// todo
