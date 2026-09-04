@@ -14,13 +14,21 @@ pub fn parse_pak(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
 }
 
 impl TreeFormatUi for pak::Pak {
-	fn item_ui(&self, ui: &mut Ui, item: pak::ItemId) {
+	fn item_ui(&self, ui: &mut Ui, item: pak::AnyItemRef) {
 		match item {
-			pak::ItemId::Header(pak::HeaderId) => {
+			pak::AnyItemRef::Header(header) => {
 				egui::Grid::new("header fields").show(ui, |ui| {
-					if let Some(edited_header) = edit_editable_data(ui, &self.header[0]) {
+					if let Some(edited_header) = edit_editable_data(ui, &header.data) {
 						// todo
 						let _ = edited_header;
+					}
+				});
+			},
+			pak::AnyItemRef::File(file) => {
+				egui::Grid::new("file fields").show(ui, |ui| {
+					if let Some(edited_file) = edit_editable_data(ui, &file.data) {
+						// todo
+						let _ = edited_file;
 					}
 				});
 			},

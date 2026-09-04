@@ -1,17 +1,19 @@
-use crate::formats::common::ArcBytes;
+use crate::formats::common::{ArcBytes, tree::TreeItem};
 use super::{def_live as live, def_raw as raw};
 
 use thunderdome::Arena;
 use undoredo::Recorder;
 use zerocopy::FromBytes;
 
+#[expect(unused)] // wip
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	let header = parse_header(bytes)?;
 	
 	// todo: node loading
+	let root_node_id = todo!();
 	
 	Ok(live::Anb {
-		header: Recorder::new([header]),
+		header: Recorder::new([TreeItem::new(header, (), root_node_id)]),
 		nodes: Recorder::new(Arena::new()),
 	})
 }

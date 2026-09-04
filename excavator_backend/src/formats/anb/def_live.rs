@@ -1,37 +1,29 @@
-use crate::formats::common::{ArcBytes, tree::TreeFormat};
+use crate::formats::common::{ArcBytes, tree::{ItemId, TreeFormat, TreeItem, TreeItemType}};
 use excavator_backend_macros::EditableData;
 
-use thunderdome::Arena;
+use thunderdome::{Arena, Index as ArenaIndex};
 use undoredo::Recorder;
 
 pub struct Anb {
-	pub header: Recorder<[Header; 1]>,
-	pub nodes: Recorder<Arena<Node>>,
+	pub(super) header: Recorder<[TreeItem<Header>; 1]>,
+	pub(super) nodes: Recorder<Arena<TreeItem<Node>>>,
 }
 
 #[derive(Copy, Clone)]
-pub enum ItemId {
-	Header,
+pub enum AnyItemId {
+	Header(HeaderId),
 }
 
-// literally just until i do some basic implementation around here
-pub enum Placeholder {}
-
-pub enum ItemRef<'a> {
-	// Header(&'a TreeItem<Header>),
-	Header(&'a Placeholder),
+pub enum AnyItemRef<'a> {
+	Header(&'a TreeItem<Header>),
 }
 
 impl TreeFormat for Anb {
-	type ItemId = ItemId;
-	type ItemRef<'a> = ItemRef<'a>;
+	type RootId = HeaderId;
+	type AnyItemRef<'a> = AnyItemRef<'a>;
 	
-	fn root_id(&self) -> ItemId {
-		ItemId::Header
-	}
-	
-	fn get_ref(&self, _id: ItemId) -> Option<ItemRef<'_>> {
-		todo!()
+	fn root_id(&self) -> HeaderId {
+		HeaderId
 	}
 }
 
@@ -42,6 +34,23 @@ pub struct Header {
 	pub padding_a: u32,
 	pub padding_b: u32,
 	pub padding_c: u32,
+}
+
+impl TreeItemType for Header {
+	type Format = Anb;
+	type ParentId = ();
+	type ChildrenIdList = NodeId;
+}
+
+#[derive(Copy, Clone)]
+pub struct HeaderId;
+
+impl ItemId<Anb> for HeaderId {
+	type Ref<'a> = &'a TreeItem<Header>;
+	
+	fn get_from<'a>(self, source: &'a Anb) -> Option<&'a TreeItem<Header>> {
+		source.header.get(&0)
+	}
 }
 
 #[derive(EditableData, Clone, Default)]
@@ -63,7 +72,17 @@ pub enum Node {
 	Animation(NodeAnimation),
 }
 
+#[derive(Copy, Clone)]
+pub struct NodeId(pub(super) ArenaIndex);
+
+impl TreeItemType for Node {
+	type Format = Anb;
+	type ParentId = AnyItemId;
+	type ChildrenIdList = Vec<NodeId>;
+}
+
 impl Node {
+	// Isn't this the save module's business?
 	pub fn kind(&self) -> u32 {
 		match self {
 			Self::Base => 0,

@@ -5,7 +5,7 @@ use excavator_backend::formats::common::tree::TreeFormat;
 use egui::Ui;
 
 pub trait TreeFormatUi: TreeFormat {
-	fn item_ui(&self, ui: &mut Ui, item: Self::ItemId);
+	fn item_ui(&self, ui: &mut Ui, item: Self::AnyItemRef<'_>);
 }
 
 pub struct TreeFileView<T> {

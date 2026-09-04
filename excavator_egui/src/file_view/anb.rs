@@ -15,11 +15,11 @@ pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
 }
 
 impl TreeFormatUi for anb::Anb {
-	fn item_ui(&self, ui: &mut Ui, item: anb::ItemId) {
+	fn item_ui(&self, ui: &mut Ui, item: anb::AnyItemRef) {
 		match item {
-			anb::ItemId::Header => {
+			anb::AnyItemRef::Header(header) => {
 				egui::Grid::new("header fields").show(ui, |ui| {
-					if let Some(edited_header) = edit_editable_data(ui, &self.header[0]) {
+					if let Some(edited_header) = edit_editable_data(ui, &header.data) {
 						// todo
 						let _ = edited_header;
 					}

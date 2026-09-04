@@ -1,4 +1,4 @@
-use crate::formats::common::{ArcBytes, tree::{TreeFormat, TreeItem, TreeItemType}};
+use crate::formats::common::{ArcBytes, tree::{ItemId, TreeFormat, TreeItem, TreeItemType}};
 use excavator_backend_macros::EditableData;
 
 use thunderdome::{Arena, Index as ArenaIndex};
@@ -10,29 +10,23 @@ pub struct Pak {
 }
 
 #[derive(Copy, Clone)]
-pub enum ItemId {
+pub enum AnyItemId {
 	Header(HeaderId),
 	File(FileId),
 }
 
-pub enum ItemRef<'a> {
+#[derive(Copy, Clone)]
+pub enum AnyItemRef<'a> {
 	Header(&'a TreeItem<Header>),
 	File(&'a TreeItem<File>),
 }
 
 impl TreeFormat for Pak {
-	type ItemId = ItemId;
-	type ItemRef<'a> = ItemRef<'a>;
+	type RootId = HeaderId;
+	type AnyItemRef<'a> = AnyItemRef<'a>;
 	
-	fn root_id(&self) -> ItemId {
-		ItemId::Header(HeaderId)
-	}
-	
-	fn get_ref(&self, id: ItemId) -> Option<ItemRef<'_>> {
-		Some(match id {
-			ItemId::Header(HeaderId) => ItemRef::Header(self.header.get(&0)?),
-			ItemId::File(FileId(index)) => ItemRef::File(self.files.get(&index)?),
-		})
+	fn root_id(&self) -> HeaderId {
+		HeaderId
 	}
 }
 
@@ -40,12 +34,21 @@ impl TreeFormat for Pak {
 pub struct Header {
 }
 
+impl TreeItemType for Header {
+	type Format = Pak;
+	type ParentId = ();
+	type ChildrenIdList = Vec<FileId>;
+}
+
 #[derive(Copy, Clone)]
 pub struct HeaderId;
 
-impl TreeItemType for Header {
-	type ParentId = ();
-	type ChildrenIdList = Vec<FileId>;
+impl ItemId<Pak> for HeaderId {
+	type Ref<'a> = &'a TreeItem<Header>;
+	
+	fn get_from<'a>(self, source: &'a Pak) -> Option<&'a TreeItem<Header>> {
+		source.header.get(&0)
+	}
 }
 
 #[derive(EditableData, Clone)]
@@ -65,6 +68,7 @@ pub struct File {
 pub struct FileId(pub(super) ArenaIndex);
 
 impl TreeItemType for File {
+	type Format = Pak;
 	type ParentId = HeaderId;
 	type ChildrenIdList = ();
 }
