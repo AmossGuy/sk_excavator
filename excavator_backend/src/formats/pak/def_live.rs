@@ -15,11 +15,24 @@ pub enum ItemId {
 	File(FileId),
 }
 
+pub enum ItemRef<'a> {
+	Header(&'a TreeItem<Header>),
+	File(&'a TreeItem<File>),
+}
+
 impl TreeFormat for Pak {
 	type ItemId = ItemId;
+	type ItemRef<'a> = ItemRef<'a>;
 	
 	fn root_id(&self) -> ItemId {
 		ItemId::Header(HeaderId)
+	}
+	
+	fn get_ref(&self, id: ItemId) -> Option<ItemRef<'_>> {
+		Some(match id {
+			ItemId::Header(HeaderId) => ItemRef::Header(self.header.get(&0)?),
+			ItemId::File(FileId(index)) => ItemRef::File(self.files.get(&index)?),
+		})
 	}
 }
 

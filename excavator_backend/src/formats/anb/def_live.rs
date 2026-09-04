@@ -14,11 +14,24 @@ pub enum ItemId {
 	Header,
 }
 
+// literally just until i do some basic implementation around here
+pub enum Placeholder {}
+
+pub enum ItemRef<'a> {
+	// Header(&'a TreeItem<Header>),
+	Header(&'a Placeholder),
+}
+
 impl TreeFormat for Anb {
 	type ItemId = ItemId;
+	type ItemRef<'a> = ItemRef<'a>;
 	
 	fn root_id(&self) -> ItemId {
 		ItemId::Header
+	}
+	
+	fn get_ref(&self, _id: ItemId) -> Option<ItemRef<'_>> {
+		todo!()
 	}
 }
 

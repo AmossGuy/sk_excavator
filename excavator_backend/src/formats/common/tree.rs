@@ -1,6 +1,9 @@
 pub trait TreeFormat: Send + Sync + 'static {
 	type ItemId;
+	type ItemRef<'a>;
+	
 	fn root_id(&self) -> Self::ItemId;
+	fn get_ref(&self, id: Self::ItemId) -> Option<Self::ItemRef<'_>>;
 }
 
 pub struct TreeItem<T: TreeItemType> {
