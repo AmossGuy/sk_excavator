@@ -27,6 +27,6 @@ pub trait TreeItemType {
 }
 
 pub trait ItemId<Format: TreeFormat>: Copy {
-	type Ref<'a>;
+	type Ref<'a>: Into<Format::AnyItemRef<'a>>;
 	fn get_from<'a>(self, source: &'a Format) -> Option<Self::Ref<'a>>;
 }

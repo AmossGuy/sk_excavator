@@ -1,6 +1,7 @@
 use crate::formats::common::{ArcBytes, tree::{ItemId, TreeFormat, TreeItem, TreeItemType}};
 use excavator_backend_macros::EditableData;
 
+use derive_more::From;
 use thunderdome::{Arena, Index as ArenaIndex};
 use undoredo::Recorder;
 
@@ -9,11 +10,12 @@ pub struct Anb {
 	pub(super) nodes: Recorder<Arena<TreeItem<Node>>>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, From)]
 pub enum AnyItemId {
 	Header(HeaderId),
 }
 
+#[derive(Copy, Clone, From)]
 pub enum AnyItemRef<'a> {
 	Header(&'a TreeItem<Header>),
 }

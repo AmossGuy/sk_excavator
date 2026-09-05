@@ -23,6 +23,7 @@ zerocopy-derive = "0.8.56"
 
 # Miscellaneous
 anyhow = "1.0.104"
+derive_more = { version = "2.1.1", features = ["from"] }
 serde = "1.0.229"
 
 # GUI

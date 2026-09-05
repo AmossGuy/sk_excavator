@@ -21,9 +21,11 @@ impl<T> TreeFileView<T> where T: TreeFormat {
 impl<T> FileView for TreeFileView<T> where T: TreeFormatUi {
 	fn ui(&mut self, ui: &mut Ui, _excavator: &ExcavatorContext) {
 		egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-			let root = self.data.root_id();
 			egui::containers::Frame::group(ui.style()).show(ui, |ui| {
-				self.data.item_ui(ui, root);
+				match self.data.get(self.data.root_id()) {
+					Some(root_ref) => { self.data.item_ui(ui, root_ref.into()); },
+					None => { ui.label("item missing"); },
+				}
 			})
 		});
 	}
