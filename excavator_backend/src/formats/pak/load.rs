@@ -14,8 +14,8 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
 	
 	for file_cont in file_list_cont.iter_pointers(bytes.get())? {
 		let parsed = file_cont.parse_file(bytes)?;
-		let file_index = files.insert(TreeItem::new(parsed, live::HeaderId, ()));
-		file_ids.push(live::FileId(file_index));
+		let file_item = TreeItem::new(parsed, live::HeaderId, ());
+		file_ids.push(live::FileId(files.insert(file_item)));
 	}
 	
 	Ok(live::Pak {
