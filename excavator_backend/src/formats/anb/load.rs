@@ -1,81 +1,75 @@
 use crate::formats::common::{ArcBytes, tree::TreeItem};
 use super::{def_live as live, def_raw as raw};
 
+use std::collections::VecDeque;
 use thunderdome::Arena;
 use undoredo::Recorder;
 use zerocopy::FromBytes;
 
 #[expect(unused)] // wip
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
-	let header = parse_header(bytes)?;
+	let (header, root_node_cont) = parse_header(bytes)?;
 	
-	// todo: node loading
-	let root_node_id = todo!();
+	let mut node_arena = Arena::new();
+	
+	let (root_node, root_children_cont) = root_node_cont.parse_node(bytes)?;
+	let root_node_item = TreeItem::new(root_node, live::HeaderId.into(), Vec::new());
+	let root_node_id = live::NodeId(node_arena.insert(root_node_item));
+	
+	let header_item = TreeItem::new(header, (), root_node_id);
+	
+	let mut children_get_queue = VecDeque::from([(root_children_cont, root_node_id)]);
+	while let Some((children_cont, parent_id)) = children_get_queue.pop_front() {
+		// todo
+	}
 	
 	Ok(live::Anb {
-		header: Recorder::new([TreeItem::new(header, (), root_node_id)]),
-		nodes: Recorder::new(Arena::new()),
+		header: Recorder::new([header_item]),
+		nodes: Recorder::new(node_arena),
 	})
 }
 
-/*
-fn load_header(bytes: &ArcBytes, world: &mut World) -> anyhow::Result<Entity> {
-	let header_component = parse_header(bytes)?;
-	let header_entity = world.spawn(header_component);
-	
-	let (root_component, root_child_offset, root_child_count) = parse_node(bytes, std::mem::size_of::<raw::Header>())?;
-	let header_id = header_entity.id();
-	let mut spawner = ChildSpawner::new(world, header_id);
-	
-	let root_entity = spawner.spawn(root_component);
-	let root_id = root_entity.id();
-	
-	let mut spawner_2 = ChildSpawner::new(world, root_id);
-	load_node_list(bytes, &mut spawner_2, root_child_offset, root_child_count)?;
-	
-	Ok(header_id)
-}
 
-fn load_node_list(bytes: &ArcBytes, spawner: &mut ChildSpawner<'_>, offset: u64, length: u32) -> anyhow::Result<()> {
-	let offset_bytes = bytes.get().get(offset as usize..)
-		.ok_or_else(|| anyhow::anyhow!("node list out of bounds"))?;
-	let (slice, _) = <[U64::<LE>]>::ref_from_prefix_with_elems(offset_bytes, length as usize)
-		.map_err(|e| anyhow::anyhow!(e.to_string()))?;
-	
-	for pointer in slice {
-		let pointer = pointer.get();
-		let (node_component, children_offset, children_count) = parse_node(bytes, pointer as usize)?;
-		let node_entity = spawner.spawn(node_component);
-		
-		let node_id = node_entity.id();
-		let mut spawner_2 = ChildSpawner::new(spawner.world_mut(), node_id);
-		load_node_list(bytes, &mut spawner_2, children_offset, children_count)?;
-	}
-	
-	Ok(())
-}
-*/
 
-fn parse_header(bytes: &ArcBytes) -> anyhow::Result<live::Header> {
+fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, NodeContinuation)> {
 	let (header_raw, _) = raw::Header::ref_from_prefix(bytes.get())
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
+	let followup_offset = std::mem::size_of::<raw::Header>() as u64;
 	
 	if header_raw.magic != *b"YCSN" {
 		anyhow::bail!("wrong magic");
 	}
 	
-	Ok(live::Header {
+	Ok((live::Header {
 		fixup: header_raw.fixup.get(),
 		version: header_raw.version.get(),
 		padding_a: header_raw.padding_a.get(),
 		padding_b: header_raw.padding_b.get(),
 		padding_c: header_raw.padding_c.get(),
-	})
+	}, NodeContinuation {
+		offset: followup_offset,
+	}))
 }
 
-/*
-fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u64, u32)> {
-	let offset_bytes = bytes.get().get(offset..)
+struct NodeContinuation {
+	offset: u64,
+}
+
+struct ChildrenContinuation {
+	offset: u64,
+	count: u32,
+}
+
+impl NodeContinuation {
+	fn parse_node(&self, bytes: &ArcBytes) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
+		// I just didn't want to deal with the noise changing the indent level would add to the diff
+		parse_node(bytes, self.offset)
+	}
+}
+
+fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
+	let offset_u = offset as usize;
+	let offset_bytes = bytes.get().get(offset_u..)
 		.ok_or_else(|| anyhow::anyhow!("node out of bounds"))?;
 	let (node_common_raw, followup) = raw::NodeCommon::ref_from_prefix(offset_bytes)
 		.map_err(|e| anyhow::anyhow!("{}", e))?;
@@ -209,10 +203,14 @@ fn parse_node(bytes: &ArcBytes, offset: usize) -> anyhow::Result<(live::Node, u6
 				data_block,
 			})
 		},
-		_ => live::Node::UnknownKind(kind),
+		other => anyhow::bail!("unknown node kind: {}", other),
 	};
 	
-	Ok((node, node_common_raw.child_array_pointer.get(), node_common_raw.child_count.get()))
+	let cont = ChildrenContinuation {
+		offset: node_common_raw.child_array_pointer.get(),
+		count: node_common_raw.child_count.get(),
+	};
+	Ok((node, cont))
 }
 
 fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<live::DataBlock>> {
@@ -237,4 +235,3 @@ fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<li
 	
 	Ok(Some(live::DataBlock { flags, data: data_yoke }))
 }
-*/
