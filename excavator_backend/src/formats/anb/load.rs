@@ -33,7 +33,7 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 
 fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, NodeContinuation)> {
 	let (header_raw, _) = raw::Header::ref_from_prefix(bytes.get())
-		.map_err(|e| anyhow::anyhow!("{}", e))?;
+		.map_err(|e| e.map_src(<[_]>::to_vec))?;
 	let followup_offset = std::mem::size_of::<raw::Header>() as u64;
 	
 	if header_raw.magic != *b"YCSN" {
@@ -72,14 +72,14 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 	let offset_bytes = bytes.get().get(offset_u..)
 		.ok_or_else(|| anyhow::anyhow!("node out of bounds"))?;
 	let (node_common_raw, followup) = raw::NodeCommon::ref_from_prefix(offset_bytes)
-		.map_err(|e| anyhow::anyhow!("{}", e))?;
+		.map_err(|e| e.map_src(<[_]>::to_vec))?;
 	let kind = node_common_raw.kind.get();
 	
 	let node = match kind {
 		0 => live::Node::Base,
 		1 => {
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Texture(live::NodeTexture {
@@ -92,7 +92,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		2 => {
 			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
 			live::Node::Vertex(live::NodeVertex {
@@ -104,7 +104,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		3 => live::Node::Meta,
 		4 => {
 			let (node_raw, _) = raw::NodeMetaScalar::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::MetaScalar(live::NodeMetaScalar {
 				unk_1: node_raw.unk_1.get(),
 				unk_2: node_raw.unk_2.get(),
@@ -112,7 +112,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		5 => {
 			let (node_raw, _) = raw::NodeMetaPoint::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::MetaPoint(live::NodeMetaPoint {
 				x: node_raw.x.get(),
 				y: node_raw.y.get(),
@@ -122,7 +122,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		6 => {
 			let (node_raw, _) = raw::NodeMetaAnchor::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::MetaAnchor(live::NodeMetaAnchor {
 				x: node_raw.x.get(),
 				y: node_raw.y.get(),
@@ -132,7 +132,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		7 => {
 			let (node_raw, _) = raw::NodeMetaRect::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::MetaRect(live::NodeMetaRect {
 				center_x: node_raw.center_x.get(),
 				center_y: node_raw.center_y.get(),
@@ -146,7 +146,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		8 => {
 			let (node_raw, _) = raw::NodeMetaString::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.string_offset.get() as usize)?;
 			
 			live::Node::MetaString(live::NodeMetaString {
@@ -157,7 +157,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		9 => {
 			let (node_raw, _) = raw::NodeMetaTable::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
 			
 			live::Node::MetaTable(live::NodeMetaTable {
@@ -166,7 +166,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		10 => {
 			let (node_raw, _) = raw::NodeFrame::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::Frame(live::NodeFrame {
 				min_x: node_raw.min_x.get(),
 				max_x: node_raw.max_x.get(),
@@ -176,7 +176,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		11 => {
 			let (node_raw, _) = raw::NodeSequenceFrame::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::SequenceFrame(live::NodeSequenceFrame {
 				frame: node_raw.frame.get(),
 				delay: node_raw.delay.get(),
@@ -184,7 +184,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		12 => {
 			let (node_raw, _) = raw::NodeSequence::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::Node::Sequence(live::NodeSequence {
 				hashname: node_raw.hashname.get(),
 				frame_count: node_raw.frame_count.get(),
@@ -192,7 +192,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		},
 		13 => {
 			let (node_raw, _) = raw::NodeAnimation::ref_from_prefix(followup)
-				.map_err(|e| anyhow::anyhow!("{}", e))?;
+				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
 			
 			live::Node::Animation(live::NodeAnimation {
@@ -222,7 +222,7 @@ fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<li
 		let slice = slice.get(offset..)
 			.ok_or_else(|| anyhow::anyhow!("data block out of range"))?;
 		let (header, followup) = raw::DataBlockHeader::ref_from_prefix(&slice)
-			.map_err(|e| anyhow::anyhow!("{}", e))?;
+			.map_err(|e| e.map_src(<[_]>::to_vec))?;
 		let flags = header.flags.get();
 		let data_size = header.data_size.get() as usize;
 		let data = followup.get(..data_size)
