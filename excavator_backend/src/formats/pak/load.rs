@@ -1,10 +1,10 @@
-use crate::formats::common::{ArcBytes, tree::TreeItem};
+use crate::formats::common::{ArcBytes, pointer_slice, tree::TreeItem};
 use super::{def_live as live, def_raw as raw};
 
 use std::iter;
 use thunderdome::Arena;
 use undoredo::Recorder;
-use zerocopy::{FromBytes, LE, U64};
+use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
 	let (header, file_list_cont) = parse_header(bytes)?;
@@ -57,16 +57,6 @@ impl FileListContinuation {
 			FileContinuation { data_pointer, name_pointer }
 		}))
 	}
-}
-
-fn pointer_slice<'a>(bytes: &'a [u8], start_offset: u64, count: u32) -> anyhow::Result<&'a [U64<LE>]> {
-	let (start_offset_u, count_u) = (start_offset as usize, count as usize);
-	let sliced_bytes = bytes.get(start_offset_u..)
-		.ok_or_else(|| anyhow::anyhow!("pointer list out of bounds"))?;
-	
-	let (pointers, _) = <[U64<LE>]>::ref_from_prefix_with_elems(sliced_bytes, count_u)
-		.map_err(|e| e.map_src(<[_]>::to_vec))?;
-	Ok(pointers)
 }
 
 struct FileContinuation {

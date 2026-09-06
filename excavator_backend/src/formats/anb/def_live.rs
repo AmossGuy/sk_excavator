@@ -13,6 +13,7 @@ pub struct Anb {
 #[derive(Copy, Clone, From)]
 pub enum AnyItemId {
 	Header(HeaderId),
+	Node(NodeId),
 }
 
 #[derive(Copy, Clone, From)]

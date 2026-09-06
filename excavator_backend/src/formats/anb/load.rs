@@ -1,4 +1,4 @@
-use crate::formats::common::{ArcBytes, tree::TreeItem};
+use crate::formats::common::{ArcBytes, pointer_slice, tree::TreeItem};
 use super::{def_live as live, def_raw as raw};
 
 use std::collections::VecDeque;
@@ -6,7 +6,6 @@ use thunderdome::Arena;
 use undoredo::Recorder;
 use zerocopy::FromBytes;
 
-#[expect(unused)] // wip
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	let (header, root_node_cont) = parse_header(bytes)?;
 	
@@ -16,11 +15,23 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	let root_node_item = TreeItem::new(root_node, live::HeaderId.into(), Vec::new());
 	let root_node_id = live::NodeId(node_arena.insert(root_node_item));
 	
+	// Can't do this until now, when the root node's id is determined
 	let header_item = TreeItem::new(header, (), root_node_id);
 	
 	let mut children_get_queue = VecDeque::from([(root_children_cont, root_node_id)]);
 	while let Some((children_cont, parent_id)) = children_get_queue.pop_front() {
-		// todo
+		for child_cont in children_cont.children(bytes.get())? {
+			let (child_node, child_children_cont) = child_cont.parse_node(bytes)?;
+			let child_node_item = TreeItem::new(child_node, parent_id.into(), Vec::new());
+			let child_node_id = live::NodeId(node_arena.insert(child_node_item));
+			
+			let parent_mut = node_arena.get_mut(parent_id.0).expect("parent node should exist");
+			parent_mut.children.push(child_node_id);
+			
+			if child_children_cont.count != 0 {
+				children_get_queue.push_back((child_children_cont, child_node_id));
+			}
+		}
 	}
 	
 	Ok(live::Anb {
@@ -28,8 +39,6 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 		nodes: Recorder::new(node_arena),
 	})
 }
-
-
 
 fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, NodeContinuation)> {
 	let (header_raw, _) = raw::Header::ref_from_prefix(bytes.get())
@@ -55,15 +64,25 @@ struct NodeContinuation {
 	offset: u64,
 }
 
+impl NodeContinuation {
+	fn parse_node(&self, bytes: &ArcBytes) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
+		// I just didn't want to deal with the noise changing the indent level would add to the diff
+		// ...Although, also, it makes sense to put such a large function somewhere out of the way
+		parse_node(bytes, self.offset)
+	}
+}
+
 struct ChildrenContinuation {
 	offset: u64,
 	count: u32,
 }
 
-impl NodeContinuation {
-	fn parse_node(&self, bytes: &ArcBytes) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
-		// I just didn't want to deal with the noise changing the indent level would add to the diff
-		parse_node(bytes, self.offset)
+impl ChildrenContinuation {
+	fn children<'a>(&self, bytes: &'a [u8]) -> anyhow::Result<impl Iterator<Item = NodeContinuation> + 'a> {
+		let pointers = pointer_slice(bytes, self.offset, self.count)?;
+		Ok(pointers.into_iter().map(|pointer| {
+			NodeContinuation { offset: pointer.get() }
+		}))
 	}
 }
 
