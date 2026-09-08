@@ -1,37 +1,29 @@
-use crate::formats::common::{ArcBytes, tree::{ItemId, TreeFormat, TreeItem, TreeItemType}};
+use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
 
-use derive_more::From;
 use thunderdome::{Arena, Index as ArenaIndex};
-use undoredo::Recorder;
+use undoredo::{Recorder, maplike::one::One};
 
 pub struct Anb {
-	pub(super) header: Recorder<[TreeItem<Header>; 1]>,
-	pub(super) nodes: Recorder<Arena<TreeItem<Node>>>,
+	pub(super) header: Recorder<One<Header>>,
+	pub(super) nodes: Recorder<Arena<Node>>,
 }
 
-#[derive(Copy, Clone, From)]
-pub enum AnyItemId {
-	Header(HeaderId),
-	Node(NodeId),
-}
-
-#[derive(Copy, Clone, From)]
-pub enum AnyItemRef<'a> {
-	Header(&'a TreeItem<Header>),
-}
-
-impl TreeFormat for Anb {
-	type RootId = HeaderId;
-	type AnyItemRef<'a> = AnyItemRef<'a>;
+impl Anb {
+	pub fn get_header(&self) -> &Header {
+		self.header.get(&0).expect("index is always in bounds")
+	}
 	
-	fn root_id(&self) -> HeaderId {
-		HeaderId
+	pub fn get_node(&self, id: NodeId) -> Option<&Node> {
+		self.nodes.get(&id.0)
 	}
 }
 
 #[derive(EditableData, Clone)]
 pub struct Header {
+	#[edit(skip)]
+	pub root_node: Option<NodeId>,
+	
 	pub fixup: u32,
 	pub version: u32,
 	pub padding_a: u32,
@@ -39,25 +31,15 @@ pub struct Header {
 	pub padding_c: u32,
 }
 
-impl TreeItemType for Header {
-	type Format = Anb;
-	type ParentId = ();
-	type ChildrenIdList = NodeId;
-}
-
-#[derive(Copy, Clone)]
-pub struct HeaderId;
-
-impl ItemId<Anb> for HeaderId {
-	type Ref<'a> = &'a TreeItem<Header>;
-	
-	fn get_from<'a>(self, source: &'a Anb) -> Option<&'a TreeItem<Header>> {
-		source.header.get(&0)
-	}
+#[derive(Clone, Default)]
+pub struct Node {
+	pub parent: Option<NodeId>,
+	pub children: Vec<NodeId>,
+	pub data: NodeData,
 }
 
 #[derive(EditableData, Clone, Default)]
-pub enum Node {
+pub enum NodeData {
 	#[default]
 	Base,
 	Texture(NodeTexture),
@@ -75,16 +57,10 @@ pub enum Node {
 	Animation(NodeAnimation),
 }
 
-#[derive(Copy, Clone)]
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub struct NodeId(pub(super) ArenaIndex);
 
-impl TreeItemType for Node {
-	type Format = Anb;
-	type ParentId = AnyItemId;
-	type ChildrenIdList = Vec<NodeId>;
-}
-
-impl Node {
+impl NodeData {
 	// Isn't this the save module's business?
 	pub fn kind(&self) -> u32 {
 		match self {

@@ -1,29 +1,29 @@
-use crate::formats::common::{ArcBytes, pointer_slice, tree::TreeItem};
+use crate::formats::common::{ArcBytes, pointer_slice};
 use super::{def_live as live, def_raw as raw};
 
 use std::collections::VecDeque;
 use thunderdome::Arena;
-use undoredo::Recorder;
+use undoredo::{Recorder, maplike::one::One};
 use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
-	let (header, root_node_cont) = parse_header(bytes)?;
+	let (mut header, root_node_cont) = parse_header(bytes)?;
 	
 	let mut node_arena = Arena::new();
 	
-	let (root_node, root_children_cont) = root_node_cont.parse_node(bytes)?;
-	let root_node_item = TreeItem::new(root_node, live::HeaderId.into(), Vec::new());
-	let root_node_id = live::NodeId(node_arena.insert(root_node_item));
+	let (root_data, root_children_cont) = root_node_cont.parse_node(bytes)?;
+	let root_node = live::Node { parent: None, children: Vec::new(), data: root_data };
+	let root_node_id = live::NodeId(node_arena.insert(root_node));
 	
 	// Can't do this until now, when the root node's id is determined
-	let header_item = TreeItem::new(header, (), root_node_id);
+	header.root_node = Some(root_node_id);
 	
 	let mut children_get_queue = VecDeque::from([(root_children_cont, root_node_id)]);
 	while let Some((children_cont, parent_id)) = children_get_queue.pop_front() {
 		for child_cont in children_cont.children(bytes.get())? {
-			let (child_node, child_children_cont) = child_cont.parse_node(bytes)?;
-			let child_node_item = TreeItem::new(child_node, parent_id.into(), Vec::new());
-			let child_node_id = live::NodeId(node_arena.insert(child_node_item));
+			let (child_data, child_children_cont) = child_cont.parse_node(bytes)?;
+			let child_node = live::Node { parent: Some(parent_id), children: Vec::new(), data: child_data };
+			let child_node_id = live::NodeId(node_arena.insert(child_node));
 			
 			let parent_mut = node_arena.get_mut(parent_id.0).expect("parent node should exist");
 			parent_mut.children.push(child_node_id);
@@ -35,7 +35,7 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 	}
 	
 	Ok(live::Anb {
-		header: Recorder::new([header_item]),
+		header: Recorder::new(One::new(header)),
 		nodes: Recorder::new(node_arena),
 	})
 }
@@ -50,6 +50,8 @@ fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, NodeContinuat
 	}
 	
 	Ok((live::Header {
+		root_node: None,
+		
 		fixup: header_raw.fixup.get(),
 		version: header_raw.version.get(),
 		padding_a: header_raw.padding_a.get(),
@@ -65,7 +67,7 @@ struct NodeContinuation {
 }
 
 impl NodeContinuation {
-	fn parse_node(&self, bytes: &ArcBytes) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
+	fn parse_node(&self, bytes: &ArcBytes) -> anyhow::Result<(live::NodeData, ChildrenContinuation)> {
 		// I just didn't want to deal with the noise changing the indent level would add to the diff
 		// ...Although, also, it makes sense to put such a large function somewhere out of the way
 		parse_node(bytes, self.offset)
@@ -86,7 +88,7 @@ impl ChildrenContinuation {
 	}
 }
 
-fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, ChildrenContinuation)> {
+fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, ChildrenContinuation)> {
 	let offset_u = offset as usize;
 	let offset_bytes = bytes.get().get(offset_u..)
 		.ok_or_else(|| anyhow::anyhow!("node out of bounds"))?;
@@ -95,13 +97,13 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 	let kind = node_common_raw.kind.get();
 	
 	let node = match kind {
-		0 => live::Node::Base,
+		0 => live::NodeData::Base,
 		1 => {
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
-			live::Node::Texture(live::NodeTexture {
+			live::NodeData::Texture(live::NodeTexture {
 				width: node_raw.width.get(),
 				height: node_raw.height.get(),
 				flags: node_raw.flags.get(),
@@ -114,17 +116,17 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
 			
-			live::Node::Vertex(live::NodeVertex {
+			live::NodeData::Vertex(live::NodeVertex {
 				vert_count: node_raw.vert_count.get(),
 				flags: node_raw.flags.get(),
 				data_block,
 			})
 		}
-		3 => live::Node::Meta,
+		3 => live::NodeData::Meta,
 		4 => {
 			let (node_raw, _) = raw::NodeMetaScalar::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::MetaScalar(live::NodeMetaScalar {
+			live::NodeData::MetaScalar(live::NodeMetaScalar {
 				unk_1: node_raw.unk_1.get(),
 				unk_2: node_raw.unk_2.get(),
 			})
@@ -132,7 +134,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		5 => {
 			let (node_raw, _) = raw::NodeMetaPoint::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::MetaPoint(live::NodeMetaPoint {
+			live::NodeData::MetaPoint(live::NodeMetaPoint {
 				x: node_raw.x.get(),
 				y: node_raw.y.get(),
 				z: node_raw.z.get(),
@@ -142,7 +144,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		6 => {
 			let (node_raw, _) = raw::NodeMetaAnchor::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::MetaAnchor(live::NodeMetaAnchor {
+			live::NodeData::MetaAnchor(live::NodeMetaAnchor {
 				x: node_raw.x.get(),
 				y: node_raw.y.get(),
 				z: node_raw.z.get(),
@@ -152,7 +154,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		7 => {
 			let (node_raw, _) = raw::NodeMetaRect::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::MetaRect(live::NodeMetaRect {
+			live::NodeData::MetaRect(live::NodeMetaRect {
 				center_x: node_raw.center_x.get(),
 				center_y: node_raw.center_y.get(),
 				center_z: node_raw.center_z.get(),
@@ -168,7 +170,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.string_offset.get() as usize)?;
 			
-			live::Node::MetaString(live::NodeMetaString {
+			live::NodeData::MetaString(live::NodeMetaString {
 				string_length: node_raw.string_length.get(),
 				padding: node_raw.padding.get(),
 				data_block,
@@ -179,14 +181,14 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
 			
-			live::Node::MetaTable(live::NodeMetaTable {
+			live::NodeData::MetaTable(live::NodeMetaTable {
 				data_block
 			})
 		},
 		10 => {
 			let (node_raw, _) = raw::NodeFrame::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::Frame(live::NodeFrame {
+			live::NodeData::Frame(live::NodeFrame {
 				min_x: node_raw.min_x.get(),
 				max_x: node_raw.max_x.get(),
 				min_y: node_raw.min_y.get(),
@@ -196,7 +198,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		11 => {
 			let (node_raw, _) = raw::NodeSequenceFrame::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::SequenceFrame(live::NodeSequenceFrame {
+			live::NodeData::SequenceFrame(live::NodeSequenceFrame {
 				frame: node_raw.frame.get(),
 				delay: node_raw.delay.get(),
 			})
@@ -204,7 +206,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 		12 => {
 			let (node_raw, _) = raw::NodeSequence::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
-			live::Node::Sequence(live::NodeSequence {
+			live::NodeData::Sequence(live::NodeSequence {
 				hashname: node_raw.hashname.get(),
 				frame_count: node_raw.frame_count.get(),
 			})
@@ -214,7 +216,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::Node, Chil
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
 			
-			live::Node::Animation(live::NodeAnimation {
+			live::NodeData::Animation(live::NodeAnimation {
 				sequence_count: node_raw.sequence_count.get(),
 				frame_count: node_raw.frame_count.get(),
 				single_texture: node_raw.single_texture.get(),

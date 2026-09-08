@@ -1,26 +1,24 @@
-use crate::formats::common::{ArcBytes, pointer_slice, tree::TreeItem};
+use crate::formats::common::{ArcBytes, pointer_slice};
 use super::{def_live as live, def_raw as raw};
 
 use std::iter;
 use thunderdome::Arena;
-use undoredo::Recorder;
+use undoredo::{Recorder, maplike::one::One};
 use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
-	let (header, file_list_cont) = parse_header(bytes)?;
-	
-	let mut files = Arena::new();
-	let mut file_ids = Vec::new();
+	let (mut header, file_list_cont) = parse_header(bytes)?;
+	let mut file_arena = Arena::<live::File>::new();
 	
 	for file_cont in file_list_cont.iter_pointers(bytes.get())? {
 		let parsed = file_cont.parse_file(bytes)?;
-		let file_item = TreeItem::new(parsed, live::HeaderId, ());
-		file_ids.push(live::FileId(files.insert(file_item)));
+		let id = live::FileId(file_arena.insert(parsed));
+		header.files.push(id);
 	}
 	
 	Ok(live::Pak {
-		header: Recorder::new([TreeItem::new(header, (), file_ids)]),
-		files: Recorder::new(files),
+		header: Recorder::new(One::new(header)),
+		files: Recorder::new(file_arena),
 	})
 }
 
@@ -33,7 +31,7 @@ fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, FileListConti
 	}
 	
 	Ok((live::Header {
-		// no fields?
+		files: Vec::new(),
 	}, FileListContinuation {
 		file_count: header_raw.file_count.get(),
 		data_array_pointer: header_raw.data_array_pointer.get(),

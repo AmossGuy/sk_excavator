@@ -1,5 +1,4 @@
 pub mod editable;
-pub mod tree;
 
 use std::sync::Arc;
 use yoke::Yoke;

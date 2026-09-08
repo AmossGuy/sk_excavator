@@ -23,12 +23,12 @@ zerocopy-derive = "0.8.56"
 
 # Miscellaneous
 anyhow = "1.0.104"
-derive_more = { version = "2.1.1", features = ["from"] }
 serde = "1.0.229"
 
 # GUI
 eframe = { version = "0.36.1", features = ["persistence"] }
 egui = "0.36.1"
+egui_ltreeview = "0.9.0"
 rfd = "0.17.2"
 
 # For procedural macros
