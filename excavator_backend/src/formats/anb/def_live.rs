@@ -63,21 +63,23 @@ pub struct NodeId(pub(super) ArenaIndex);
 impl NodeData {
 	// Isn't this the save module's business?
 	pub fn kind(&self) -> u32 {
+		use super::def_raw as raw;
+		
 		match self {
-			Self::Base => 0,
-			Self::Texture(_) => 1,
-			Self::Vertex(_) => 2,
-			Self::Meta => 3,
-			Self::MetaScalar(_) => 4,
-			Self::MetaPoint(_) => 5,
-			Self::MetaAnchor(_) => 6,
-			Self::MetaRect(_) => 7,
-			Self::MetaString(_) => 8,
-			Self::MetaTable(_) => 9,
-			Self::Frame(_) => 10,
-			Self::SequenceFrame(_) => 11,
-			Self::Sequence(_) => 12,
-			Self::Animation(_) => 13,
+			Self::Base => raw::NODE_KIND_BASE,
+			Self::Texture(_) => raw::NODE_KIND_TEXTURE,
+			Self::Vertex(_) => raw::NODE_KIND_VERTEX,
+			Self::Meta => raw::NODE_KIND_META,
+			Self::MetaScalar(_) => raw::NODE_KIND_META_SCALAR,
+			Self::MetaPoint(_) => raw::NODE_KIND_META_POINT,
+			Self::MetaAnchor(_) => raw::NODE_KIND_META_ANCHOR,
+			Self::MetaRect(_) => raw::NODE_KIND_META_RECT,
+			Self::MetaString(_) => raw::NODE_KIND_META_STRING,
+			Self::MetaTable(_) => raw::NODE_KIND_META_TABLE,
+			Self::Frame(_) => raw::NODE_KIND_FRAME,
+			Self::SequenceFrame(_) => raw::NODE_KIND_SEQUENCE_FRAME,
+			Self::Sequence(_) => raw::NODE_KIND_SEQUENCE,
+			Self::Animation(_) => raw::NODE_KIND_ANIMATION,
 		}
 	}
 }

@@ -97,8 +97,8 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 	let kind = node_common_raw.kind.get();
 	
 	let node = match kind {
-		0 => live::NodeData::Base,
-		1 => {
+		raw::NODE_KIND_BASE => live::NodeData::Base,
+		raw::NODE_KIND_TEXTURE => {
 			let (node_raw, _) = raw::NodeTexture::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
@@ -111,7 +111,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				data_block,
 			})
 		},
-		2 => {
+		raw::NODE_KIND_VERTEX => {
 			let (node_raw, _) = raw::NodeVertex::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.data_pointer.get() as usize)?;
@@ -122,8 +122,8 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				data_block,
 			})
 		}
-		3 => live::NodeData::Meta,
-		4 => {
+		raw::NODE_KIND_META => live::NodeData::Meta,
+		raw::NODE_KIND_META_SCALAR => {
 			let (node_raw, _) = raw::NodeMetaScalar::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::MetaScalar(live::NodeMetaScalar {
@@ -131,7 +131,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				unk_2: node_raw.unk_2.get(),
 			})
 		},
-		5 => {
+		raw::NODE_KIND_META_POINT => {
 			let (node_raw, _) = raw::NodeMetaPoint::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::MetaPoint(live::NodeMetaPoint {
@@ -141,7 +141,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				padding: node_raw.padding.get(),
 			})
 		},
-		6 => {
+		raw::NODE_KIND_META_ANCHOR => {
 			let (node_raw, _) = raw::NodeMetaAnchor::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::MetaAnchor(live::NodeMetaAnchor {
@@ -151,7 +151,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				angle: node_raw.angle.get(),
 			})
 		},
-		7 => {
+		raw::NODE_KIND_META_RECT => {
 			let (node_raw, _) = raw::NodeMetaRect::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::MetaRect(live::NodeMetaRect {
@@ -165,7 +165,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				padding: node_raw.padding.get(),
 			})
 		},
-		8 => {
+		raw::NODE_KIND_META_STRING => {
 			let (node_raw, _) = raw::NodeMetaString::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.string_offset.get() as usize)?;
@@ -176,7 +176,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				data_block,
 			})
 		},
-		9 => {
+		raw::NODE_KIND_META_TABLE => {
 			let (node_raw, _) = raw::NodeMetaTable::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;
@@ -185,7 +185,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				data_block
 			})
 		},
-		10 => {
+		raw::NODE_KIND_FRAME => {
 			let (node_raw, _) = raw::NodeFrame::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::Frame(live::NodeFrame {
@@ -195,7 +195,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				max_y: node_raw.max_y.get(),
 			})
 		},
-		11 => {
+		raw::NODE_KIND_SEQUENCE_FRAME => {
 			let (node_raw, _) = raw::NodeSequenceFrame::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::SequenceFrame(live::NodeSequenceFrame {
@@ -203,7 +203,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				delay: node_raw.delay.get(),
 			})
 		},
-		12 => {
+		raw::NODE_KIND_SEQUENCE => {
 			let (node_raw, _) = raw::NodeSequence::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			live::NodeData::Sequence(live::NodeSequence {
@@ -211,7 +211,7 @@ fn parse_node(bytes: &ArcBytes, offset: u64) -> anyhow::Result<(live::NodeData, 
 				frame_count: node_raw.frame_count.get(),
 			})
 		},
-		13 => {
+		raw::NODE_KIND_ANIMATION => {
 			let (node_raw, _) = raw::NodeAnimation::ref_from_prefix(followup)
 				.map_err(|e| e.map_src(<[_]>::to_vec))?;
 			let data_block = parse_data_block(bytes, node_raw.hashname_pointer.get() as usize)?;

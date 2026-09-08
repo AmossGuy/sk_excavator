@@ -20,6 +20,21 @@ pub struct NodeCommon {
 	pub child_array_pointer: U64<LE>,
 }
 
+pub const NODE_KIND_BASE: u32 = 0;
+pub const NODE_KIND_TEXTURE: u32 = 1;
+pub const NODE_KIND_VERTEX: u32 = 2;
+pub const NODE_KIND_META: u32 = 3;
+pub const NODE_KIND_META_SCALAR: u32 = 4;
+pub const NODE_KIND_META_POINT: u32 = 5;
+pub const NODE_KIND_META_ANCHOR: u32 = 6;
+pub const NODE_KIND_META_RECT: u32 = 7;
+pub const NODE_KIND_META_STRING: u32 = 8;
+pub const NODE_KIND_META_TABLE: u32 = 9;
+pub const NODE_KIND_FRAME: u32 = 10;
+pub const NODE_KIND_SEQUENCE_FRAME: u32 = 11;
+pub const NODE_KIND_SEQUENCE: u32 = 12;
+pub const NODE_KIND_ANIMATION: u32 = 13;
+
 #[derive(FromBytes, IntoBytes, KnownLayout, Immutable, Unaligned)]
 #[repr(C)]
 pub struct NodeTexture {
