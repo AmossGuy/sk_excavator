@@ -1,7 +1,7 @@
 use crate::core::app::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{def_live as anb, def_live::Anb, load_from_bytes};
+use excavator_backend::formats::anb::{self, Anb, load_from_bytes};
 // use excavator_backend::formats::wflz;
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};

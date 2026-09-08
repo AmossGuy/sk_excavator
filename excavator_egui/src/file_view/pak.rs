@@ -1,7 +1,7 @@
 use crate::core::app::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::pak::{def_live as pak, def_live::Pak, load_from_bytes};
+use excavator_backend::formats::pak::{self, Pak, load_from_bytes};
 
 use egui::{Id, Label, ScrollArea, Ui};
 use egui_ltreeview::{NodeConfig, TreeView, TreeViewState};

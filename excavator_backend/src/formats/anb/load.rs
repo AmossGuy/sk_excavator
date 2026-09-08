@@ -1,5 +1,5 @@
 use crate::formats::common::{ArcBytes, pointer_slice};
-use super::{def_live as live, def_raw as raw};
+use {super as live, super::raw as raw};
 
 use std::collections::VecDeque;
 use thunderdome::Arena;
