@@ -1,11 +1,11 @@
 use crate::core::app::ExcavatorContext;
 use crate::file_view::FileView;
-// use crate::file_view::common::editable::edit_editable_data;
+use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{def_live as anb, def_live::Anb, load_from_bytes};
 // use excavator_backend::formats::wflz;
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
-use egui_ltreeview::{NodeConfig, TreeView, TreeViewBuilder};
+use egui_ltreeview::{NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
 use std::sync::Arc;
 use yoke::Yoke;
 
@@ -17,31 +17,68 @@ pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
 
 struct AnbFileView {
 	anb: Anb,
+	tree_state: TreeViewState<anb::NodeId>,
 }
 
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut Ui, _excavator: &ExcavatorContext) {
-		self.tree_view(ui);
+		egui::Panel::right("property editor").show(ui, |ui| {
+			self.property_view(ui);
+			ui.take_available_space();
+		});
+		
+		egui::CentralPanel::default().show(ui, |ui| {
+			self.tree_view(ui);
+		});
 	}
 }
 
 impl AnbFileView {
 	fn new(anb: Anb) -> Self {
-		Self { anb }
+		Self { anb, tree_state: TreeViewState::default() }
 	}
 	
 	fn tree_view(&mut self, ui: &mut Ui) {
 		ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
-			TreeView::new(Id::new("tree view")).show(ui, |builder| {
+			let tree_view = TreeView::new(Id::new("tree view"));
+			let stuff = TreeBuildStuff { anb: &self.anb };
+			
+			tree_view.show_state(ui, &mut self.tree_state, |builder| {
 				if let Some(root_id) = self.anb.get_header().root_node {
-					self.build_tree_recursively(builder, root_id);
+					stuff.build_tree_recursively(builder, root_id);
 				}
 			});
 		});
 	}
 	
+	fn property_view(&mut self, ui: &mut Ui) {
+		match self.tree_state.selected().as_slice() {
+			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
+			&[] => {
+				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
+					edit_editable_data(ui, self.anb.get_header());
+				});
+			},
+			&[node_id] => {
+				let node = self.anb.get_node(node_id).expect("node should exist");
+				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
+					edit_editable_data(ui, &node.data);
+				});
+			},
+			_ => {
+				ui.label("multiple selected");
+			},
+		}
+	}
+}
+
+struct TreeBuildStuff<'a> {
+	anb: &'a Anb,
+}
+
+impl<'a> TreeBuildStuff<'a> {
 	fn build_tree_recursively(&self, builder: &mut TreeViewBuilder<anb::NodeId>, node_id: anb::NodeId) {
-		let config = AnbNodeConfig::from_anb_and_id(&self.anb, node_id).expect("node should exist");
+		let config = AnbNodeConfig::from_anb_and_id(self.anb, node_id).expect("node should exist");
 		let (children, is_dir) = (&config.value.children, config.is_dir());
 		
 		let is_open = builder.node(config);

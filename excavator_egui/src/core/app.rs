@@ -43,11 +43,9 @@ impl eframe::App for ExcavatorApp {
 		
 		show_menu_bar_panel(ui, &self.excavator);
 		
-		egui::CentralPanel::default().show(ui, |ui| {
-			if let Some(file_view) = self.excavator.get_file_view() {
-				file_view.write().ui(ui, &self.excavator);
-			}
-		});
+		if let Some(file_view) = self.excavator.get_file_view() {
+			file_view.write().ui(ui, &self.excavator);
+		}
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {

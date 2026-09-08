@@ -41,9 +41,11 @@ struct LoadingFileView {
 
 impl FileView for LoadingFileView {
 	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
-		ui.horizontal(|ui| {
-			ui.spinner();
-			ui.label(&self.text);
+		egui::CentralPanel::default().show(ui, |ui| {
+			ui.horizontal(|ui| {
+				ui.spinner();
+				ui.label(&self.text);
+			});
 		});
 	}
 }
@@ -54,8 +56,10 @@ struct LoadErrorFileView {
 
 impl FileView for LoadErrorFileView {
 	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &crate::core::app::ExcavatorContext) {
-		let error_fg_color = ui.visuals().error_fg_color;
-		ui.colored_label(error_fg_color, format!("An error occured while loading:\n{}", self.error));
+		egui::CentralPanel::default().show(ui, |ui| {
+			let error_fg_color = ui.visuals().error_fg_color;
+			ui.colored_label(error_fg_color, format!("An error occured while loading:\n{}", self.error));
+		});
 	}
 }
 
