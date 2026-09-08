@@ -4,7 +4,7 @@ use crate::file_view::FileView;
 use excavator_backend::formats::anb::{def_live as anb, def_live::Anb, load_from_bytes};
 // use excavator_backend::formats::wflz;
 
-use egui::{Id, Label, ScrollArea, Ui};
+use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{NodeConfig, TreeView, TreeViewBuilder};
 use std::sync::Arc;
 use yoke::Yoke;
@@ -80,6 +80,37 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 	}
 	
 	fn label(&mut self, ui: &mut Ui) {
-		ui.add(Label::new("wip").selectable(false));
+		let text = node_label(self.value);
+		ui.add(Label::new(text).selectable(false));
+	}
+	
+	fn default_open(&self) -> bool {
+		use anb::NodeData;
+		
+		match self.value.data {
+			NodeData::Frame(_) | NodeData::Sequence(_) => false,
+			_ => true,
+		}
+	}
+}
+
+fn node_label(node: &anb::Node) -> WidgetText {
+	use anb::NodeData;
+	
+	match node.data {
+		NodeData::Base => "Base node".into(),
+		NodeData::Texture(_) => "Texture".into(),
+		NodeData::Vertex(_) => "Vertex data".into(),
+		NodeData::Meta => "Meta".into(),
+		NodeData::MetaScalar(_) => "Meta scalar".into(),
+		NodeData::MetaPoint(_) => "Meta point".into(),
+		NodeData::MetaAnchor(_) => "Meta anchor".into(),
+		NodeData::MetaRect(_) => "Meta rect".into(),
+		NodeData::MetaString(_) => "Meta string".into(),
+		NodeData::MetaTable(_) => "Meta table".into(),
+		NodeData::Frame(_) => "Frame".into(),
+		NodeData::SequenceFrame(_) => "Sequence frame".into(),
+		NodeData::Sequence(_) => "Sequence".into(),
+		NodeData::Animation(_) => "Animation".into(),
 	}
 }

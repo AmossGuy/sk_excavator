@@ -63,6 +63,7 @@ impl<'a> NodeConfig<pak::FileId> for PakNodeConfig<'a> {
 	}
 	
 	fn label(&mut self, ui: &mut Ui) {
-		ui.add(Label::new("wip").selectable(false));
+		let text = String::from_utf8_lossy(self.value.filename.get());
+		ui.add(Label::new(text).selectable(false));
 	}
 }
