@@ -1,28 +1,64 @@
 mod load;
 mod raw;
 mod save;
+mod undo;
 
 pub use load::load_from_bytes;
 // pub use save::save_from_world;
 
 use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
+use self::undo::AnbCommand;
 
+use std::mem;
 use thunderdome::{Arena, Index as ArenaIndex};
-use undoredo::{Recorder, maplike::one::One};
 
 pub struct Anb {
-	header: Recorder<One<Header>>,
-	nodes: Recorder<Arena<Node>>,
+	inner: AnbWithoutUndo,
+	undo: undo_2::Commands<AnbCommand>,
+}
+
+struct AnbWithoutUndo {
+	header: Header,
+	node_arena: Arena<Node>,
 }
 
 impl Anb {
+	fn from_parts(header: Header, node_arena: Arena<Node>) -> Self {
+		Self {
+			inner: AnbWithoutUndo { header, node_arena },
+			undo: undo_2::Commands::new(),
+		}
+	}
+	
 	pub fn get_header(&self) -> &Header {
-		self.header.get(&0).expect("index is always in bounds")
+		&self.inner.header
 	}
 	
 	pub fn get_node(&self, id: NodeId) -> Option<&Node> {
-		self.nodes.get(&id.0)
+		self.inner.node_arena.get(id.0)
+	}
+	
+	pub fn undo(&mut self) {
+		for action in self.undo.undo() {
+			self.inner.interpret_action(action);
+		}
+	}
+	
+	pub fn redo(&mut self) {
+		for action in self.undo.redo() {
+			self.inner.interpret_action(action);
+		}
+	}
+	
+	pub fn edit_header_props(&mut self, new: Header) {
+		let old = mem::replace(&mut self.inner.header, new.clone());
+		self.undo.push(AnbCommand::EditHeaderProps { old, new });
+	}
+	
+	pub fn edit_node_props(&mut self, id: NodeId, new: NodeData) {
+		let old = mem::replace(&mut self.inner.node_arena[id.0].data, new.clone());
+		self.undo.push(AnbCommand::EditNodeProps { id, old, new });
 	}
 }
 

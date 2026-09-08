@@ -3,7 +3,6 @@ use {super as live, super::raw as raw};
 
 use std::collections::VecDeque;
 use thunderdome::Arena;
-use undoredo::{Recorder, maplike::one::One};
 use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
@@ -34,10 +33,7 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Anb> {
 		}
 	}
 	
-	Ok(live::Anb {
-		header: Recorder::new(One::new(header)),
-		nodes: Recorder::new(node_arena),
-	})
+	Ok(live::Anb::from_parts(header, node_arena))
 }
 
 fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, NodeContinuation)> {

@@ -1064,7 +1064,7 @@ dependencies = [
  "excavator_backend_macros",
  "serde",
  "thunderdome",
- "undoredo",
+ "undo_2",
  "yoke",
  "zerocopy",
  "zerocopy-derive",
@@ -1783,27 +1783,6 @@ name = "log"
 version = "0.4.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
-
-[[package]]
-name = "maplike"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4696b215d79e17ca07a1f493ef80b0e3f06fe03857ca19e913b361168ba3eeb"
-dependencies = [
- "maplike_derive",
- "thunderdome",
-]
-
-[[package]]
-name = "maplike_derive"
-version = "0.14.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ae97121f6960c4d1be6cef31408e1e1624296894874fcf8c262fd12e6493422"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.4",
-]
 
 [[package]]
 name = "memchr"
@@ -3265,13 +3244,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "undoredo"
-version = "0.14.1"
+name = "undo_2"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bfdcda474c0da724f6731b1da3dd4dbe1bd7104e22759988090fbab7b318597f"
+checksum = "e76d34df022a54c3e2799eab2f02af6c90eca56aad8bba8f8eb356ce283907dc"
 dependencies = [
- "maplike",
- "thunderdome",
+ "serde",
 ]
 
 [[package]]

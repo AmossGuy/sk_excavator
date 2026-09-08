@@ -3,7 +3,6 @@ use {super as live, super::raw as raw};
 
 use std::iter;
 use thunderdome::Arena;
-use undoredo::{Recorder, maplike::one::One};
 use zerocopy::FromBytes;
 
 pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
@@ -16,10 +15,7 @@ pub fn load_from_bytes(bytes: &ArcBytes) -> anyhow::Result<live::Pak> {
 		header.files.push(id);
 	}
 	
-	Ok(live::Pak {
-		header: Recorder::new(One::new(header)),
-		files: Recorder::new(file_arena),
-	})
+	Ok(live::Pak { header, file_arena })
 }
 
 fn parse_header(bytes: &ArcBytes) -> anyhow::Result<(live::Header, FileListContinuation)> {

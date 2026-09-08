@@ -1,4 +1,5 @@
 use crate::core::app::ExcavatorContext;
+use crate::core::menubar::ViewAction;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, load_from_bytes};
@@ -31,6 +32,21 @@ impl FileView for AnbFileView {
 			self.tree_view(ui);
 		});
 	}
+	
+	fn menubar_execute(&mut self, action: ViewAction) {
+		match action {
+			ViewAction::Undo => { self.anb.undo(); },
+			ViewAction::Redo => { self.anb.redo(); },
+			_ => {},
+		}
+	}
+	
+	fn menubar_should_be_enabled(&self, action: ViewAction) -> bool {
+		match action {
+			ViewAction::Undo | ViewAction::Redo => true,
+			_ => false,
+		}
+	}
 }
 
 impl AnbFileView {
@@ -56,13 +72,17 @@ impl AnbFileView {
 			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
 			&[] => {
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					edit_editable_data(ui, self.anb.get_header());
+					if let Some(edited) = edit_editable_data(ui, self.anb.get_header()) {
+						self.anb.edit_header_props(edited);
+					}
 				});
 			},
 			&[node_id] => {
-				let node = self.anb.get_node(node_id).expect("node should exist");
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					edit_editable_data(ui, &node.data);
+					let node = self.anb.get_node(node_id).expect("node should exist");
+					if let Some(edited) = edit_editable_data(ui, &node.data) {
+						self.anb.edit_node_props(node_id, edited);
+					}
 				});
 			},
 			_ => {

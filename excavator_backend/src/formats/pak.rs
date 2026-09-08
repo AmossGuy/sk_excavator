@@ -7,20 +7,19 @@ use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
 
 use thunderdome::{Arena, Index as ArenaIndex};
-use undoredo::{Recorder, maplike::one::One};
 
 pub struct Pak {
-	header: Recorder<One<Header>>,
-	files: Recorder<Arena<File>>,
+	header: Header,
+	file_arena: Arena<File>,
 }
 
 impl Pak {
 	pub fn get_header(&self) -> &Header {
-		self.header.get(&0).expect("index is always in bounds")
+		&self.header
 	}
 	
 	pub fn get_file(&self, id: FileId) -> Option<&File> {
-		self.files.get(&id.0)
+		self.file_arena.get(id.0)
 	}
 }
 

@@ -8,7 +8,7 @@ excavator_backend_macros.path = "../excavator_backend_macros"
 
 # Data structures and whatnot
 thunderdome.workspace = true
-undoredo.workspace = true
+undo_2.workspace = true
 yoke.workspace = true
 zerocopy.workspace = true
 zerocopy-derive.workspace = true
