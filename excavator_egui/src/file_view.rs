@@ -2,8 +2,8 @@ pub mod anb;
 mod common;
 pub mod pak;
 
-use crate::core::app::ExcavatorContext;
-use crate::core::menubar::ViewAction;
+use crate::app::context::ExcavatorContext;
+use crate::app::menubar::ViewAction;
 use excavator_backend::formats::FileFormat;
 use egui::Ui;
 

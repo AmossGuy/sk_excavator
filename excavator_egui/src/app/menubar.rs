@@ -1,8 +1,6 @@
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
-use super::app::ExcavatorContext;
 
-use crate::misc::about::AboutWindow;
-use crate::core::settings::SettingsWindow;
+use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
 
 pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 	egui::Panel::top("menu bar").show(ui, |ui| {

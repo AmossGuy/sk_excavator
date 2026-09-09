@@ -1,5 +1,5 @@
 use std::sync::{Arc, Mutex};
-use crate::core::app::ExcavatorContext;
+use crate::app::context::ExcavatorContext;
 
 pub struct WindowHolder {
 	windows: Vec<Option<WrappedDynWindow>>,

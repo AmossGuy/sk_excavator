@@ -1,5 +1,5 @@
-use crate::core::app::ExcavatorContext;
-use crate::core::windows::Window;
+use crate::app::context::ExcavatorContext;
+use crate::app::windows::Window;
 
 use serde::{Serialize, Deserialize};
 use std::{collections::VecDeque, path::PathBuf};

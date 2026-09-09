@@ -1,4 +1,4 @@
-use crate::core::app::ExcavatorContext;
+use crate::app::context::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::pak::{self, Pak, load_from_bytes};

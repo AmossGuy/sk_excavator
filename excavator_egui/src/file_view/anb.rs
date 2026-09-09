@@ -1,5 +1,5 @@
-use crate::core::app::ExcavatorContext;
-use crate::core::menubar::ViewAction;
+use crate::app::context::ExcavatorContext;
+use crate::app::menubar::ViewAction;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, NodeId, load_from_bytes};

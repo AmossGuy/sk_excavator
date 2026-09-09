@@ -104,7 +104,7 @@ impl ExcavatorContext {
 	
 	pub fn open_file(&self, path: PathBuf) {
 		self.settings_mut(|s| s.add_recent_file(path.clone()));
-		crate::core::load::spawn_load_thread(path, self);
+		crate::app::load::spawn_load_thread(path, self);
 	}
 	
 	pub fn set_file_view(&self, view: Box<dyn FileView>) {

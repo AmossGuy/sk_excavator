@@ -1,9 +1,8 @@
 #![forbid(unsafe_code)]
 
-mod core;
+mod app;
 mod file_view;
-mod misc;
 
 fn main() -> eframe::Result {
-	crate::core::app::ExcavatorApp::main()
+	crate::app::context::ExcavatorApp::main()
 }

@@ -1,4 +1,4 @@
-use crate::{core::app::ExcavatorContext, file_view::{FileView, parse_as_format}};
+use crate::{app::context::ExcavatorContext, file_view::{FileView, parse_as_format}};
 use excavator_backend::formats::FileFormat;
 use std::{fs, path::PathBuf, thread};
 
@@ -55,7 +55,7 @@ struct LoadErrorFileView {
 }
 
 impl FileView for LoadErrorFileView {
-	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &crate::core::app::ExcavatorContext) {
+	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &crate::app::context::ExcavatorContext) {
 		egui::CentralPanel::default().show(ui, |ui| {
 			let error_fg_color = ui.visuals().error_fg_color;
 			ui.colored_label(error_fg_color, format!("An error occured while loading:\n{}", self.error));
