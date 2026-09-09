@@ -18,7 +18,7 @@ impl Window for AboutWindow {
 			
 			ui.separator();
 			
-			ui.label("Excavator is an in-development tool for modding Shovel Knight: Treasure Trove. You're here a bit early; the basic, necessary functionality is still being implemented. But welcome, nonetheless!");
+			ui.label("Excavator is an in-development tool for modding Shovel Knight. Please note that this an EARLY BUILD; plenty of crucial functionality is not yet implemented.");
 			
 			let layout = egui::Layout::bottom_up(egui::Align::Center);
 			ui.scope_builder(egui::UiBuilder::new().layout(layout), |ui| {

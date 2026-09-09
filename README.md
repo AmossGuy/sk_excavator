@@ -1,10 +1,9 @@
 # Shovel Knight Excavator
 
-Shovel Knight modding tool, currently in a very primitive state of development. It doesn't yet have the functionality needed to actually make a mod, but here's a list of what is implemented so far:
+Excavator is an in-development tool for modding Shovel Knight. Please note that this project is in an early state of development; it does not yet have enough functionality to accomplish any modding task. You will have to be patient, if you're waiting for this.
 
-* It can list the files contained within Shovel Knight's .pak archives. Right clicking on a file shows the option to extract it from the archive.
-* It can display the contents of certain filetypes contained in said archives:
-  * .png - You're surely aware of this image format. Shovel Knight only uses these for palettes and a few assets used for OS integration.
-  * .stb / .stl / .stm - A group of similar formats for tabular data. The most important use of these is the storage of all the dialogue and other text.
-  * .anb - The main format for the game's graphics. The way these are displayed currently is just the raw structure of the file; you can look at frames separately, but no more.
-  * CURRENTLY IN DEVELOPMENT: .ltb / .lvb - The files level data is stored in; a level is compromised of one of each type. I'm decoding the .ltb format is my current task here, and this tool displays certain portions of the data already.
+I have referenced the code of pre-existing tools to help decipher the file formats used by this game. These tools are credited below:
+
+* [leamsii's Shovel-Knight-Toolkit](https://github.com/leamsii/Shovel-Knight-Toolkit) - .pak, .anb
+* [aknetk's ShovelKnightRE](https://github.com/aknetk/ShovelKnightRE) - .ltb, .lvb
+* [gdkchan and Reisyukaku's Ohana3DS](https://github.com/dnasdw/Ohana3DS) - 3DS texture format
