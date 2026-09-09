@@ -1,5 +1,4 @@
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
-
 use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
 
 pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
@@ -15,41 +14,41 @@ pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 
 fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("File", |ui| {
-		menu_action(ui, excavator, "Open...", AppAction::OpenFile);
+		menu_action(ui, excavator, "Open...", MenuAction::OpenFile);
 		ui.menu_button("Recent files", |ui| {
 			recent_file_list(ui, excavator);
 		});
 		ui.separator();
-		menu_action(ui, excavator, "Save", ViewAction::Save);
-		menu_action(ui, excavator, "Save as...", ViewAction::SaveAs);
+		menu_action(ui, excavator, "Save", MenuAction::Save);
+		menu_action(ui, excavator, "Save as...", MenuAction::SaveAs);
 		ui.separator();
-		menu_action(ui, excavator, "Quit", AppAction::Quit);
+		menu_action(ui, excavator, "Quit", MenuAction::Quit);
 	});
 }
 
 fn edit_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Edit", |ui| {
-		menu_action(ui, excavator, "Undo", ViewAction::Undo);
-		menu_action(ui, excavator, "Redo", ViewAction::Redo);
+		menu_action(ui, excavator, "Undo", MenuAction::Undo);
+		menu_action(ui, excavator, "Redo", MenuAction::Redo);
 	});
 }
 
 fn settings_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Settings", |ui| {
-		menu_action(ui, excavator, "Configure Excavator...", AppAction::SettingsExcavator);
-		menu_action(ui, excavator, "Configure egui...", AppAction::SettingsEgui);
+		menu_action(ui, excavator, "Configure Excavator...", MenuAction::SettingsExcavator);
+		menu_action(ui, excavator, "Configure egui...", MenuAction::SettingsEgui);
 	});
 }
 
 fn help_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Help", |ui| {
-		menu_action(ui, excavator, "About Excavator...", AppAction::About);
+		menu_action(ui, excavator, "About Excavator...", MenuAction::About);
 	});
 }
 
-fn menu_action<'a, A: MenuAction>(
+fn menu_action<'a>(
 	ui: &mut Ui, excavator: &ExcavatorContext,
-	atoms: impl IntoAtoms<'a>, action: A,
+	atoms: impl IntoAtoms<'a>, action: MenuAction,
 ) {
 	let button = Button::new(atoms);
 	/*
@@ -93,33 +92,42 @@ fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 		}
 		
 		ui.separator();
-		menu_action(ui, excavator, "Clear recent files", AppAction::ClearRecentFiles);
+		menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
 	}
 }
 
-trait MenuAction {
-	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext);
-	fn should_be_enabled(&self, ctx: &Context, excavator: &ExcavatorContext) -> bool;
-}
-
-#[derive(Copy, Clone, Debug)]
-enum AppAction {
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+enum MenuAction {
+	// file
 	OpenFile,
 	ClearRecentFiles,
+	Save,
+	SaveAs,
 	Quit,
 	
+	// edit
+	Undo,
+	Redo,
+	
+	// settings
 	SettingsExcavator,
 	SettingsEgui,
 	
+	// help
 	About,
 }
 
-impl MenuAction for AppAction {
+impl MenuAction {
 	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext) {
 		match self {
 			Self::OpenFile => excavator.open_file_dialog(),
 			Self::ClearRecentFiles => excavator.settings_mut(|s| s.clear_recent_files()),
+			Self::Save => ViewAction::Save.execute(ctx, excavator),
+			Self::SaveAs => ViewAction::SaveAs.execute(ctx, excavator),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+			
+			Self::Undo => ViewAction::Undo.execute(ctx, excavator),
+			Self::Redo => ViewAction::Redo.execute(ctx, excavator),
 			
 			Self::SettingsExcavator => excavator.add_window(SettingsWindow::excavator_tab()),
 			Self::SettingsEgui => excavator.add_window(SettingsWindow::egui_tab()),
@@ -128,8 +136,14 @@ impl MenuAction for AppAction {
 		}
 	}
 	
-	fn should_be_enabled(&self, _ctx: &Context, _excavator: &ExcavatorContext) -> bool {
-		true
+	fn should_be_enabled(&self, ctx: &Context, excavator: &ExcavatorContext) -> bool {
+		match self {
+			Self::Save => ViewAction::Save.should_be_enabled(ctx, excavator),
+			Self::SaveAs => ViewAction::SaveAs.should_be_enabled(ctx, excavator),
+			Self::Undo => ViewAction::Undo.should_be_enabled(ctx, excavator),
+			Self::Redo => ViewAction::Redo.should_be_enabled(ctx, excavator),
+			_ => true,
+		}
 	}
 }
 
@@ -142,7 +156,7 @@ pub enum ViewAction {
 	Redo,
 }
 
-impl MenuAction for ViewAction {
+impl ViewAction {
 	fn execute(&self, _ctx: &Context, excavator: &ExcavatorContext) {
 		if let Some(view) = excavator.get_file_view() {
 			let mut view_lock = view.write();
