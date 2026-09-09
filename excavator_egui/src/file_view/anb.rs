@@ -2,11 +2,11 @@ use crate::core::app::ExcavatorContext;
 use crate::core::menubar::ViewAction;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{self, Anb, load_from_bytes};
+use excavator_backend::formats::anb::{self, Anb, NodeId, load_from_bytes};
 // use excavator_backend::formats::wflz;
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
-use egui_ltreeview::{NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
+use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
 use std::sync::Arc;
 use yoke::Yoke;
 
@@ -59,11 +59,13 @@ impl AnbFileView {
 			let tree_view = TreeView::new(Id::new("tree view"));
 			let stuff = TreeBuildStuff { anb: &self.anb };
 			
-			tree_view.show_state(ui, &mut self.tree_state, |builder| {
+			let (_, actions) = tree_view.show_state(ui, &mut self.tree_state, |builder| {
 				if let Some(root_id) = self.anb.get_header().root_node {
 					stuff.build_tree_recursively(builder, root_id);
 				}
 			});
+			
+			self.handle_tree_actions(actions);
 		});
 	}
 	
@@ -88,6 +90,28 @@ impl AnbFileView {
 			_ => {
 				ui.label("multiple selected");
 			},
+		}
+	}
+	
+	fn handle_tree_actions(&mut self, actions: Vec<TreeAction<NodeId>>) {
+		for action in actions {
+			match action {
+				TreeAction::Move(drag_and_drop) => {
+					let children = &self.anb.get_node(drag_and_drop.target)
+						.expect("node should exist")
+						.children;
+					
+					let index = match drag_and_drop.position {
+						DirPosition::First => 0,
+						DirPosition::Last => children.len(),
+						DirPosition::After(id) => children.iter().position(|&x| x == id).unwrap() + 1,
+						DirPosition::Before(id) => children.iter().position(|&x| x == id).unwrap(),
+					};
+					
+					self.anb.edit_reparent(drag_and_drop.target, &drag_and_drop.source, index);
+				},
+				_ => {},
+			}
 		}
 	}
 }
@@ -148,6 +172,10 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 			NodeData::Frame(_) | NodeData::Sequence(_) => false,
 			_ => true,
 		}
+	}
+	
+	fn drop_allowed(&self) -> bool {
+		true
 	}
 }
 

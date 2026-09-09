@@ -8,7 +8,7 @@ pub use load::load_from_bytes;
 
 use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
-use self::undo::AnbCommand;
+use self::undo::{AnbCommand, ReparentCommand};
 
 use std::mem;
 use thunderdome::{Arena, Index as ArenaIndex};
@@ -32,11 +32,11 @@ impl Anb {
 	}
 	
 	pub fn get_header(&self) -> &Header {
-		&self.inner.header
+		&self.inner.get_header()
 	}
 	
 	pub fn get_node(&self, id: NodeId) -> Option<&Node> {
-		self.inner.node_arena.get(id.0)
+		self.inner.get_node(id)
 	}
 	
 	pub fn undo(&mut self) {
@@ -59,6 +59,25 @@ impl Anb {
 	pub fn edit_node_props(&mut self, id: NodeId, new: NodeData) {
 		let old = mem::replace(&mut self.inner.node_arena[id.0].data, new.clone());
 		self.undo.push(AnbCommand::EditNodeProps { id, old, new });
+	}
+	
+	pub fn edit_reparent(
+		&mut self,
+		parent_id: NodeId, children_ids: &[NodeId], insert_index: usize,
+	) {
+		let command = ReparentCommand::build(&self.inner, parent_id, children_ids, insert_index);
+		command.apply(&mut self.inner);
+		self.undo.push(AnbCommand::Reparent(command));
+	}
+}
+
+impl AnbWithoutUndo {
+	pub fn get_header(&self) -> &Header {
+		&self.header
+	}
+	
+	pub fn get_node(&self, id: NodeId) -> Option<&Node> {
+		self.node_arena.get(id.0)
 	}
 }
 
