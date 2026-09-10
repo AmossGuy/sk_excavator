@@ -24,7 +24,7 @@ pub fn test_menu_bar_shortcuts(ctx: &Context, excavator: &ExcavatorContext) {
 fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("File", |ui| {
 		menu_action(ui, excavator, "Open...", MenuAction::OpenFile);
-		ui.menu_button("Recent files", |ui| {
+		ui.menu_button("Open recent", |ui| {
 			recent_file_list(ui, excavator);
 		});
 		ui.separator();
@@ -82,24 +82,26 @@ fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 	let list = excavator.settings(|s| s.recent_files.iter().cloned().collect::<Vec<_>>());
 	
 	if list.is_empty() {
-		ui.label("No recent files");
+		ui.add(egui::Label::new("No recent files").selectable(false));
 	} else {
-		for item in list.into_iter().rev() {
-			let file_name_string = item.file_name().unwrap_or_default().to_string_lossy();
-			let response = ui.button(file_name_string);
-			
-			let response = response.on_hover_ui(|ui| {
-				let full_path_string = item.to_string_lossy();
-				ui.label(full_path_string);
-			});
-			
-			if response.clicked() {
-				excavator.open_file(item);
+		egui::ScrollArea::vertical().show(ui, |ui| {
+			for item in list.into_iter().rev() {
+				let file_name_string = item.file_name().unwrap_or_default().to_string_lossy();
+				let response = ui.button(file_name_string);
+				
+				let response = response.on_hover_ui(|ui| {
+					let full_path_string = item.to_string_lossy();
+					ui.label(full_path_string);
+				});
+				
+				if response.clicked() {
+					excavator.open_file(item);
+				}
 			}
-		}
-		
-		ui.separator();
-		menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
+			
+			ui.separator();
+			menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
+		});
 	}
 }
 
