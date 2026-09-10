@@ -39,6 +39,17 @@ impl Anb {
 		self.inner.get_node(id)
 	}
 	
+	pub fn can_undo(&self) -> bool {
+		self.undo.current_command_index() != None
+	}
+	
+	pub fn can_redo(&self) -> bool {
+		match self.undo.len() {
+			0 => false,
+			len => self.undo.current_command_index() != Some(len - 1),
+		}
+	}
+	
 	pub fn undo(&mut self) {
 		for action in self.undo.undo() {
 			self.inner.interpret_action(action);

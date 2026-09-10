@@ -3,22 +3,21 @@ mod common;
 pub mod pak;
 
 use crate::app::context::ExcavatorContext;
-use crate::app::menubar::ViewAction;
 use excavator_backend::formats::FileFormat;
+
 use egui::Ui;
+use std::borrow::Cow;
 
 pub trait FileView: Send + Sync + 'static {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext);
 	
-	fn menubar_execute(&mut self, action: ViewAction) {
-		let _ = action;
-		// Nothing to be done in the default implementation...
-	}
+	fn can_undo(&self) -> bool { false }
+	fn execute_undo(&mut self) {}
+	fn can_redo(&self) -> bool { false }
+	fn execute_redo(&mut self) {}
 	
-	fn menubar_should_be_enabled(&self, action: ViewAction) -> bool {
-		let _ = action;
-		false
-	}
+	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> { None }
+	fn undo_history_index(&self) -> Option<usize> { None }
 }
 
 pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {

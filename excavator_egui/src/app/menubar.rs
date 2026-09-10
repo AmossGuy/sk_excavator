@@ -131,12 +131,12 @@ impl MenuAction {
 		match self {
 			Self::OpenFile => excavator.open_file_dialog(),
 			Self::ClearRecentFiles => excavator.settings_mut(|s| s.clear_recent_files()),
-			Self::Save => ViewAction::Save.execute(ctx, excavator),
-			Self::SaveAs => ViewAction::SaveAs.execute(ctx, excavator),
+			Self::Save => {}, // todo
+			Self::SaveAs => {}, // todo
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
-			Self::Undo => ViewAction::Undo.execute(ctx, excavator),
-			Self::Redo => ViewAction::Redo.execute(ctx, excavator),
+			Self::Undo => excavator.file_view_mut(|v| v.execute_undo()).unwrap_or(()),
+			Self::Redo => excavator.file_view_mut(|v| v.execute_redo()).unwrap_or(()),
 			
 			Self::SettingsExcavator => excavator.add_window(SettingsWindow::excavator_tab()),
 			Self::SettingsEgui => excavator.add_window(SettingsWindow::egui_tab()),
@@ -145,40 +145,13 @@ impl MenuAction {
 		}
 	}
 	
-	fn should_be_enabled(&self, ctx: &Context, excavator: &ExcavatorContext) -> bool {
-		match self {
-			Self::Save => ViewAction::Save.should_be_enabled(ctx, excavator),
-			Self::SaveAs => ViewAction::SaveAs.should_be_enabled(ctx, excavator),
-			Self::Undo => ViewAction::Undo.should_be_enabled(ctx, excavator),
-			Self::Redo => ViewAction::Redo.should_be_enabled(ctx, excavator),
-			_ => true,
-		}
-	}
-}
-
-#[derive(Copy, Clone, Debug)]
-pub enum ViewAction {
-	Save,
-	SaveAs,
-	
-	Undo,
-	Redo,
-}
-
-impl ViewAction {
-	fn execute(&self, _ctx: &Context, excavator: &ExcavatorContext) {
-		if let Some(view) = excavator.get_file_view() {
-			let mut view_lock = view.write();
-			view_lock.menubar_execute(*self);
-		}
-	}
-	
 	fn should_be_enabled(&self, _ctx: &Context, excavator: &ExcavatorContext) -> bool {
-		if let Some(view) = excavator.get_file_view() {
-			let view_lock = view.read();
-			view_lock.menubar_should_be_enabled(*self)
-		} else {
-			false
+		match self {
+			Self::Save => false, // todo
+			Self::SaveAs => false, // todo
+			Self::Undo => excavator.file_view(|v| v.can_undo()).unwrap_or(false),
+			Self::Redo => excavator.file_view(|v| v.can_redo()).unwrap_or(false),
+			_ => true,
 		}
 	}
 }

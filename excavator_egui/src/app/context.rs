@@ -82,6 +82,20 @@ impl ExcavatorContext {
 		reader(&self.inner.read().shortcuts)
 	}
 	
+	pub fn file_view<R>(&self, reader: impl FnOnce(&dyn FileView) -> R) -> Option<R> {
+		match self.inner.read().file_view {
+			Some(ref view) => Some(reader(view.read().as_ref())),
+			None => None,
+		}
+	}
+	
+	pub fn file_view_mut<R>(&self, writer: impl FnOnce(&mut dyn FileView) -> R) -> Option<R> {
+		match self.inner.read().file_view {
+			Some(ref view) => Some(writer(view.write().as_mut())),
+			None => None,
+		}
+	}
+	
 	pub fn add_window(&self, window: impl super::windows::Window) {
 		self.inner.write().windows.add(window);
 	}

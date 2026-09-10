@@ -1,5 +1,4 @@
 use crate::app::context::ExcavatorContext;
-use crate::app::menubar::ViewAction;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, NodeId, load_from_bytes};
@@ -33,19 +32,20 @@ impl FileView for AnbFileView {
 		});
 	}
 	
-	fn menubar_execute(&mut self, action: ViewAction) {
-		match action {
-			ViewAction::Undo => { self.anb.undo(); },
-			ViewAction::Redo => { self.anb.redo(); },
-			_ => {},
-		}
+	fn can_undo(&self) -> bool {
+		self.anb.can_undo()
 	}
 	
-	fn menubar_should_be_enabled(&self, action: ViewAction) -> bool {
-		match action {
-			ViewAction::Undo | ViewAction::Redo => true,
-			_ => false,
-		}
+	fn execute_undo(&mut self) {
+		self.anb.undo();
+	}
+	
+	fn can_redo(&self) -> bool {
+		self.anb.can_redo()
+	}
+	
+	fn execute_redo(&mut self) {
+		self.anb.redo();
 	}
 }
 
