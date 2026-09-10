@@ -6,7 +6,7 @@ use excavator_backend::formats::anb::{self, Anb, NodeId, load_from_bytes};
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use yoke::Yoke;
 
 pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
@@ -46,6 +46,18 @@ impl FileView for AnbFileView {
 	
 	fn execute_redo(&mut self) {
 		self.anb.redo();
+	}
+	
+	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> {
+		Some(self.anb.undo_history_strings())
+	}
+	
+	fn undo_history_index(&self) -> Option<usize> {
+		self.anb.undo_history_index()
+	}
+	
+	fn undo_go_to_index(&mut self, index: usize) {
+		self.anb.undo_go_to_index(index);
 	}
 }
 

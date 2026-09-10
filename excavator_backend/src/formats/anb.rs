@@ -10,7 +10,7 @@ use crate::formats::common::ArcBytes;
 use excavator_backend_macros::EditableData;
 use self::undo::{AnbCommand, ReparentCommand};
 
-use std::mem;
+use std::{borrow::Cow, mem};
 use thunderdome::{Arena, Index as ArenaIndex};
 
 pub struct Anb {
@@ -58,6 +58,29 @@ impl Anb {
 	
 	pub fn redo(&mut self) {
 		for action in self.undo.redo() {
+			self.inner.interpret_action(action);
+		}
+	}
+	
+	pub fn undo_history_strings(&self) -> Vec<Cow<'static, str>> {
+		self.undo.iter().map(|item| {
+			use undo_2::CommandItem;
+			match item {
+				CommandItem::Command(command) => command.description(),
+				CommandItem::Undo(x) => match x + 1 {
+					1 => "Undo 1 action".into(),
+					action_count => format!("Undo {action_count} actions").into(),
+				},
+			}
+		}).collect()
+	}
+	
+	pub fn undo_history_index(&self) -> Option<usize> {
+		self.undo.current_command_index()
+	}
+	
+	pub fn undo_go_to_index(&mut self, index: usize) {
+		for action in self.undo.undo_or_redo_to_index(index) {
 			self.inner.interpret_action(action);
 		}
 	}

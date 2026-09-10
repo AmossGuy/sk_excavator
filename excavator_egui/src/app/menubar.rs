@@ -39,6 +39,9 @@ fn edit_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
 	ui.menu_button("Edit", |ui| {
 		menu_action(ui, excavator, "Undo", MenuAction::Undo);
 		menu_action(ui, excavator, "Redo", MenuAction::Redo);
+		ui.menu_button("Undo history", |ui| {
+			undo_history_list(ui, excavator);
+		});
 	});
 }
 
@@ -102,6 +105,24 @@ fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 			ui.separator();
 			menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
 		});
+	}
+}
+
+fn undo_history_list(ui: &mut Ui, excavator: &ExcavatorContext) {
+	text_wrap_hack(ui);
+	
+	if let Some((Some(list), current_index)) = excavator.file_view(|v| {
+		(v.undo_history(), v.undo_history_index())
+	}) && !list.is_empty() {
+		egui::ScrollArea::vertical().show(ui, |ui| {
+			for (new_index, text) in list.into_iter().enumerate().rev() {
+				if ui.add(egui::Button::selectable(current_index == Some(new_index), text)).clicked() {
+					excavator.file_view_mut(|v| v.undo_go_to_index(new_index));
+				}
+			}
+		});
+	} else {
+		ui.add(egui::Label::new("No undo history").selectable(false));
 	}
 }
 

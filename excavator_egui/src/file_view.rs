@@ -18,6 +18,7 @@ pub trait FileView: Send + Sync + 'static {
 	
 	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> { None }
 	fn undo_history_index(&self) -> Option<usize> { None }
+	fn undo_go_to_index(&mut self, _index: usize) {}
 }
 
 pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {

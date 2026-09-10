@@ -1,10 +1,22 @@
 use super::{AnbWithoutUndo, Header, NodeData, NodeId};
+
+use std::borrow::Cow;
 use undo_2::Action;
 
 pub enum AnbCommand {
 	EditHeaderProps { old: Header, new: Header },
 	EditNodeProps { id: NodeId, old: NodeData, new: NodeData },
 	Reparent(ReparentCommand),
+}
+
+impl AnbCommand {
+	pub fn description(&self) -> Cow<'static, str> {
+		match self {
+			Self::EditHeaderProps { .. } => "Edit header properties".into(),
+			Self::EditNodeProps { .. } => "Edit node properties".into(),
+			Self::Reparent { .. } => "Move node(s)".into(),
+		}
+	}
 }
 
 impl AnbWithoutUndo {
