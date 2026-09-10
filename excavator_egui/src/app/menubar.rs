@@ -1,3 +1,6 @@
+mod shortcuts;
+pub use shortcuts::ShortcutStorage;
+
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
 use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
 
@@ -10,6 +13,12 @@ pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
 			help_menu_button(ui, excavator);
 		});
 	});
+}
+
+pub fn test_menu_bar_shortcuts(ctx: &Context, excavator: &ExcavatorContext) {
+	if let Some(action) = excavator.shortcuts(|s| s.test_shortcuts(ctx)) {
+		action.execute(ctx, excavator);
+	}
 }
 
 fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
@@ -50,12 +59,10 @@ fn menu_action<'a>(
 	ui: &mut Ui, excavator: &ExcavatorContext,
 	atoms: impl IntoAtoms<'a>, action: MenuAction,
 ) {
-	let button = Button::new(atoms);
-	/*
-	if let Some(shortcut) = action.default_shortcut() {
+	let mut button = Button::new(atoms);
+	if let Some(shortcut) = excavator.shortcuts(|s| s.get_action_shortcut(action)) {
 		button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 	}
-	*/
 	
 	let enabled = action.should_be_enabled(ui.ctx(), excavator);
 	if ui.add_enabled(enabled, button).clicked() {

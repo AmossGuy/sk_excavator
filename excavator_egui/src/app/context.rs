@@ -1,5 +1,5 @@
 use crate::file_view::FileView;
-use super::menubar::show_menu_bar_panel;
+use super::menubar::{show_menu_bar_panel, test_menu_bar_shortcuts, ShortcutStorage};
 use super::settings::ExcavatorSettings;
 use super::windows::WindowHolder;
 
@@ -24,9 +24,10 @@ impl ExcavatorApp {
 		let storage = cc.storage.expect("CreationContext should have storage");
 		
 		let settings = ExcavatorSettings::load(storage);
+		let shortcuts = ShortcutStorage::new();
 		let windows = WindowHolder::new();
 		
-		let inner = ExcavatorInner { settings, windows, file_view: None };
+		let inner = ExcavatorInner { settings, shortcuts, windows, file_view: None };
 		let excavator = ExcavatorContext::new(inner);
 		Self { excavator }
 	}
@@ -38,6 +39,7 @@ impl eframe::App for ExcavatorApp {
 		self.excavator.inner.write().windows.show_as_viewports(ui, &self.excavator);
 		
 		show_menu_bar_panel(ui, &self.excavator);
+		test_menu_bar_shortcuts(ui.ctx(), &self.excavator);
 		
 		if let Some(file_view) = self.excavator.get_file_view() {
 			file_view.write().ui(ui, &self.excavator);
@@ -51,6 +53,7 @@ impl eframe::App for ExcavatorApp {
 
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
+	shortcuts: ShortcutStorage,
 	windows: WindowHolder,
 	file_view: Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>>,
 }
@@ -73,6 +76,10 @@ impl ExcavatorContext {
 	
 	pub fn settings_mut<R>(&self, writer: impl FnOnce(&mut ExcavatorSettings) -> R) -> R {
 		writer(&mut self.inner.write().settings)
+	}
+	
+	pub fn shortcuts<R>(&self, reader: impl FnOnce(&ShortcutStorage) -> R) -> R {
+		reader(&self.inner.read().shortcuts)
 	}
 	
 	pub fn add_window(&self, window: impl super::windows::Window) {
