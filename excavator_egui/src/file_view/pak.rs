@@ -20,7 +20,7 @@ struct PakFileView {
 }
 
 impl FileView for PakFileView {
-	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
+	fn ui(&mut self, ui: &mut Ui, _excavator: &ExcavatorContext) {
 		egui::Panel::right("property editor").show(ui, |ui| {
 			self.property_view(ui);
 			ui.take_available_space();
@@ -53,13 +53,13 @@ impl PakFileView {
 			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
 			&[] => {
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					edit_editable_data(ui, self.pak.get_header());
+					let _ = edit_editable_data(ui, self.pak.get_header());
 				});
 			},
 			&[file_id] => {
 				let file = self.pak.get_file(file_id).expect("file should exist");
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					edit_editable_data(ui, file);
+					let _ = edit_editable_data(ui, file);
 				});
 			},
 			_ => {
