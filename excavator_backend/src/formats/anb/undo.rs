@@ -1,6 +1,6 @@
-use super::{AnbWithoutUndo, Header, NodeData, NodeId};
+use super::{AnbWithoutUndo, Header, NodeData, Node, NodeId};
 
-use std::borrow::Cow;
+use std::{borrow::Cow, collections::HashMap};
 use undo_2::Action;
 
 pub enum AnbCommand {
@@ -47,88 +47,61 @@ impl AnbWithoutUndo {
 }
 
 pub struct ReparentCommand {
-	affected: Vec<ReparentEntry>,
+	affected: HashMap<NodeId, ReparentEntry>,
+}
+
+struct ReparentEntry {
+	old: Node,
+	new: Node,
 }
 
 impl ReparentCommand {
+	fn blank() -> Self {
+		Self { affected: HashMap::new() }
+	}
+	
+	fn build_modify_node(&mut self, anb: &AnbWithoutUndo, id: NodeId) -> &mut Node {
+		let entry = self.affected.entry(id).or_insert_with(|| {
+			let node = anb.get_node(id).unwrap();
+			ReparentEntry { old: node.clone(), new: node.clone() }
+		});
+		&mut entry.new
+	}
+	
 	pub fn build(
 		anb: &AnbWithoutUndo,
 		parent_id: NodeId, children_ids: &[NodeId], insert_index: usize,
 	) -> Self {
-		use ReparentEntry::*;
-		let mut affected = Vec::new();
-		
-		let parent = anb.get_node(parent_id).unwrap();
-		let mut new_parent_children = parent.children.clone();
-		new_parent_children.splice(insert_index..insert_index, children_ids.iter().copied());
-		
-		// Add to the new parent's children list
-		affected.push(ChangeChildren {
-			edited_parent: parent_id,
-			new_children: new_parent_children,
-			old_children: parent.children.clone(),
-		});
+		let mut this = Self::blank();
 		
 		for child_id in children_ids.iter().copied() {
-			// TODO: This is broken when the new and old parents are the same
-			
-			let child = anb.get_node(child_id).unwrap();
+			// Change the child's parent
+			let child = this.build_modify_node(anb, child_id);
 			let old_parent_id = child.parent.unwrap();
-			let old_parent = anb.get_node(old_parent_id).unwrap();
-			
-			let mut new_old_parent_children = old_parent.children.clone();
-			new_old_parent_children.retain(|&x| x != child_id);
+			child.parent = Some(parent_id);
 			
 			// Remove from the old parent's children list
-			affected.push(ChangeChildren {
-				edited_parent: old_parent_id,
-				new_children: new_old_parent_children,
-				old_children: old_parent.children.clone(),
-			});
-			
-			// Change the child's parent
-			affected.push(ChangeParent {
-				edited_child: child_id,
-				old_parent: old_parent_id,
-				new_parent: parent_id,
-			});
+			let old_parent = this.build_modify_node(anb, old_parent_id);
+			old_parent.children.retain(|&x| x != child_id);
 		}
 		
-		Self { affected }
+		// Add to the new parent's children list
+		// Important that this happens last, in case the old and new parent are the same!
+		let new_parent = this.build_modify_node(anb, parent_id);
+		new_parent.children.splice(insert_index..insert_index, children_ids.iter().copied());
+		
+		this
 	}
 	
 	pub fn apply(&self, anb: &mut AnbWithoutUndo) {
-		use ReparentEntry::*;
-		
-		for entry in &self.affected {
-			match entry {
-				ChangeParent { edited_child, old_parent: _, new_parent } => {
-					anb.node_arena.get_mut(edited_child.0).unwrap().parent = Some(*new_parent);
-				},
-				ChangeChildren { edited_parent, old_children: _, new_children } => {
-					anb.node_arena.get_mut(edited_parent.0).unwrap().children = new_children.clone();
-				},
-			}
+		for (node_id, entry) in &self.affected {
+			*anb.node_arena.get_mut(node_id.0).unwrap() = entry.new.clone();
 		}
 	}
 	
 	pub fn undo(&self, anb: &mut AnbWithoutUndo) {
-		use ReparentEntry::*;
-		
-		for entry in &self.affected {
-			match entry {
-				ChangeParent { edited_child, old_parent, new_parent: _ } => {
-					anb.node_arena.get_mut(edited_child.0).unwrap().parent = Some(*old_parent);
-				},
-				ChangeChildren { edited_parent, old_children, new_children: _ } => {
-					anb.node_arena.get_mut(edited_parent.0).unwrap().children = old_children.clone();
-				},
-			}
+		for (node_id, entry) in &self.affected {
+			*anb.node_arena.get_mut(node_id.0).unwrap() = entry.old.clone();
 		}
 	}
-}
-
-enum ReparentEntry {
-	ChangeParent { edited_child: NodeId, old_parent: NodeId, new_parent: NodeId },
-	ChangeChildren { edited_parent: NodeId, old_children: Vec<NodeId>, new_children: Vec<NodeId> },
 }
