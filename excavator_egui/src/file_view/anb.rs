@@ -1,10 +1,10 @@
 use crate::app::context::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{self, Anb, NodeId, load_from_bytes};
+use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes};
 // use excavator_backend::formats::wflz;
 
-use egui::{Id, Label, ScrollArea, Ui, WidgetText};
+use egui::{Id, Label, Pos2, Rect, ScrollArea, Ui, Vec2, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
 use std::{borrow::Cow, sync::Arc};
 use yoke::Yoke;
@@ -98,6 +98,8 @@ impl AnbFileView {
 						self.anb.edit_node_props(node_id, edited);
 					}
 				});
+				
+				self.data_block_editor(ui, node_id);
 			},
 			_ => {
 				ui.label("multiple selected");
@@ -125,6 +127,44 @@ impl AnbFileView {
 				_ => {},
 			}
 		}
+	}
+	
+	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId) {
+		match &self.anb.get_node(node_id).unwrap().data {
+			NodeData::Vertex(vertex_node) => {
+				// Not the sort of thing that should be done every frame, I think, but this is just a test implementation for now
+				let parse_result = vertex_node.parse_data_block();
+				
+				match parse_result {
+					Err(e) => { ui.label(format!("data block problem: {e}")); },
+					Ok(parsed) => { Self::vertex_data_block_editor(ui, parsed); },
+				}
+			},
+			_ => {},
+		}
+	}
+	
+	fn vertex_data_block_editor(ui: &mut Ui, parsed: Vec<VertexEntry>) {
+		egui::Frame::canvas(ui.style()).show(ui, |ui| {
+			// TODO: rect needs to be stored
+			let mut rect = Rect::from_x_y_ranges(-10.0..=10.0, -10.0..=10.0);
+			
+			egui::Scene::new().show(ui, &mut rect, |ui| {
+				let painter = ui.painter();
+				for entry in parsed {
+					painter.rect(
+						Rect::from_min_size(
+							Pos2::new(entry.position_x, entry.position_y),
+							Vec2::new(entry.width.into(), entry.height.into()),
+						),
+						egui::CornerRadius::ZERO,
+						egui::Color32::GREEN,
+						egui::Stroke::new(2.0, egui::Color32::DARK_GREEN),
+						egui::StrokeKind::Middle,
+					);
+				}
+			});
+		});
 	}
 }
 

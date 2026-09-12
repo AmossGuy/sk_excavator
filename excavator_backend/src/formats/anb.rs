@@ -197,6 +197,26 @@ pub struct NodeVertex {
 }
 
 #[derive(EditableData, Clone, Default)]
+pub struct VertexEntry {
+	pub position_x: f32,
+	pub position_y: f32,
+	pub texture_x: u16,
+	pub texture_y: u16,
+	pub width: u16,
+	pub height: u16,
+}
+
+impl NodeVertex {
+	pub fn parse_data_block(&self) -> anyhow::Result<Vec<VertexEntry>> {
+		if let Some(data_block) = &self.data_block {
+			load::parse_vertex_data_block(data_block, self.vert_count)
+		} else {
+			anyhow::bail!("no data block");
+		}
+	}
+}
+
+#[derive(EditableData, Clone, Default)]
 pub struct NodeMetaScalar {
 	pub unk_1: u32,
 	pub unk_2: u32,

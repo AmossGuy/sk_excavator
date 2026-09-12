@@ -252,3 +252,19 @@ fn parse_data_block(bytes: &ArcBytes, offset: usize) -> anyhow::Result<Option<li
 	
 	Ok(Some(live::DataBlock { flags, data: data_yoke }))
 }
+
+pub fn parse_vertex_data_block(
+	data_block: &live::DataBlock, vert_count: u32,
+) -> anyhow::Result<Vec<live::VertexEntry>> {
+		let vert_count_u = vert_count as usize;
+		let raw_entry_slice = <[raw::VertexEntry]>::ref_from_bytes_with_elems(data_block.data.get(), vert_count_u)
+			.map_err(|e| e.map_src(<[_]>::to_vec))?;
+		Ok(raw_entry_slice.iter().map(|entry_raw| live::VertexEntry {
+			position_x: entry_raw.position_x.get(),
+			position_y: entry_raw.position_y.get(),
+			texture_x: entry_raw.texture_x.get(),
+			texture_y: entry_raw.texture_y.get(),
+			width: entry_raw.width.get(),
+			height: entry_raw.height.get(),
+		}).collect())
+	}
