@@ -39,6 +39,10 @@ impl Anb {
 		self.inner.get_node(id)
 	}
 	
+	pub fn iter_nodes(&self) -> impl Iterator<Item = (NodeId, &Node)> + '_ {
+		self.inner.node_arena.iter().map(|(index, node)| (NodeId(index), node))
+	}
+	
 	pub fn can_undo(&self) -> bool {
 		self.undo.current_command_index() != None
 	}

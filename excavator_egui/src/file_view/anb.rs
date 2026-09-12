@@ -2,11 +2,11 @@ use crate::app::context::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes};
-// use excavator_backend::formats::wflz;
+use excavator_backend::formats::wflz;
 
 use egui::{Id, Label, Pos2, Rect, ScrollArea, Ui, Vec2, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
-use std::{borrow::Cow, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, sync::Arc};
 use yoke::Yoke;
 
 pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
@@ -18,10 +18,14 @@ pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
 struct AnbFileView {
 	anb: Anb,
 	tree_state: TreeViewState<anb::NodeId>,
+	node_textures: Option<HashMap<NodeId, egui::TextureHandle>>,
 }
 
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut Ui, _excavator: &ExcavatorContext) {
+		// this shouldn't be on the ui thread!!
+		self.update_textures(ui.ctx());
+		
 		egui::Panel::right("property editor").show(ui, |ui| {
 			self.property_view(ui);
 			ui.take_available_space();
@@ -63,13 +67,49 @@ impl FileView for AnbFileView {
 
 impl AnbFileView {
 	fn new(anb: Anb) -> Self {
-		Self { anb, tree_state: TreeViewState::default() }
+		Self { anb, tree_state: TreeViewState::default(), node_textures: None }
+	}
+	
+	fn update_textures(&mut self, ctx: &egui::Context) {
+		if self.node_textures.is_none() {
+			let node_textures = self.anb.iter_nodes().filter_map(|(id, node)| {
+				let texture_node = match node.data {
+					NodeData::Texture(ref tx) => tx,
+					_ => return None,
+				};
+				
+				let size = [texture_node.width as usize, texture_node.height as usize];
+				let data = texture_node.data_block.as_ref().unwrap().data.get();
+				let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
+				
+				/*
+				let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
+				if lhs != rhs {
+					println!("wrong texture size? {} != {}", lhs, rhs);
+					return None;
+				}
+				*/
+				
+				let handle = ctx.load_texture(
+					"anb texture",
+					egui::ColorImage::from_rgba_unmultiplied(size, &rgba),
+					egui::TextureOptions {
+						minification: egui::TextureFilter::Linear,
+						..egui::TextureOptions::NEAREST
+					},
+				);
+				
+				Some((id, handle))
+			}).collect::<HashMap<_, _>>();
+			
+			self.node_textures = Some(node_textures)
+		}
 	}
 	
 	fn tree_view(&mut self, ui: &mut Ui) {
 		ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
 			let tree_view = TreeView::new(Id::new("tree view"));
-			let stuff = TreeBuildStuff { anb: &self.anb };
+			let stuff = TreeBuildStuff { anb: &self.anb, node_textures: self.node_textures.as_ref() };
 			
 			let (_, actions) = tree_view.show_state(ui, &mut self.tree_state, |builder| {
 				if let Some(root_id) = self.anb.get_header().root_node {
@@ -140,6 +180,9 @@ impl AnbFileView {
 					Ok(parsed) => { Self::vertex_data_block_editor(ui, parsed); },
 				}
 			},
+			NodeData::Texture(_texture_node) => {
+				self.texture_data_block_editor(ui, node_id);
+			},
 			_ => {},
 		}
 	}
@@ -166,15 +209,24 @@ impl AnbFileView {
 			});
 		});
 	}
+	
+	fn texture_data_block_editor(&self, ui: &mut Ui, id: NodeId) {
+		egui::Frame::canvas(ui.style()).show(ui, |ui| {
+			if let Some(texture) = self.node_textures.as_ref().and_then(|t| t.get(&id)) {
+				ui.add(egui::Image::new(&*texture).fit_to_exact_size(ui.available_size()));
+			}
+		});
+	}
 }
 
 struct TreeBuildStuff<'a> {
 	anb: &'a Anb,
+	node_textures: Option<&'a HashMap<NodeId, egui::TextureHandle>>,
 }
 
 impl<'a> TreeBuildStuff<'a> {
 	fn build_tree_recursively(&self, builder: &mut TreeViewBuilder<anb::NodeId>, node_id: anb::NodeId) {
-		let config = AnbNodeConfig::from_anb_and_id(self.anb, node_id).expect("node should exist");
+		let config = AnbNodeConfig::from_stuff_and_id(self, node_id).expect("node should exist");
 		let (children, is_dir) = (&config.value.children, config.is_dir());
 		
 		let is_open = builder.node(config);
@@ -194,12 +246,14 @@ impl<'a> TreeBuildStuff<'a> {
 struct AnbNodeConfig<'a> {
 	id: anb::NodeId,
 	value: &'a anb::Node,
+	node_textures: Option<&'a HashMap<NodeId, egui::TextureHandle>>,
 }
 
 impl<'a> AnbNodeConfig<'a> {
-	fn from_anb_and_id(anb: &'a Anb, id: anb::NodeId) -> Option<Self> {
-		let value = anb.get_node(id)?;
-		Some(Self { id, value })
+	fn from_stuff_and_id(stuff: &'a TreeBuildStuff<'_>, id: anb::NodeId) -> Option<Self> {
+		let value = stuff.anb.get_node(id)?;
+		let node_textures = stuff.node_textures;
+		Some(Self { id, value, node_textures })
 	}
 }
 
@@ -218,8 +272,6 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 	}
 	
 	fn default_open(&self) -> bool {
-		use anb::NodeData;
-		
 		match self.value.data {
 			NodeData::Frame(_) | NodeData::Sequence(_) => false,
 			_ => true,
@@ -229,11 +281,27 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 	fn drop_allowed(&self) -> bool {
 		true
 	}
+	
+	fn has_custom_icon(&self) -> bool {
+		match self.value.data {
+			NodeData::Texture(_) => true,
+			_ => false,
+		}
+	}
+	
+	fn icon(&mut self, ui: &mut Ui) {
+		match self.value.data {
+			NodeData::Texture(_) => {
+				if let Some(texture) = self.node_textures.and_then(|t| t.get(&self.id)) {
+					ui.add(egui::Image::new(&*texture).max_size(ui.available_size()));
+				}
+			},
+			_ => {},
+		}
+	}
 }
 
 fn node_label(node: &anb::Node) -> WidgetText {
-	use anb::NodeData;
-	
 	match node.data {
 		NodeData::Base => "Base node".into(),
 		NodeData::Texture(_) => "Texture".into(),
