@@ -172,7 +172,7 @@ impl AnbFileView {
 	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId) {
 		match &self.anb.get_node(node_id).unwrap().data {
 			NodeData::Vertex(vertex_node) => {
-				// Not the sort of thing that should be done every frame, I think, but this is just a test implementation for now
+				// TODO: Not the sort of thing that should be done every frame, I think, but this is just a test implementation for now
 				let parse_result = vertex_node.parse_data_block();
 				
 				match parse_result {
@@ -246,14 +246,17 @@ impl<'a> TreeBuildStuff<'a> {
 struct AnbNodeConfig<'a> {
 	id: anb::NodeId,
 	value: &'a anb::Node,
+	
+	anb: &'a anb::Anb,
 	node_textures: Option<&'a HashMap<NodeId, egui::TextureHandle>>,
 }
 
 impl<'a> AnbNodeConfig<'a> {
 	fn from_stuff_and_id(stuff: &'a TreeBuildStuff<'_>, id: anb::NodeId) -> Option<Self> {
-		let value = stuff.anb.get_node(id)?;
+		let anb = stuff.anb;
+		let value = anb.get_node(id)?;
 		let node_textures = stuff.node_textures;
-		Some(Self { id, value, node_textures })
+		Some(Self { id, value, anb, node_textures })
 	}
 }
 
@@ -285,15 +288,46 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 	fn has_custom_icon(&self) -> bool {
 		match self.value.data {
 			NodeData::Texture(_) => true,
+			NodeData::Frame(_) => true,
 			_ => false,
 		}
 	}
 	
 	fn icon(&mut self, ui: &mut Ui) {
+		// TODO: a lot of this stuff should probably be cached
 		match self.value.data {
 			NodeData::Texture(_) => {
 				if let Some(texture) = self.node_textures.and_then(|t| t.get(&self.id)) {
 					ui.add(egui::Image::new(&*texture).max_size(ui.available_size()));
+				}
+			},
+			NodeData::Frame(_) => {
+				let mut texture_node_id = None;
+				let mut vertex_node_id = None;
+				
+				for child_id in self.value.children.iter().copied() {
+					if let Some(child_node) = self.anb.get_node(child_id) {
+						match child_node.data {
+							NodeData::Texture(_) => { texture_node_id = Some(child_id); },
+							NodeData::Vertex(_) => { vertex_node_id = Some(child_id); },
+							_ => {},
+						}
+					}
+				}
+				
+				let (Some(texture_node_id), Some(vertex_node_id)) = (texture_node_id, vertex_node_id) else { return; };
+				
+				if let Some(texture) = self.node_textures.and_then(|t| t.get(&texture_node_id)) {
+					let vertex_node = self.anb.get_node(vertex_node_id).unwrap();
+					let parsed = match vertex_node.data {
+						NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
+						_ => panic!("probably should be a vertex node"),
+					};
+					
+					let mut mesh = build_vertex_mesh(&parsed, texture);
+					mesh.translate(ui.cursor().min.to_vec2());
+					
+					ui.painter().add(mesh);
 				}
 			},
 			_ => {},
@@ -318,4 +352,33 @@ fn node_label(node: &anb::Node) -> WidgetText {
 		NodeData::Sequence(_) => "Sequence".into(),
 		NodeData::Animation(_) => "Animation".into(),
 	}
+}
+
+fn build_vertex_mesh(parsed: &[VertexEntry], texture: &egui::TextureHandle) -> egui::Mesh {
+	use egui::epaint::Vertex;
+	
+	let indices = (0..parsed.len() as u32).into_iter()
+		.map(|i| [0, 1, 2, 2, 3, 0].map(|x| x + i * 4))
+		.flatten()
+		.collect::<Vec<u32>>();
+	
+	let vertices = parsed.into_iter()
+		.map(|entry| {
+			let color = egui::Color32::WHITE;
+			
+			let texture_size = texture.size_vec2();
+			let uv_top_left = Pos2::new(entry.texture_x as f32 / texture_size.x, entry.texture_y as f32 / texture_size.y);
+			let uv_bottom_right = uv_top_left + Vec2::new(entry.width as f32 / texture_size.x, entry.height as f32 / texture_size.y);
+			
+			let top_left = Vertex { pos: Pos2::new(entry.position_x, entry.position_y), uv: uv_top_left, color };
+			let top_right = Vertex { pos: Pos2::new(entry.position_x + entry.width as f32, entry.position_y), uv: Pos2::new(uv_bottom_right.x, uv_top_left.y), color };
+			let bottom_right = Vertex { pos: Pos2::new(entry.position_x + entry.width as f32, entry.position_y + entry.height as f32), uv: uv_bottom_right, color };
+			let bottom_left = Vertex { pos: Pos2::new(entry.position_x, entry.position_y + entry.height as f32), uv: Pos2::new(uv_top_left.x, uv_bottom_right.y), color };
+			
+			[top_left, top_right, bottom_right, bottom_left]
+		})
+		.flatten()
+		.collect::<Vec<Vertex>>();
+	
+	egui::Mesh { indices, vertices, texture_id: texture.id() }
 }
