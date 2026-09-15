@@ -183,6 +183,11 @@ impl AnbFileView {
 			NodeData::Texture(_texture_node) => {
 				self.texture_data_block_editor(ui, node_id);
 			},
+			NodeData::Frame(_) => {
+				egui::Frame::canvas(ui.style()).show(ui, |ui| {
+					render_anb_sprite(ui, &self.anb, node_id, self.node_textures.as_ref());
+				});
+			},
 			_ => {},
 		}
 	}
@@ -302,33 +307,7 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 				}
 			},
 			NodeData::Frame(_) => {
-				let mut texture_node_id = None;
-				let mut vertex_node_id = None;
-				
-				for child_id in self.value.children.iter().copied() {
-					if let Some(child_node) = self.anb.get_node(child_id) {
-						match child_node.data {
-							NodeData::Texture(_) => { texture_node_id = Some(child_id); },
-							NodeData::Vertex(_) => { vertex_node_id = Some(child_id); },
-							_ => {},
-						}
-					}
-				}
-				
-				let (Some(texture_node_id), Some(vertex_node_id)) = (texture_node_id, vertex_node_id) else { return; };
-				
-				if let Some(texture) = self.node_textures.and_then(|t| t.get(&texture_node_id)) {
-					let vertex_node = self.anb.get_node(vertex_node_id).unwrap();
-					let parsed = match vertex_node.data {
-						NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
-						_ => panic!("probably should be a vertex node"),
-					};
-					
-					let mut mesh = build_vertex_mesh(&parsed, texture);
-					mesh.translate(ui.cursor().min.to_vec2());
-					
-					ui.painter().add(mesh);
-				}
+				render_anb_sprite(ui, &self.anb, self.id, self.node_textures);
 			},
 			_ => {},
 		}
@@ -351,6 +330,47 @@ fn node_label(node: &anb::Node) -> WidgetText {
 		NodeData::SequenceFrame(_) => "Sequence frame".into(),
 		NodeData::Sequence(_) => "Sequence".into(),
 		NodeData::Animation(_) => "Animation".into(),
+	}
+}
+
+fn render_anb_sprite(ui: &mut Ui, anb: &Anb, node_id: NodeId, node_textures: Option<&HashMap<NodeId, egui::TextureHandle>>) {
+	let mut texture_node_id = None;
+	let mut vertex_node_id = None;
+	
+	for child_id in anb.get_node(node_id).unwrap().children.iter().copied() {
+		if let Some(child_node) = anb.get_node(child_id) {
+			match child_node.data {
+				NodeData::Texture(_) => { texture_node_id = Some(child_id); },
+				NodeData::Vertex(_) => { vertex_node_id = Some(child_id); },
+				_ => {},
+			}
+		}
+	}
+	
+	let (Some(texture_node_id), Some(vertex_node_id)) = (texture_node_id, vertex_node_id) else { return; };
+	
+	if let Some(texture) = node_textures.and_then(|t| t.get(&texture_node_id)) {
+		let vertex_node = anb.get_node(vertex_node_id).unwrap();
+		let parsed = match vertex_node.data {
+			NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
+			_ => panic!("probably should be a vertex node"),
+		};
+		
+		let mut mesh = build_vertex_mesh(&parsed, texture);
+		// mesh.translate(ui.cursor().min.to_vec2());
+		
+		let bounds = mesh.calc_bounds();
+		mesh.translate(bounds.min.to_vec2() * -1.0);
+		
+		let size = egui::ImageSize::default().calc_size(ui.available_size(), bounds.size());
+		for vertex in &mut mesh.vertices {
+			vertex.pos = Pos2::new(vertex.pos.x * (size.x / bounds.size().x), vertex.pos.y * (size.y / bounds.size().y));
+		}
+		
+		mesh.translate(ui.cursor().min.to_vec2());
+		
+		ui.painter().add(mesh);
+		ui.allocate_exact_size(size, egui::Sense::empty());
 	}
 }
 
