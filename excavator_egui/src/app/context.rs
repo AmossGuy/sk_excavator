@@ -1,12 +1,14 @@
 use crate::file_view::FileView;
 use super::menubar::{show_menu_bar_panel, test_menu_bar_shortcuts, ShortcutStorage};
 use super::settings::ExcavatorSettings;
-use super::windows::WindowHolder;
+use super::windows::{Window, WindowHolder};
 
-use std::{path::PathBuf, sync::Arc};
+use std::{path::PathBuf, sync::{Arc, mpsc}};
 
 pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
+	windows: WindowHolder,
+	receiver: mpsc::Receiver<AppChannelMessage>,
 }
 
 impl ExcavatorApp {
@@ -23,20 +25,38 @@ impl ExcavatorApp {
 	fn new(cc: &eframe::CreationContext) -> Self {
 		let storage = cc.storage.expect("CreationContext should have storage");
 		
-		let settings = ExcavatorSettings::load(storage);
-		let shortcuts = ShortcutStorage::new();
-		let windows = WindowHolder::new();
+		let exc_inner = ExcavatorInner {
+			settings: ExcavatorSettings::load(storage),
+			shortcuts: ShortcutStorage::new(),
+			file_view: None,
+		};
 		
-		let inner = ExcavatorInner { settings, shortcuts, windows, file_view: None };
-		let excavator = ExcavatorContext::new(inner);
-		Self { excavator }
+		let (sender, receiver) = mpsc::channel();
+		let excavator = ExcavatorContext {
+			inner: Arc::new(egui::mutex::RwLock::new(exc_inner)),
+			app_sender: sender,
+			needs_parent_repaint: egui::mutex::Mutex::new(false),
+		};
+		
+		let windows = WindowHolder::new("global window holder");
+		
+		Self { excavator, windows, receiver }
 	}
 }
 
 impl eframe::App for ExcavatorApp {
+	fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+		for message in self.receiver.try_iter() {
+			match message {
+				AppChannelMessage::AddWindow(window) => {
+					self.windows.add(window);
+				},
+			}
+		}
+	}
+	
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-		// depending on exactly how Ui::ui.show_viewport_deferred works, this might be bad?
-		self.excavator.inner.write().windows.show_as_viewports(ui, &self.excavator);
+		self.windows.show_all(ui, &self.excavator);
 		
 		show_menu_bar_panel(ui, &self.excavator);
 		test_menu_bar_shortcuts(ui.ctx(), &self.excavator);
@@ -54,22 +74,23 @@ impl eframe::App for ExcavatorApp {
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	shortcuts: ShortcutStorage,
-	windows: WindowHolder,
+	
+	// I'll move this elsewhere sometime soon, I think.
 	file_view: Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>>,
+}
+
+enum AppChannelMessage {
+	AddWindow(Box<dyn Window>),
 }
 
 #[derive(Clone)]
 pub struct ExcavatorContext {
 	inner: Arc<egui::mutex::RwLock<ExcavatorInner>>,
+	app_sender: mpsc::Sender<AppChannelMessage>,
+	needs_parent_repaint: egui::mutex::Mutex<bool>,
 }
 
 impl ExcavatorContext {
-	fn new(inner: ExcavatorInner) -> Self {
-		Self {
-			inner: Arc::new(egui::mutex::RwLock::new(inner)),
-		}
-	}
-	
 	pub fn settings<R>(&self, reader: impl FnOnce(&ExcavatorSettings) -> R) -> R {
 		reader(&self.inner.read().settings)
 	}
@@ -96,8 +117,29 @@ impl ExcavatorContext {
 		}
 	}
 	
-	pub fn add_window(&self, window: impl super::windows::Window) {
-		self.inner.write().windows.add(window);
+	pub fn repaint_parent_if_needed(&self, ctx: &egui::Context) {
+		let needed = {
+			let mut lock = self.needs_parent_repaint.lock();
+			std::mem::replace(&mut *lock, false)
+		};
+		
+		if needed {
+			ctx.request_repaint_of(ctx.parent_viewport_id());
+		}
+	}
+	
+	pub fn set_needs_parent_repaint(&self) {
+		*self.needs_parent_repaint.lock() = true;
+	}
+	
+	pub fn add_window(&self, window: impl Window) {
+		self.add_window_boxed(Box::new(window));
+	}
+	
+	pub fn add_window_boxed(&self, window: Box<dyn Window>) {
+		let message = AppChannelMessage::AddWindow(window);
+		let _ = self.app_sender.send(message);
+		self.set_needs_parent_repaint();
 	}
 	
 	pub fn open_file_dialog(&self) {

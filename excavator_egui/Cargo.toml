@@ -7,6 +7,7 @@ edition = "2024"
 excavator_backend.path = "../excavator_backend"
 
 # Data structures and whatnot
+thunderdome.workspace = true
 yoke.workspace = true
 
 # Miscellaneous

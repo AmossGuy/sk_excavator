@@ -1090,6 +1090,7 @@ dependencies = [
  "excavator_backend",
  "rfd",
  "serde",
+ "thunderdome",
  "yoke",
 ]
 
