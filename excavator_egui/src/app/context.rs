@@ -1,5 +1,5 @@
 use crate::file_view::FileView;
-use super::menubar::{show_menu_bar_panel, test_menu_bar_shortcuts, ShortcutStorage};
+use super::menubar::{show_menu_bar_panel, test_menu_bar_shortcuts, MenuEnv, ShortcutStorage};
 use super::settings::ExcavatorSettings;
 use super::windows::{Window, WindowHolder};
 
@@ -8,7 +8,16 @@ use std::{path::PathBuf, sync::{Arc, mpsc}};
 pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
 	windows: WindowHolder,
+	file_view: Box<dyn FileView>,
 	receiver: mpsc::Receiver<AppChannelMessage>,
+}
+
+struct PlaceholderFileView;
+
+impl FileView for PlaceholderFileView {
+	fn ui(&mut self, ui: &mut egui::Ui, _excavator: &ExcavatorContext) {
+		egui::CentralPanel::default().show(ui, |_| {});
+	}
 }
 
 impl ExcavatorApp {
@@ -28,7 +37,6 @@ impl ExcavatorApp {
 		let exc_inner = ExcavatorInner {
 			settings: ExcavatorSettings::load(storage),
 			shortcuts: ShortcutStorage::new(),
-			file_view: None,
 		};
 		
 		let (sender, receiver) = mpsc::channel();
@@ -39,18 +47,20 @@ impl ExcavatorApp {
 		};
 		
 		let windows = WindowHolder::new("global window holder");
+		let file_view = Box::new(PlaceholderFileView);
 		
-		Self { excavator, windows, receiver }
+		Self { excavator, windows, file_view, receiver }
 	}
 }
 
 impl eframe::App for ExcavatorApp {
 	fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+		use AppChannelMessage::*;
+		
 		for message in self.receiver.try_iter() {
 			match message {
-				AppChannelMessage::AddWindow(window) => {
-					self.windows.add(window);
-				},
+				AddWindow(window) => self.windows.add(window),
+				SetFileView(view) => self.file_view = view,
 			}
 		}
 	}
@@ -58,12 +68,11 @@ impl eframe::App for ExcavatorApp {
 	fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
 		self.windows.show_all(ui, &self.excavator);
 		
-		show_menu_bar_panel(ui, &self.excavator);
-		test_menu_bar_shortcuts(ui.ctx(), &self.excavator);
+		let mut menu_env = MenuEnv::new(&self.excavator, &mut *self.file_view);
+		show_menu_bar_panel(ui, &mut menu_env);
+		test_menu_bar_shortcuts(ui.ctx(), &mut menu_env);
 		
-		if let Some(file_view) = self.excavator.get_file_view() {
-			file_view.write().ui(ui, &self.excavator);
-		}
+		self.file_view.ui(ui, &self.excavator);
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -74,13 +83,11 @@ impl eframe::App for ExcavatorApp {
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	shortcuts: ShortcutStorage,
-	
-	// I'll move this elsewhere sometime soon, I think.
-	file_view: Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>>,
 }
 
 enum AppChannelMessage {
 	AddWindow(Box<dyn Window>),
+	SetFileView(Box<dyn FileView>),
 }
 
 #[derive(Clone)]
@@ -101,20 +108,6 @@ impl ExcavatorContext {
 	
 	pub fn shortcuts<R>(&self, reader: impl FnOnce(&ShortcutStorage) -> R) -> R {
 		reader(&self.inner.read().shortcuts)
-	}
-	
-	pub fn file_view<R>(&self, reader: impl FnOnce(&dyn FileView) -> R) -> Option<R> {
-		match self.inner.read().file_view {
-			Some(ref view) => Some(reader(view.read().as_ref())),
-			None => None,
-		}
-	}
-	
-	pub fn file_view_mut<R>(&self, writer: impl FnOnce(&mut dyn FileView) -> R) -> Option<R> {
-		match self.inner.read().file_view {
-			Some(ref view) => Some(writer(view.write().as_mut())),
-			None => None,
-		}
 	}
 	
 	pub fn repaint_parent_if_needed(&self, ctx: &egui::Context) {
@@ -167,10 +160,7 @@ impl ExcavatorContext {
 	}
 	
 	pub fn set_file_view(&self, view: Box<dyn FileView>) {
-		self.inner.write().file_view = Some(Arc::new(egui::mutex::RwLock::new(view)));
-	}
-	
-	pub fn get_file_view(&self) -> Option<Arc<egui::mutex::RwLock<Box<dyn FileView>>>> {
-		self.inner.read().file_view.clone()
+		let message = AppChannelMessage::SetFileView(view);
+		let _ = self.app_sender.send(message);
 	}
 }

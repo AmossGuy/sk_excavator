@@ -8,7 +8,7 @@ use excavator_backend::formats::FileFormat;
 use egui::Ui;
 use std::borrow::Cow;
 
-pub trait FileView: Send + Sync + 'static {
+pub trait FileView: Send + 'static {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext);
 	
 	fn can_undo(&self) -> bool { false }

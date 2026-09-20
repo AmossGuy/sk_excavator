@@ -2,74 +2,89 @@ mod shortcuts;
 pub use shortcuts::ShortcutStorage;
 
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
+use crate::file_view::FileView;
 use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
 
-pub fn show_menu_bar_panel(ui: &mut Ui, excavator: &ExcavatorContext) {
-	egui::Panel::top("menu bar").show(ui, |ui| {
-		MenuBar::new().ui(ui, |ui| {
-			file_menu_button(ui, excavator);
-			edit_menu_button(ui, excavator);
-			settings_menu_button(ui, excavator);
-			help_menu_button(ui, excavator);
-		});
-	});
+pub struct MenuEnv<'a> {
+	excavator: &'a ExcavatorContext,
+	file_view: &'a mut dyn FileView,
 }
 
-pub fn test_menu_bar_shortcuts(ctx: &Context, excavator: &ExcavatorContext) {
-	if let Some(action) = excavator.shortcuts(|s| s.test_shortcuts(ctx)) {
-		action.execute(ctx, excavator);
+impl<'a> MenuEnv<'a> {
+	pub fn new(
+		excavator: &'a ExcavatorContext,
+		file_view: &'a mut dyn FileView,
+	) -> Self {
+		Self { excavator, file_view }
 	}
 }
 
-fn file_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
+pub fn show_menu_bar_panel(ui: &mut Ui, env: &mut MenuEnv<'_>) {
+	egui::Panel::top("menu bar").show(ui, |ui| {
+		MenuBar::new().ui(ui, |ui| {
+			file_menu_button(ui, env);
+			edit_menu_button(ui, env);
+			settings_menu_button(ui, env);
+			help_menu_button(ui, env);
+		});
+	});
+}
+
+pub fn test_menu_bar_shortcuts(ctx: &Context, env: &mut MenuEnv<'_>) {
+	if let Some(action) = env.excavator.shortcuts(|s| s.test_shortcuts(ctx)) {
+		action.execute(ctx, env);
+	}
+}
+
+fn file_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	ui.menu_button("File", |ui| {
-		menu_action(ui, excavator, "Open...", MenuAction::OpenFile);
+		menu_action(ui, env, "Open...", MenuAction::OpenFile);
 		ui.menu_button("Open recent", |ui| {
-			recent_file_list(ui, excavator);
+			recent_file_list(ui, env);
 		});
 		ui.separator();
-		menu_action(ui, excavator, "Save", MenuAction::Save);
-		menu_action(ui, excavator, "Save as...", MenuAction::SaveAs);
+		menu_action(ui, env, "Save", MenuAction::Save);
+		menu_action(ui, env, "Save as...", MenuAction::SaveAs);
 		ui.separator();
-		menu_action(ui, excavator, "Quit", MenuAction::Quit);
+		menu_action(ui, env, "Quit", MenuAction::Quit);
 	});
 }
 
-fn edit_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
+fn edit_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	ui.menu_button("Edit", |ui| {
-		menu_action(ui, excavator, "Undo", MenuAction::Undo);
-		menu_action(ui, excavator, "Redo", MenuAction::Redo);
+		menu_action(ui, env, "Undo", MenuAction::Undo);
+		menu_action(ui, env, "Redo", MenuAction::Redo);
 		ui.menu_button("Undo history", |ui| {
-			undo_history_list(ui, excavator);
+			undo_history_list(ui, env);
 		});
 	});
 }
 
-fn settings_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
+fn settings_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	ui.menu_button("Settings", |ui| {
-		menu_action(ui, excavator, "Configure Excavator...", MenuAction::SettingsExcavator);
-		menu_action(ui, excavator, "Configure egui...", MenuAction::SettingsEgui);
+		menu_action(ui, env, "Configure Excavator...", MenuAction::SettingsExcavator);
+		menu_action(ui, env, "Configure egui...", MenuAction::SettingsEgui);
 	});
 }
 
-fn help_menu_button(ui: &mut Ui, excavator: &ExcavatorContext) {
+fn help_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	ui.menu_button("Help", |ui| {
-		menu_action(ui, excavator, "About Excavator...", MenuAction::About);
+		menu_action(ui, env, "About Excavator...", MenuAction::About);
 	});
 }
 
 fn menu_action<'a>(
-	ui: &mut Ui, excavator: &ExcavatorContext,
+	ui: &mut Ui, env: &mut MenuEnv<'_>,
 	atoms: impl IntoAtoms<'a>, action: MenuAction,
 ) {
 	let mut button = Button::new(atoms);
-	if let Some(shortcut) = excavator.shortcuts(|s| s.get_action_shortcut(action)) {
+	if let Some(shortcut) = env.excavator.shortcuts(|s| s.get_action_shortcut(action)) {
 		button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
 	}
 	
-	let enabled = action.should_be_enabled(ui.ctx(), excavator);
+	let enabled = action.should_be_enabled(ui.ctx(), env);
 	if ui.add_enabled(enabled, button).clicked() {
-		action.execute(ui.ctx(), excavator);
+		action.execute(ui.ctx(), env);
 	}
 }
 
@@ -79,10 +94,10 @@ fn text_wrap_hack(ui: &mut Ui) {
 	ui.style_mut().wrap_mode = Some(TextWrapMode::Extend);
 }
 
-fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
+fn recent_file_list(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	text_wrap_hack(ui);
 	
-	let list = excavator.settings(|s| s.recent_files.iter().cloned().collect::<Vec<_>>());
+	let list = env.excavator.settings(|s| s.recent_files.iter().cloned().collect::<Vec<_>>());
 	
 	if list.is_empty() {
 		ui.add(egui::Label::new("No recent files").selectable(false));
@@ -98,26 +113,25 @@ fn recent_file_list(ui: &mut Ui, excavator: &ExcavatorContext) {
 				});
 				
 				if response.clicked() {
-					excavator.open_file(item);
+					env.excavator.open_file(item);
 				}
 			}
 			
 			ui.separator();
-			menu_action(ui, excavator, "Clear recent files", MenuAction::ClearRecentFiles);
+			menu_action(ui, env, "Clear recent files", MenuAction::ClearRecentFiles);
 		});
 	}
 }
 
-fn undo_history_list(ui: &mut Ui, excavator: &ExcavatorContext) {
+fn undo_history_list(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 	text_wrap_hack(ui);
 	
-	if let Some((Some(list), current_index)) = excavator.file_view(|v| {
-		(v.undo_history(), v.undo_history_index())
-	}) && !list.is_empty() {
+	if let Some(undo_history) = env.file_view.undo_history() && !undo_history.is_empty() {
 		egui::ScrollArea::vertical().show(ui, |ui| {
-			for (new_index, text) in list.into_iter().enumerate().rev() {
-				if ui.add(egui::Button::selectable(current_index == Some(new_index), text)).clicked() {
-					excavator.file_view_mut(|v| v.undo_go_to_index(new_index));
+			for (new_index, text) in undo_history.iter().enumerate().rev() {
+				let index = env.file_view.undo_history_index();
+				if ui.add(egui::Button::selectable(index == Some(new_index), text.as_ref())).clicked() {
+					env.file_view.undo_go_to_index(new_index);
 				}
 			}
 		});
@@ -148,30 +162,30 @@ enum MenuAction {
 }
 
 impl MenuAction {
-	fn execute(&self, ctx: &Context, excavator: &ExcavatorContext) {
+	fn execute(&self, ctx: &Context, env: &mut MenuEnv<'_>) {
 		match self {
-			Self::OpenFile => excavator.open_file_dialog(),
-			Self::ClearRecentFiles => excavator.settings_mut(|s| s.clear_recent_files()),
+			Self::OpenFile => env.excavator.open_file_dialog(),
+			Self::ClearRecentFiles => env.excavator.settings_mut(|s| s.clear_recent_files()),
 			Self::Save => {}, // todo
 			Self::SaveAs => {}, // todo
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
-			Self::Undo => excavator.file_view_mut(|v| v.execute_undo()).unwrap_or(()),
-			Self::Redo => excavator.file_view_mut(|v| v.execute_redo()).unwrap_or(()),
+			Self::Undo => env.file_view.execute_undo(),
+			Self::Redo => env.file_view.execute_redo(),
 			
-			Self::SettingsExcavator => excavator.add_window(SettingsWindow::excavator_tab()),
-			Self::SettingsEgui => excavator.add_window(SettingsWindow::egui_tab()),
+			Self::SettingsExcavator => env.excavator.add_window(SettingsWindow::excavator_tab()),
+			Self::SettingsEgui => env.excavator.add_window(SettingsWindow::egui_tab()),
 			
-			Self::About => excavator.add_window(AboutWindow::new()),
+			Self::About => env.excavator.add_window(AboutWindow::new()),
 		}
 	}
 	
-	fn should_be_enabled(&self, _ctx: &Context, excavator: &ExcavatorContext) -> bool {
+	fn should_be_enabled(&self, _ctx: &Context, env: &mut MenuEnv<'_>) -> bool {
 		match self {
 			Self::Save => false, // todo
 			Self::SaveAs => false, // todo
-			Self::Undo => excavator.file_view(|v| v.can_undo()).unwrap_or(false),
-			Self::Redo => excavator.file_view(|v| v.can_redo()).unwrap_or(false),
+			Self::Undo => env.file_view.can_undo(),
+			Self::Redo => env.file_view.can_redo(),
 			_ => true,
 		}
 	}
