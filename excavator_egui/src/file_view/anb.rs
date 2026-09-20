@@ -1,5 +1,5 @@
 use crate::app::context::ExcavatorContext;
-use crate::file_view::FileView;
+use crate::file_view::{FileView, FileViewAction};
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes};
 use excavator_backend::formats::wflz;
@@ -36,20 +36,21 @@ impl FileView for AnbFileView {
 		});
 	}
 	
-	fn can_undo(&self) -> bool {
-		self.anb.can_undo()
+	fn action_execute(&mut self, action: FileViewAction, _excavator: &ExcavatorContext) {
+		match action {
+			FileViewAction::Save => println!("todo"),
+			FileViewAction::SaveAs => println!("todo"),
+			FileViewAction::Undo => self.anb.undo(),
+			FileViewAction::Redo => self.anb.redo(),
+		}
 	}
-	
-	fn execute_undo(&mut self) {
-		self.anb.undo();
-	}
-	
-	fn can_redo(&self) -> bool {
-		self.anb.can_redo()
-	}
-	
-	fn execute_redo(&mut self) {
-		self.anb.redo();
+	fn action_should_be_enabled(&self, action: FileViewAction) -> bool {
+		match action {
+			FileViewAction::Save => true,
+			FileViewAction::SaveAs => true,
+			FileViewAction::Undo => self.anb.can_undo(),
+			FileViewAction::Redo => self.anb.can_redo(),
+		}
 	}
 	
 	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> {

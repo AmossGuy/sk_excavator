@@ -8,17 +8,24 @@ use excavator_backend::formats::FileFormat;
 use egui::Ui;
 use std::borrow::Cow;
 
+#[allow(unused_variables)]
 pub trait FileView: Send + 'static {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext);
 	
-	fn can_undo(&self) -> bool { false }
-	fn execute_undo(&mut self) {}
-	fn can_redo(&self) -> bool { false }
-	fn execute_redo(&mut self) {}
+	fn action_execute(&mut self, action: FileViewAction, excavator: &ExcavatorContext) {}
+	fn action_should_be_enabled(&self, action: FileViewAction) -> bool { false }
 	
 	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> { None }
 	fn undo_history_index(&self) -> Option<usize> { None }
-	fn undo_go_to_index(&mut self, _index: usize) {}
+	fn undo_go_to_index(&mut self, index: usize) {}
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+pub enum FileViewAction {
+	Save,
+	SaveAs,
+	Undo,
+	Redo,
 }
 
 pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {

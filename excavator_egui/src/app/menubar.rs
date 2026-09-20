@@ -2,7 +2,7 @@ mod shortcuts;
 pub use shortcuts::ShortcutStorage;
 
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
-use crate::file_view::FileView;
+use crate::file_view::{FileView, FileViewAction};
 use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
 
 pub struct MenuEnv<'a> {
@@ -166,12 +166,12 @@ impl MenuAction {
 		match self {
 			Self::OpenFile => env.excavator.open_file_dialog(),
 			Self::ClearRecentFiles => env.excavator.settings_mut(|s| s.clear_recent_files()),
-			Self::Save => {}, // todo
-			Self::SaveAs => {}, // todo
+			Self::Save => env.file_view.action_execute(FileViewAction::Save, env.excavator),
+			Self::SaveAs => env.file_view.action_execute(FileViewAction::SaveAs, env.excavator),
 			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			
-			Self::Undo => env.file_view.execute_undo(),
-			Self::Redo => env.file_view.execute_redo(),
+			Self::Undo => env.file_view.action_execute(FileViewAction::Undo, env.excavator),
+			Self::Redo => env.file_view.action_execute(FileViewAction::Redo, env.excavator),
 			
 			Self::SettingsExcavator => env.excavator.add_window(SettingsWindow::excavator_tab()),
 			Self::SettingsEgui => env.excavator.add_window(SettingsWindow::egui_tab()),
@@ -182,10 +182,12 @@ impl MenuAction {
 	
 	fn should_be_enabled(&self, _ctx: &Context, env: &mut MenuEnv<'_>) -> bool {
 		match self {
-			Self::Save => false, // todo
-			Self::SaveAs => false, // todo
-			Self::Undo => env.file_view.can_undo(),
-			Self::Redo => env.file_view.can_redo(),
+			Self::Save => env.file_view.action_should_be_enabled(FileViewAction::Save),
+			Self::SaveAs => env.file_view.action_should_be_enabled(FileViewAction::SaveAs),
+			
+			Self::Undo => env.file_view.action_should_be_enabled(FileViewAction::Undo),
+			Self::Redo => env.file_view.action_should_be_enabled(FileViewAction::Redo),
+			
 			_ => true,
 		}
 	}
