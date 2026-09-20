@@ -9,7 +9,7 @@ pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
 	windows: WindowHolder,
 	file_view: Box<dyn FileView>,
-	receiver: mpsc::Receiver<AppChannelMessage>,
+	receiver: mpsc::Receiver<AppMessage>,
 }
 
 struct PlaceholderFileView;
@@ -54,13 +54,14 @@ impl ExcavatorApp {
 }
 
 impl eframe::App for ExcavatorApp {
-	fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
-		use AppChannelMessage::*;
+	fn logic(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+		use AppMessage::*;
 		
 		for message in self.receiver.try_iter() {
 			match message {
 				AddWindow(window) => self.windows.add(window),
 				SetFileView(view) => self.file_view = view,
+				RequestQuit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			}
 		}
 	}
@@ -85,15 +86,16 @@ struct ExcavatorInner {
 	shortcuts: ShortcutStorage,
 }
 
-enum AppChannelMessage {
+enum AppMessage {
 	AddWindow(Box<dyn Window>),
 	SetFileView(Box<dyn FileView>),
+	RequestQuit,
 }
 
 #[derive(Clone)]
 pub struct ExcavatorContext {
 	inner: Arc<egui::mutex::RwLock<ExcavatorInner>>,
-	app_sender: mpsc::Sender<AppChannelMessage>,
+	app_sender: mpsc::Sender<AppMessage>,
 	needs_parent_repaint: egui::mutex::Mutex<bool>,
 }
 
@@ -125,14 +127,17 @@ impl ExcavatorContext {
 		*self.needs_parent_repaint.lock() = true;
 	}
 	
+	fn app_message(&self, message: AppMessage) {
+		let _ = self.app_sender.send(message);
+		self.set_needs_parent_repaint();
+	}
+	
 	pub fn add_window(&self, window: impl Window) {
 		self.add_window_boxed(Box::new(window));
 	}
 	
 	pub fn add_window_boxed(&self, window: Box<dyn Window>) {
-		let message = AppChannelMessage::AddWindow(window);
-		let _ = self.app_sender.send(message);
-		self.set_needs_parent_repaint();
+		self.app_message(AppMessage::AddWindow(window));
 	}
 	
 	pub fn open_file_dialog(&self) {
@@ -160,7 +165,10 @@ impl ExcavatorContext {
 	}
 	
 	pub fn set_file_view(&self, view: Box<dyn FileView>) {
-		let message = AppChannelMessage::SetFileView(view);
-		let _ = self.app_sender.send(message);
+		self.app_message(AppMessage::SetFileView(view));
+	}
+	
+	pub fn request_app_quit(&self) {
+		self.app_message(AppMessage::RequestQuit);
 	}
 }

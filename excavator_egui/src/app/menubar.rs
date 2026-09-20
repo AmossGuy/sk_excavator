@@ -32,7 +32,7 @@ pub fn show_menu_bar_panel(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 
 pub fn test_menu_bar_shortcuts(ctx: &Context, env: &mut MenuEnv<'_>) {
 	if let Some(action) = env.excavator.shortcuts(|s| s.test_shortcuts(ctx)) {
-		action.execute(ctx, env);
+		action.execute(env);
 	}
 }
 
@@ -79,12 +79,12 @@ fn menu_action<'a>(
 ) {
 	let mut button = Button::new(atoms);
 	if let Some(shortcut) = env.excavator.shortcuts(|s| s.get_action_shortcut(action)) {
-		button = button.shortcut_text(ui.ctx().format_shortcut(&shortcut));
+		button = button.shortcut_text(ui.format_shortcut(&shortcut));
 	}
 	
-	let enabled = action.should_be_enabled(ui.ctx(), env);
+	let enabled = action.should_be_enabled(env);
 	if ui.add_enabled(enabled, button).clicked() {
-		action.execute(ui.ctx(), env);
+		action.execute(env);
 	}
 }
 
@@ -162,13 +162,13 @@ enum MenuAction {
 }
 
 impl MenuAction {
-	fn execute(&self, ctx: &Context, env: &mut MenuEnv<'_>) {
+	fn execute(&self, env: &mut MenuEnv<'_>) {
 		match self {
 			Self::OpenFile => env.excavator.open_file_dialog(),
 			Self::ClearRecentFiles => env.excavator.settings_mut(|s| s.clear_recent_files()),
 			Self::Save => env.file_view.action_execute(FileViewAction::Save, env.excavator),
 			Self::SaveAs => env.file_view.action_execute(FileViewAction::SaveAs, env.excavator),
-			Self::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+			Self::Quit => env.excavator.request_app_quit(),
 			
 			Self::Undo => env.file_view.action_execute(FileViewAction::Undo, env.excavator),
 			Self::Redo => env.file_view.action_execute(FileViewAction::Redo, env.excavator),
@@ -180,7 +180,7 @@ impl MenuAction {
 		}
 	}
 	
-	fn should_be_enabled(&self, _ctx: &Context, env: &mut MenuEnv<'_>) -> bool {
+	fn should_be_enabled(&self, env: &mut MenuEnv<'_>) -> bool {
 		match self {
 			Self::Save => env.file_view.action_should_be_enabled(FileViewAction::Save),
 			Self::SaveAs => env.file_view.action_should_be_enabled(FileViewAction::SaveAs),
