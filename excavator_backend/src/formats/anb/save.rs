@@ -1,38 +1,37 @@
-// use super::{def_live as live, def_raw as raw};
+use {super as live, super::raw as raw};
 
-// use std::marker::PhantomData;
-// use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
+use std::marker::PhantomData;
+use zerocopy::{FromBytes, IntoBytes, KnownLayout, Immutable, LE, U32, U64};
 
-/*
-pub fn save_from_world(world: &World, root_entity: Entity) -> anyhow::Result<Vec<u8>> {
-	let mut saver = Saver::new(world);
+pub fn save_to_bytes(anb: &live::Anb) -> anyhow::Result<Vec<u8>> {
+	let mut saver = Saver::new(anb);
 	
 	let header_reser = saver.reserve::<raw::Header>();
-	let header_component = world.get::<live::Header>(root_entity)
-		.expect("root entity should exist and have header component");
-	header_reser.write(&mut saver.output, save_header(&header_component));
+	let header = anb.get_header();
+	header_reser.write(&mut saver.output, save_header(header));
 	
-	let node_entity = saver.world.get::<Children>(root_entity).unwrap()[0];
-	save_node(&mut saver, node_entity, true)?;
+	if let Some(root_node_id) = header.root_node {
+		save_node(&mut saver, root_node_id, true)?;
+	}
 	
 	save_queued_blocks(&mut saver)?;
 	
 	Ok(saver.output)
 }
 
-fn save_node(saver: &mut Saver<'_>, node_entity: Entity, alt: bool) -> anyhow::Result<usize> {
+fn save_node(saver: &mut Saver<'_>, node_id: live::NodeId, alt: bool) -> anyhow::Result<usize> {
 	// Before going any further, we need to reserve the spot this node will be saved to.
 	// However, we won't actually write it until later, when we have pointers to all of its children prepared.
 	let node_reser = saver.reserve::<raw::NodeCommon>();
 	let node_reser_location = node_reser.location;
 	
-	let node_kind = save_node_attachment(saver, node_entity)?;
+	let node_kind = save_node_attachment(saver, node_id)?;
 	
 	// Recursively save all of this node's children
 	let (child_count, child_array_pointer) = if alt {
-		save_children_nodes_alt(saver, node_entity)?
+		save_children_nodes_alt(saver, node_id)?
 	} else {
-		save_children_nodes(saver, node_entity)?
+		save_children_nodes(saver, node_id)?
 	};
 	
 	// Finally, write the parent, including the pointer to the children pointers.
@@ -41,10 +40,11 @@ fn save_node(saver: &mut Saver<'_>, node_entity: Entity, alt: bool) -> anyhow::R
 	Ok(node_reser_location)
 }
 
-fn save_children_nodes(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
+fn save_children_nodes(saver: &mut Saver<'_>, parent_id: live::NodeId) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = saver.world.get::<Children>(parent)
-		.map(|c| &c[..]).unwrap_or(&[]).into_iter().copied();
+	let children_iter = saver.anb.get_node(parent_id)
+		.map(|n| n.children.as_slice()).unwrap_or(&[])
+		.into_iter().copied();
 	
 	// step two: save each child, recursing for the children's children
 	let mut child_pointers = Vec::<usize>::new();
@@ -67,13 +67,14 @@ fn save_children_nodes(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<
 }
 
 // the only difference this has from save_children_nodes is that it writes things in a different order, to imitate a quirk in the vanilla files. it just takes some finagling to do that
-fn save_children_nodes_alt(saver: &mut Saver<'_>, parent: Entity) -> anyhow::Result<(usize, usize)> {
+fn save_children_nodes_alt(saver: &mut Saver<'_>, parent_id: live::NodeId) -> anyhow::Result<(usize, usize)> {
 	// step one: get iterator
-	let children_iter = saver.world.get::<Children>(parent)
-		.map(|c| &c[..]).unwrap_or(&[]).into_iter().copied();
+	let children_iter = saver.anb.get_node(parent_id)
+		.map(|n| n.children.as_slice()).unwrap_or(&[])
+		.into_iter().copied();
 	
 	// step two alt: save each child, but save their own children for later
-	let mut child_things = Vec::<(Reservation<raw::NodeCommon>, Entity, u32)>::new();
+	let mut child_things = Vec::<(Reservation<raw::NodeCommon>, live::NodeId, u32)>::new();
 	for child_entity in children_iter {
 		// these two lines are basically the first half of save_node alt version
 		let child_reser = saver.reserve::<raw::NodeCommon>();
@@ -123,12 +124,11 @@ fn save_node_common(node_kind: u32, child_count: u32, child_array_pointer: u64) 
 	}
 }
 
-fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::Result<u32> {
-	let node_component = saver.world.get::<live::Node>(node_entity)
-		.expect("entity should exist and have node component");
-	match &*node_component {
-		live::Node::Base => {},
-		live::Node::Texture(node_live) => {
+fn save_node_attachment(saver: &mut Saver<'_>, node_id: live::NodeId) -> anyhow::Result<u32> {
+	let node = saver.anb.get_node(node_id).expect("node should exist");
+	match &node.data {
+		live::NodeData::Base => {},
+		live::NodeData::Texture(node_live) => {
 			let reser = saver.reserve::<raw::NodeTexture>();
 			let node_raw = raw::NodeTexture {
 				width: node_live.width.into(),
@@ -145,7 +145,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				},
 			});
 		},
-		live::Node::Vertex(node_live) => {
+		live::NodeData::Vertex(node_live) => {
 			let reser = saver.reserve::<raw::NodeVertex>();
 			let node_raw = raw::NodeVertex {
 				vert_count: node_live.vert_count.into(),
@@ -160,14 +160,14 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				},
 			});
 		},
-		live::Node::Meta => {},
-		live::Node::MetaScalar(node_live) => {
+		live::NodeData::Meta => {},
+		live::NodeData::MetaScalar(node_live) => {
 			saver.push(raw::NodeMetaScalar {
 				unk_1: node_live.unk_1.into(),
 				unk_2: node_live.unk_2.into(),
 			});
 		},
-		live::Node::MetaPoint(node_live) => {
+		live::NodeData::MetaPoint(node_live) => {
 			saver.push(raw::NodeMetaPoint {
 				x: node_live.x.into(),
 				y: node_live.y.into(),
@@ -175,7 +175,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				padding: node_live.padding.into(),
 			});
 		},
-		live::Node::MetaAnchor(node_live) => {
+		live::NodeData::MetaAnchor(node_live) => {
 			saver.push(raw::NodeMetaAnchor {
 				x: node_live.x.into(),
 				y: node_live.y.into(),
@@ -183,7 +183,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				angle: node_live.angle.into(),
 			});
 		},
-		live::Node::MetaRect(node_live) => {
+		live::NodeData::MetaRect(node_live) => {
 			saver.push(raw::NodeMetaRect {
 				center_x: node_live.center_x.into(),
 				center_y: node_live.center_y.into(),
@@ -195,7 +195,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				padding: node_live.padding.into(),
 			});
 		},
-		live::Node::MetaString(node_live) => {
+		live::NodeData::MetaString(node_live) => {
 			let reser = saver.reserve::<raw::NodeMetaString>();
 			let node_raw = raw::NodeMetaString {
 				string_length: node_live.string_length.into(),
@@ -210,7 +210,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				},
 			});
 		},
-		live::Node::MetaTable(node_live) => {
+		live::NodeData::MetaTable(node_live) => {
 			let reser = saver.reserve::<raw::NodeMetaTable>();
 			let node_raw = raw::NodeMetaTable {
 				hashname_pointer: PLACEHOLDER_POINTER,
@@ -223,7 +223,7 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				},
 			});
 		},
-		live::Node::Frame(node_live) => {
+		live::NodeData::Frame(node_live) => {
 			saver.push(raw::NodeFrame {
 				min_x: node_live.min_x.into(),
 				max_x: node_live.max_x.into(),
@@ -231,19 +231,19 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				max_y: node_live.max_y.into(),
 			});
 		},
-		live::Node::SequenceFrame(node_live) => {
+		live::NodeData::SequenceFrame(node_live) => {
 			saver.push(raw::NodeSequenceFrame {
 				frame: node_live.frame.into(),
 				delay: node_live.delay.into(),
 			});
 		},
-		live::Node::Sequence(node_live) => {
+		live::NodeData::Sequence(node_live) => {
 			saver.push(raw::NodeSequence {
 				hashname: node_live.hashname.into(),
 				frame_count: node_live.frame_count.into(),
 			});
 		},
-		live::Node::Animation(node_live) => {
+		live::NodeData::Animation(node_live) => {
 			let reser = saver.reserve::<raw::NodeAnimation>();
 			let node_raw = raw::NodeAnimation {
 				sequence_count: node_live.sequence_count.into(),
@@ -260,11 +260,8 @@ fn save_node_attachment(saver: &mut Saver<'_>, node_entity: Entity) -> anyhow::R
 				},
 			});
 		},
-		live::Node::UnknownKind(kind) => {
-			anyhow::bail!("unknown kind node ({})", kind);
-		},
 	}
-	Ok(node_component.kind())
+	Ok(node.data.kind())
 }
 
 fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
@@ -315,16 +312,17 @@ fn save_queued_blocks(saver: &mut Saver<'_>) -> anyhow::Result<()> {
 	Ok(())
 }
 
-struct Saver<'world> {
-	world: &'world World,
+struct Saver<'anb> {
+	anb: &'anb live::Anb,
 	output: Vec<u8>,
 	deferred_blocks: Vec<DeferredBlock>,
 }
 
-impl<'world> Saver<'world> {
-	fn new(world: &'world World) -> Self {
+
+impl<'anb> Saver<'anb> {
+	fn new(anb: &'anb live::Anb) -> Self {
 		Self {
-			world,
+			anb,
 			output: Vec::new(),
 			deferred_blocks: Vec::new(),
 		}
@@ -395,4 +393,3 @@ enum DeferredBlockNode {
 		node_raw: raw::NodeAnimation,
 	},
 }
-*/

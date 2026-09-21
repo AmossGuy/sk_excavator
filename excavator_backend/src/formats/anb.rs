@@ -11,7 +11,7 @@ use self::undo::AnbCommand;
 use thunderdome::{Arena, Index as ArenaIndex};
 
 pub use load::load_from_bytes;
-// pub use save::save_from_world;
+pub use save::save_to_bytes;
 
 pub struct Anb {
 	inner: AnbWithoutUndo,
