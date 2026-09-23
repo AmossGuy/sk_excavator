@@ -1088,6 +1088,7 @@ dependencies = [
  "egui",
  "egui_ltreeview",
  "excavator_backend",
+ "parking_lot",
  "rfd",
  "serde",
  "thunderdome",

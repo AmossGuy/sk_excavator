@@ -1,22 +1,23 @@
 use crate::app::context::ExcavatorContext;
 use crate::file_view::{FileView, FileViewAction};
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes};
+use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes, save_to_bytes};
 use excavator_backend::formats::wflz;
 
 use egui::{Id, Label, Pos2, Rect, ScrollArea, Ui, Vec2, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
-use std::{borrow::Cow, collections::HashMap, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 use yoke::Yoke;
 
-pub fn parse_anb(file_contents: Vec<u8>) -> anyhow::Result<impl FileView> {
+pub fn parse_anb(file_contents: Vec<u8>, file_path: PathBuf) -> anyhow::Result<impl FileView> {
 	let yoke_bytes = Yoke::attach_to_cart(Arc::new(file_contents), |vec| &vec[..]);
 	let anb = load_from_bytes(&yoke_bytes)?;
-	Ok(AnbFileView::new(anb))
+	Ok(AnbFileView::new(anb, file_path))
 }
 
 struct AnbFileView {
-	anb: Anb,
+	anb: Arc<parking_lot::RwLock<Anb>>,
+	file_path: PathBuf,
 	tree_state: TreeViewState<anb::NodeId>,
 	node_textures: Option<HashMap<NodeId, egui::TextureHandle>>,
 }
@@ -38,42 +39,43 @@ impl FileView for AnbFileView {
 	
 	fn action_execute(&mut self, action: FileViewAction, _excavator: &ExcavatorContext) {
 		match action {
-			FileViewAction::Save => println!("todo"),
-			FileViewAction::SaveAs => println!("todo"),
-			FileViewAction::Undo => self.anb.undo(),
-			FileViewAction::Redo => self.anb.redo(),
+			FileViewAction::Save => self.wip_save(),
+			FileViewAction::SaveAs => self.wip_save_as(),
+			FileViewAction::Undo => self.anb.write().undo(),
+			FileViewAction::Redo => self.anb.write().redo(),
 		}
 	}
 	fn action_should_be_enabled(&self, action: FileViewAction) -> bool {
 		match action {
 			FileViewAction::Save => true,
 			FileViewAction::SaveAs => true,
-			FileViewAction::Undo => self.anb.can_undo(),
-			FileViewAction::Redo => self.anb.can_redo(),
+			FileViewAction::Undo => self.anb.read().can_undo(),
+			FileViewAction::Redo => self.anb.read().can_redo(),
 		}
 	}
 	
 	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> {
-		Some(self.anb.undo_history_strings())
+		Some(self.anb.read().undo_history_strings())
 	}
 	
 	fn undo_history_index(&self) -> Option<usize> {
-		self.anb.undo_history_index()
+		self.anb.read().undo_history_index()
 	}
 	
 	fn undo_go_to_index(&mut self, index: usize) {
-		self.anb.undo_go_to_index(index);
+		self.anb.write().undo_go_to_index(index);
 	}
 }
 
 impl AnbFileView {
-	fn new(anb: Anb) -> Self {
-		Self { anb, tree_state: TreeViewState::default(), node_textures: None }
+	fn new(anb: Anb, file_path: PathBuf) -> Self {
+		let anb = Arc::new(parking_lot::RwLock::new(anb));
+		Self { anb, file_path, tree_state: TreeViewState::default(), node_textures: None }
 	}
 	
 	fn update_textures(&mut self, ctx: &egui::Context) {
 		if self.node_textures.is_none() {
-			let node_textures = self.anb.iter_nodes().filter_map(|(id, node)| {
+			let node_textures = self.anb.read().iter_nodes().filter_map(|(id, node)| {
 				let texture_node = match node.data {
 					NodeData::Texture(ref tx) => tx,
 					_ => return None,
@@ -110,14 +112,16 @@ impl AnbFileView {
 	fn tree_view(&mut self, ui: &mut Ui) {
 		ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
 			let tree_view = TreeView::new(Id::new("tree view"));
-			let stuff = TreeBuildStuff { anb: &self.anb, node_textures: self.node_textures.as_ref() };
+			let anb_guard = self.anb.read();
+			let stuff = TreeBuildStuff { anb: &anb_guard, node_textures: self.node_textures.as_ref() };
 			
 			let (_, actions) = tree_view.show_state(ui, &mut self.tree_state, |builder| {
-				if let Some(root_id) = self.anb.get_header().root_node {
+				if let Some(root_id) = self.anb.read().get_header().root_node {
 					stuff.build_tree_recursively(builder, root_id);
 				}
 			});
 			
+			drop(anb_guard);
 			self.handle_tree_actions(actions);
 		});
 	}
@@ -127,16 +131,17 @@ impl AnbFileView {
 			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
 			&[] => {
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					if let Some(edited) = edit_editable_data(ui, self.anb.get_header()) {
-						self.anb.edit_header_props(edited);
+					if let Some(edited) = edit_editable_data(ui, self.anb.read().get_header()) {
+						self.anb.write().edit_header_props(edited);
 					}
 				});
 			},
 			&[node_id] => {
 				egui::Grid::new("property grid").num_columns(2).show(ui, |ui| {
-					let node = self.anb.get_node(node_id).expect("node should exist");
+					let anb_guard = self.anb.read();
+					let node = anb_guard.get_node(node_id).expect("node should exist");
 					if let Some(edited) = edit_editable_data(ui, &node.data) {
-						self.anb.edit_node_props(node_id, edited);
+						self.anb.write().edit_node_props(node_id, edited);
 					}
 				});
 				
@@ -152,7 +157,8 @@ impl AnbFileView {
 		for action in actions {
 			match action {
 				TreeAction::Move(drag_and_drop) => {
-					let children = &self.anb.get_node(drag_and_drop.target)
+					let anb_guard = self.anb.read();
+					let children = &anb_guard.get_node(drag_and_drop.target)
 						.expect("node should exist")
 						.children;
 					
@@ -163,7 +169,7 @@ impl AnbFileView {
 						DirPosition::Before(id) => children.iter().position(|&x| x == id).unwrap(),
 					};
 					
-					self.anb.edit_reparent(drag_and_drop.target, &drag_and_drop.source, index);
+					self.anb.write().edit_reparent(drag_and_drop.target, &drag_and_drop.source, index);
 				},
 				_ => {},
 			}
@@ -171,7 +177,8 @@ impl AnbFileView {
 	}
 	
 	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId) {
-		match &self.anb.get_node(node_id).unwrap().data {
+		let anb_guard = self.anb.read();
+		match &anb_guard.get_node(node_id).unwrap().data {
 			NodeData::Vertex(vertex_node) => {
 				// TODO: Not the sort of thing that should be done every frame, I think, but this is just a test implementation for now
 				let parse_result = vertex_node.parse_data_block();
@@ -186,7 +193,7 @@ impl AnbFileView {
 			},
 			NodeData::Frame(_) => {
 				egui::Frame::canvas(ui.style()).show(ui, |ui| {
-					render_anb_sprite(ui, &self.anb, node_id, self.node_textures.as_ref());
+					render_anb_sprite(ui, &anb_guard, node_id, self.node_textures.as_ref());
 				});
 			},
 			_ => {},
@@ -402,4 +409,40 @@ fn build_vertex_mesh(parsed: &[VertexEntry], texture: &egui::TextureHandle) -> e
 		.collect::<Vec<Vertex>>();
 	
 	egui::Mesh { indices, vertices, texture_id: texture.id() }
+}
+
+// test implementation
+// this stuff should be made shared between file formats soon
+impl AnbFileView {
+	fn wip_save(&self) {
+		let anb = Arc::clone(&self.anb);
+		let path = self.file_path.clone();
+		
+		std::thread::spawn(move || {
+			let mut bak_path = path.clone();
+			bak_path.add_extension("original");
+			// todo: perhaps use `renamore` crate?
+			if !std::fs::exists(&bak_path).unwrap() {
+				// good error handling isn't yet implemented here, but i really don't want it to overwrite the original
+				std::fs::rename(&path, &bak_path).unwrap();
+			}
+			
+			if let Ok(bytes) = save_to_bytes(&anb.read()) {
+				let _ = std::fs::write(path, bytes);
+			}
+		});
+	}
+	
+	fn wip_save_as(&self) {
+		let anb = Arc::clone(&self.anb);
+		std::thread::spawn(move || {
+			let dialog = rfd::FileDialog::new();
+			
+			if let Some(path) = dialog.save_file() {
+				if let Ok(bytes) = save_to_bytes(&anb.read()) {
+					let _ = std::fs::write(path, bytes);
+				}
+			}
+		});
+	}
 }

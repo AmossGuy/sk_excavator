@@ -21,8 +21,8 @@ fn do_load(file_path: PathBuf, excavator: &ExcavatorContext) -> anyhow::Result<B
 	let file_contents = fs::read(&file_path)?;
 	
 	excavator.set_file_view(status_view("Parsing file"));
-	let format = FileFormat::from_path(file_path);
-	let view = parse_as_format(file_contents, format)?;
+	let format = FileFormat::from_path(&file_path);
+	let view = parse_as_format(file_contents, format, file_path)?;
 	
 	Ok(view)
 }

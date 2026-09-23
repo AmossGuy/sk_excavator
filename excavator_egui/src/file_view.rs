@@ -6,7 +6,7 @@ use crate::app::context::ExcavatorContext;
 use excavator_backend::formats::FileFormat;
 
 use egui::Ui;
-use std::borrow::Cow;
+use std::{borrow::Cow, path::PathBuf};
 
 #[allow(unused_variables)]
 pub trait FileView: Send + 'static {
@@ -28,10 +28,10 @@ pub enum FileViewAction {
 	Redo,
 }
 
-pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>) -> anyhow::Result<Box<dyn FileView>> {
+pub fn parse_as_format(file_contents: Vec<u8>, format: Option<FileFormat>, file_path: PathBuf) -> anyhow::Result<Box<dyn FileView>> {
 	let view: Box<dyn FileView> = match format {
 		Some(FileFormat::Pak) => Box::new(pak::parse_pak(file_contents)?),
-		Some(FileFormat::Anb) => Box::new(anb::parse_anb(file_contents)?),
+		Some(FileFormat::Anb) => Box::new(anb::parse_anb(file_contents, file_path)?),
 		Some(_) | None => anyhow::bail!("unsupported format"),
 	};
 	Ok(view)

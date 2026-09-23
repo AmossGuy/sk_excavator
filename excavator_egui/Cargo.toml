@@ -12,6 +12,7 @@ yoke.workspace = true
 
 # Miscellaneous
 anyhow.workspace = true
+parking_lot.workspace = true
 serde.workspace = true
 
 # GUI
