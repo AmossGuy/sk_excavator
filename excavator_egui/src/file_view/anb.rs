@@ -23,12 +23,12 @@ struct AnbFileView {
 }
 
 impl FileView for AnbFileView {
-	fn ui(&mut self, ui: &mut Ui, _excavator: &ExcavatorContext) {
+	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
 		// this shouldn't be on the ui thread!!
 		self.update_textures(ui.ctx());
 		
 		egui::Panel::right("property editor").show(ui, |ui| {
-			self.property_view(ui);
+			self.property_view(ui, excavator);
 			ui.take_available_space();
 		});
 		
@@ -126,7 +126,7 @@ impl AnbFileView {
 		});
 	}
 	
-	fn property_view(&mut self, ui: &mut Ui) {
+	fn property_view(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
 		match self.tree_state.selected().as_slice() {
 			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
 			&[] => {
@@ -145,7 +145,7 @@ impl AnbFileView {
 					}
 				});
 				
-				self.data_block_editor(ui, node_id);
+				self.data_block_editor(ui, node_id, excavator);
 			},
 			_ => {
 				ui.label("multiple selected");
@@ -176,7 +176,7 @@ impl AnbFileView {
 		}
 	}
 	
-	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId) {
+	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId, excavator: &ExcavatorContext) {
 		let anb_guard = self.anb.read();
 		match &anb_guard.get_node(node_id).unwrap().data {
 			NodeData::Vertex(vertex_node) => {
@@ -195,6 +195,17 @@ impl AnbFileView {
 				egui::Frame::canvas(ui.style()).show(ui, |ui| {
 					render_anb_sprite(ui, &anb_guard, node_id, self.node_textures.as_ref());
 				});
+			},
+			NodeData::Sequence(animation_node) => {
+				match excavator.unhash(animation_node.hashname) {
+					Some(name) => {
+						let name = String::from_utf8_lossy(&name);
+						ui.label(format!("hash-reversed name: {}", name));
+					},
+					None => {
+						ui.label(format!("unknown hash"));
+					},
+				}
 			},
 			_ => {},
 		}

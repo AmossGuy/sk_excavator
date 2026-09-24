@@ -3,6 +3,8 @@ use super::menubar::{show_menu_bar_panel, test_menu_bar_shortcuts, MenuEnv, Shor
 use super::settings::ExcavatorSettings;
 use super::windows::{Window, WindowHolder};
 
+use excavator_backend::hash::Unhasher;
+
 use std::{path::PathBuf, sync::{Arc, mpsc}};
 
 pub struct ExcavatorApp {
@@ -37,6 +39,7 @@ impl ExcavatorApp {
 		let exc_inner = ExcavatorInner {
 			settings: ExcavatorSettings::load(storage),
 			shortcuts: ShortcutStorage::new(),
+			unhasher: Self::unhasher_load().unwrap(),
 		};
 		
 		let (sender, receiver) = mpsc::channel();
@@ -50,6 +53,13 @@ impl ExcavatorApp {
 		let file_view = Box::new(PlaceholderFileView);
 		
 		Self { excavator, windows, file_view, receiver }
+	}
+	
+	fn unhasher_load() -> std::io::Result<Unhasher> {
+		// "data folder location" system pending
+		let path = PathBuf::from("excavator_data/unhash_string_list.txt");
+		let file = std::io::BufReader::new(std::fs::File::open(path)?);
+		Unhasher::load(file)
 	}
 }
 
@@ -84,6 +94,7 @@ impl eframe::App for ExcavatorApp {
 struct ExcavatorInner {
 	settings: ExcavatorSettings,
 	shortcuts: ShortcutStorage,
+	unhasher: Unhasher,
 }
 
 enum AppMessage {
@@ -170,5 +181,10 @@ impl ExcavatorContext {
 	
 	pub fn request_app_quit(&self) {
 		self.app_message(AppMessage::RequestQuit);
+	}
+	
+	pub fn unhash(&self, hash: u32) -> Option<Vec<u8>> {
+		self.inner.read().unhasher.unhash(hash)
+			.map(|x| x.to_vec())
 	}
 }

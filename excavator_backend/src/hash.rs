@@ -3,6 +3,9 @@
 use std::num::Wrapping;
 use zerocopy::{ByteOrder, FromBytes, FromZeros, IntoBytes, U32, LE};
 
+use std::collections::HashMap;
+use std::io::{self, BufRead};
+
 // So a bunch of methods for Wrapping, including rotate_left, have been sitting around since 2018 without being stabilized. Annoying.
 // https://github.com/rust-lang/rust/issues/32463
 fn rotate_left(this: Wrapping<u32>, n: u32) -> Wrapping<u32> {
@@ -64,4 +67,25 @@ pub const INIT_VAL_SK: u32 = 123456789;
 
 pub fn hash_sk(data: &[u8]) -> u32 {
 	hash::<LE>(data, INIT_VAL_SK)
+}
+
+pub struct Unhasher {
+	data: HashMap<u32, Vec<u8>>,
+}
+
+impl Unhasher {
+	pub fn load(reader: impl BufRead) -> io::Result<Self> {
+		let data = reader.lines()
+			.map(|line_result| {
+				let bytes = line_result?.into_bytes();
+				Ok((hash_sk(&bytes), bytes))
+			})
+			.collect::<io::Result<HashMap<_, _>>>()?;
+		
+		Ok(Self { data })
+	}
+	
+	pub fn unhash(&self, hash: u32) -> Option<&[u8]> {
+		self.data.get(&hash).map(|v| &**v)
+	}
 }
