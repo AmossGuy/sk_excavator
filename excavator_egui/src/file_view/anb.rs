@@ -242,6 +242,47 @@ impl AnbFileView {
 				ui.add(egui::Image::new(&*texture).fit_to_exact_size(ui.available_size()));
 			}
 		});
+		
+		ui.horizontal(|ui| {
+			if ui.button("Export texture").clicked() {
+				self.open_export_texture_dialog(id);
+			}
+			if ui.button("Import texture").clicked() {
+				self.open_import_texture_dialog(id);
+			}
+		});
+	}
+	
+	fn open_export_texture_dialog(&self, node_id: NodeId) {
+		let texture_node = {
+			let anb_lock = self.anb.read();
+			let NodeData::Texture(texture_node) = &anb_lock.get_node(node_id).unwrap().data else {
+				panic!("export texture: not texture");
+			};
+			texture_node.clone()
+		};
+		
+		std::thread::spawn(move || {
+			let dialog = rfd::FileDialog::new()
+				.set_title("Export texture");
+			
+			if let Some(path) = dialog.save_file() {
+				let data = texture_node.data_block.as_ref().unwrap().data.get();
+				let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
+				let _ = ::image::save_buffer(&path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8);
+			}
+		});
+	}
+	
+	fn open_import_texture_dialog(&self, node_id: NodeId) {
+		std::thread::spawn(move || {
+			let dialog = rfd::FileDialog::new()
+				.set_title("Import texture");
+			
+			if let Some(path) = dialog.pick_file() {
+				println!("todo: import texture");
+			}
+		});
 	}
 }
 
