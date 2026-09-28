@@ -1,3 +1,7 @@
+mod compress;
+
+pub use compress::*;
+
 use std::{error, fmt, io};
 use std::io::Read;
 use zerocopy::{FromBytes, IntoBytes, LittleEndian as LE, U16, U32};
@@ -58,7 +62,7 @@ impl From<io::Error> for WflzReadError {
 	}
 }
 
-pub fn decompress<R: Read>(reader: &mut R) -> Result<Box<[u8]>, WflzReadError> {
+pub fn decompress<R: Read>(reader: R) -> Result<Box<[u8]>, WflzReadError> {
 	let mut wflz = WflzReader::new(reader)?;
 	wflz.decompress_all()?;
 	Ok(wflz.data)

@@ -268,7 +268,7 @@ impl AnbFileView {
 			
 			if let Some(path) = dialog.save_file() {
 				let data = texture_node.data_block.as_ref().unwrap().data.get();
-				let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
+				let rgba = wflz::decompress(std::io::Cursor::new(data)).unwrap();
 				let _ = ::image::save_buffer(&path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8);
 			}
 		});
@@ -280,7 +280,13 @@ impl AnbFileView {
 				.set_title("Import texture");
 			
 			if let Some(path) = dialog.pick_file() {
-				println!("todo: import texture");
+				println!("import texture (wip)");
+				
+				let raw: Vec<u8> = ::image::open(&path).unwrap().into_rgba8().into_flat_samples().samples;
+				println!("raw size: {}", raw.len());
+				
+				let compressed = wflz::compress(&raw);
+				println!("compressed size: {}", compressed.len());
 			}
 		});
 	}
