@@ -97,4 +97,15 @@ impl Anb {
 		command.apply(&mut self.inner);
 		self.undo.push(AnbCommand::Reparent(command));
 	}
+	
+	pub fn edit_replace_texture_data(&mut self, node_id: NodeId, wflz: Vec<u8>) {
+		match &mut self.inner.node_arena[node_id.0].data {
+			NodeData::Texture(tex) => {
+				let new = ArcBytes::attach_to_cart(std::sync::Arc::new(wflz), |cart| &cart[..]);
+				let old = mem::replace(&mut tex.data_block.as_mut().unwrap().data, new.clone());
+				self.undo.push(AnbCommand::ReplaceTextureData { node_id, old, new });
+			},
+			_ => { println!("edit_replace_texture_data: not texture node"); },
+		}
+	}
 }

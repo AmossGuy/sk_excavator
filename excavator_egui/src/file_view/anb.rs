@@ -275,18 +275,18 @@ impl AnbFileView {
 	}
 	
 	fn open_import_texture_dialog(&self, node_id: NodeId) {
+		let anb = Arc::clone(&self.anb);
+		
 		std::thread::spawn(move || {
 			let dialog = rfd::FileDialog::new()
 				.set_title("Import texture");
 			
 			if let Some(path) = dialog.pick_file() {
-				println!("import texture (wip)");
-				
 				let raw: Vec<u8> = ::image::open(&path).unwrap().into_rgba8().into_flat_samples().samples;
-				println!("raw size: {}", raw.len());
-				
 				let compressed = wflz::compress(&raw);
-				println!("compressed size: {}", compressed.len());
+				
+				let mut anb_lock = anb.write();
+				anb_lock.edit_replace_texture_data(node_id, compressed);
 			}
 		});
 	}

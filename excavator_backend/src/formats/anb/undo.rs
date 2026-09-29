@@ -1,4 +1,5 @@
 use super::{AnbWithoutUndo, Header, NodeData, Node, NodeId};
+use crate::formats::common::ArcBytes;
 
 use std::{borrow::Cow, collections::HashMap};
 use undo_2::Action;
@@ -7,6 +8,7 @@ pub enum AnbCommand {
 	EditHeaderProps { old: Header, new: Header },
 	EditNodeProps { id: NodeId, old: NodeData, new: NodeData },
 	Reparent(ReparentCommand),
+	ReplaceTextureData { node_id: NodeId, old: ArcBytes, new: ArcBytes },
 }
 
 impl AnbCommand {
@@ -15,6 +17,7 @@ impl AnbCommand {
 			Self::EditHeaderProps { .. } => "Edit header properties".into(),
 			Self::EditNodeProps { .. } => "Edit node properties".into(),
 			Self::Reparent { .. } => "Move node(s)".into(),
+			Self::ReplaceTextureData { .. } => "Replace texture".into(),
 		}
 	}
 }
@@ -41,6 +44,22 @@ impl AnbWithoutUndo {
 			},
 			(Undo, Reparent(reparent)) => {
 				reparent.undo(self);
+			},
+			(Do, ReplaceTextureData { node_id, old: _, new }) => {
+				match &mut self.node_arena[node_id.0].data {
+					NodeData::Texture(tex) => {
+						tex.data_block.as_mut().unwrap().data = new.clone();
+					},
+					_ => { println!("edit_replace_texture_data: not texture node"); },
+				}
+			},
+			(Undo, ReplaceTextureData { node_id, old, new: _ }) => {
+				match &mut self.node_arena[node_id.0].data {
+					NodeData::Texture(tex) => {
+						tex.data_block.as_mut().unwrap().data = old.clone();
+					},
+					_ => { println!("edit_replace_texture_data: not texture node"); },
+				}
 			},
 		}
 	}
