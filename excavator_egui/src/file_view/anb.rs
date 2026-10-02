@@ -1,12 +1,14 @@
 mod render;
+mod vertex_edit;
 
 use crate::app::context::ExcavatorContext;
 use crate::file_view::{FileView, FileViewAction};
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, VertexEntry, load_from_bytes, save_to_bytes};
+use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, load_from_bytes, save_to_bytes};
 use excavator_backend::formats::wflz;
+use self::vertex_edit::VertexEdit;
 
-use egui::{Id, Label, Pos2, Rect, ScrollArea, Ui, Vec2, WidgetText};
+use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
 use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
 use yoke::Yoke;
@@ -22,6 +24,7 @@ struct AnbFileView {
 	file_path: PathBuf,
 	tree_state: TreeViewState<anb::NodeId>,
 	node_textures: Option<HashMap<NodeId, egui::TextureHandle>>,
+	vertex_edit: Option<VertexEdit>,
 }
 
 impl FileView for AnbFileView {
@@ -72,7 +75,10 @@ impl FileView for AnbFileView {
 impl AnbFileView {
 	fn new(anb: Anb, file_path: PathBuf) -> Self {
 		let anb = Arc::new(parking_lot::RwLock::new(anb));
-		Self { anb, file_path, tree_state: TreeViewState::default(), node_textures: None }
+		Self {
+			anb, file_path, tree_state: TreeViewState::default(),
+			node_textures: None, vertex_edit: None,
+		}
 	}
 	
 	fn update_textures(&mut self, ctx: &egui::Context) {
@@ -182,12 +188,15 @@ impl AnbFileView {
 		let anb_guard = self.anb.read();
 		match &anb_guard.get_node(node_id).unwrap().data {
 			NodeData::Vertex(vertex_node) => {
-				// TODO: Not the sort of thing that should be done every frame, I think, but this is just a test implementation for now
-				let parse_result = vertex_node.parse_data_block();
+				if self.vertex_edit.as_ref().is_none_or(|ve| ve.node_id() != node_id) {
+					self.vertex_edit = Some(VertexEdit::new(
+						node_id,
+						vertex_node.parse_data_block().unwrap(),
+					));
+				}
 				
-				match parse_result {
-					Err(e) => { ui.label(format!("data block problem: {e}")); },
-					Ok(parsed) => { Self::vertex_data_block_editor(ui, parsed); },
+				if let Some(vertex_edit) = &mut self.vertex_edit {
+					vertex_edit.ui(ui);
 				}
 			},
 			NodeData::Texture(_texture_node) => {
@@ -211,29 +220,6 @@ impl AnbFileView {
 			},
 			_ => {},
 		}
-	}
-	
-	fn vertex_data_block_editor(ui: &mut Ui, parsed: Vec<VertexEntry>) {
-		egui::Frame::canvas(ui.style()).show(ui, |ui| {
-			// TODO: rect needs to be stored
-			let mut rect = Rect::from_x_y_ranges(-10.0..=10.0, -10.0..=10.0);
-			
-			egui::Scene::new().show(ui, &mut rect, |ui| {
-				let painter = ui.painter();
-				for entry in parsed {
-					painter.rect(
-						Rect::from_min_size(
-							Pos2::new(entry.position_x, entry.position_y),
-							Vec2::new(entry.width.into(), entry.height.into()),
-						),
-						egui::CornerRadius::ZERO,
-						egui::Color32::GREEN,
-						egui::Stroke::new(2.0, egui::Color32::DARK_GREEN),
-						egui::StrokeKind::Middle,
-					);
-				}
-			});
-		});
 	}
 	
 	fn texture_data_block_editor(&self, ui: &mut Ui, id: NodeId) {
