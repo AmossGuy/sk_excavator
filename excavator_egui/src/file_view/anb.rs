@@ -223,19 +223,21 @@ impl AnbFileView {
 	}
 	
 	fn texture_data_block_editor(&self, ui: &mut Ui, id: NodeId) {
-		egui::Frame::canvas(ui.style()).show(ui, |ui| {
-			if let Some(texture) = self.node_textures.as_ref().and_then(|t| t.get(&id)) {
-				ui.add(egui::Image::new(&*texture).fit_to_exact_size(ui.available_size()));
-			}
-		});
-		
-		ui.horizontal(|ui| {
-			if ui.button("Export texture").clicked() {
-				self.open_export_texture_dialog(id);
-			}
-			if ui.button("Import texture").clicked() {
-				self.open_import_texture_dialog(id);
-			}
+		ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
+			ui.horizontal(|ui| {
+				if ui.button("Export texture").clicked() {
+					self.open_export_texture_dialog(id);
+				}
+				if ui.button("Import texture").clicked() {
+					self.open_import_texture_dialog(id);
+				}
+			});
+			
+			egui::Frame::canvas(ui.style()).show(ui, |ui| {
+				if let Some(texture) = self.node_textures.as_ref().and_then(|t| t.get(&id)) {
+					ui.add(egui::Image::new(&*texture).fit_to_exact_size(ui.available_size()));
+				}
+			});
 		});
 	}
 	
