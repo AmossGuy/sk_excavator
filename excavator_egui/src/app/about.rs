@@ -31,5 +31,6 @@ impl Window for AboutWindow {
 	
 	fn build_viewport(&self, builder: &mut egui::ViewportBuilder) {
 		builder.inner_size = Some(egui::Vec2::new(500.0, 300.0));
+		builder.title = Some("About Excavator".into());
 	}
 }

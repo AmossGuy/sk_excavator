@@ -102,5 +102,6 @@ impl Window for SettingsWindow {
 	
 	fn build_viewport(&self, builder: &mut egui::ViewportBuilder) {
 		builder.inner_size = Some(egui::Vec2::new(500.0, 550.0));
+		builder.title = Some("Settings — Excavator".into());
 	}
 }

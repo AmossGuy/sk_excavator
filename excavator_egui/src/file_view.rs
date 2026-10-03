@@ -12,6 +12,8 @@ use std::{borrow::Cow, path::PathBuf};
 pub trait FileView: Send + 'static {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext);
 	
+	fn tab_title(&self) -> Option<Cow<'_, str>> { None }
+	
 	fn action_execute(&mut self, action: FileViewAction, excavator: &ExcavatorContext) {}
 	fn action_should_be_enabled(&self, action: FileViewAction) -> bool { false }
 	

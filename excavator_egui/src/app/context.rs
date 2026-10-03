@@ -24,9 +24,12 @@ impl FileView for PlaceholderFileView {
 
 impl ExcavatorApp {
 	pub fn main() -> eframe::Result {
+		let mut options = eframe::NativeOptions::default();
+		options.viewport.title = Some("Shovel Knight Excavator".into());
+		
 		eframe::run_native(
 			"SkExcavator",
-			eframe::NativeOptions::default(),
+			options,
 			Box::new(|cc| {
 				Ok(Box::new(Self::new(cc)))
 			}),
@@ -61,6 +64,15 @@ impl ExcavatorApp {
 		let file = std::io::BufReader::new(std::fs::File::open(path)?);
 		Unhasher::load(file)
 	}
+	
+	fn update_title(&self, ctx: &egui::Context) {
+		let window_title: String = match self.file_view.tab_title() {
+			None => "Shovel Knight Excavator".into(),
+			Some(tab_title) => format!("{} — Excavator", tab_title),
+		};
+		
+		ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title));
+	}
 }
 
 impl eframe::App for ExcavatorApp {
@@ -70,7 +82,7 @@ impl eframe::App for ExcavatorApp {
 		for message in self.receiver.try_iter() {
 			match message {
 				AddWindow(window) => self.windows.add(window),
-				SetFileView(view) => self.file_view = view,
+				SetFileView(view) => { self.file_view = view; self.update_title(ctx); },
 				RequestQuit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
 			}
 		}

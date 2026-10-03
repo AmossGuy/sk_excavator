@@ -42,6 +42,10 @@ impl FileView for AnbFileView {
 		});
 	}
 	
+	fn tab_title(&self) -> Option<Cow<'_, str>> {
+		self.file_path.file_name().map(|name| name.to_string_lossy())
+	}
+	
 	fn action_execute(&mut self, action: FileViewAction, _excavator: &ExcavatorContext) {
 		match action {
 			FileViewAction::Save => self.wip_save(),
@@ -252,7 +256,7 @@ impl AnbFileView {
 		
 		std::thread::spawn(move || {
 			let dialog = rfd::FileDialog::new()
-				.set_title("Export texture");
+				.set_title("Export Texture — Excavator");
 			
 			if let Some(path) = dialog.save_file() {
 				let data = texture_node.data_block.as_ref().unwrap().data.get();
@@ -267,7 +271,7 @@ impl AnbFileView {
 		
 		std::thread::spawn(move || {
 			let dialog = rfd::FileDialog::new()
-				.set_title("Import texture");
+				.set_title("Import Texture — Excavator");
 			
 			if let Some(path) = dialog.pick_file() {
 				let raw: Vec<u8> = ::image::open(&path).unwrap().into_rgba8().into_flat_samples().samples;
