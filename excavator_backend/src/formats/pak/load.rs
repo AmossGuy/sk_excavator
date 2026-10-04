@@ -90,7 +90,8 @@ impl FileContinuation {
 			.ok_or_else(|| anyhow::anyhow!("file goes past end"))?;
 		
 		let data_yoke = bytes.map_project_cloned(|slice, _| {
-			let range = slice.subslice_range(data_slice).unwrap();
+			let range = slice.subslice_range(data_slice)
+				.expect("data_slice should have come from slice");
 			&slice[range]
 		});
 		

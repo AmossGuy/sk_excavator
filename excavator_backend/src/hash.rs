@@ -74,6 +74,10 @@ pub struct Unhasher {
 }
 
 impl Unhasher {
+	pub fn empty() -> Self {
+		Self { data: HashMap::new() }
+	}
+	
 	pub fn load(reader: impl BufRead) -> io::Result<Self> {
 		let data = reader.lines()
 			.map(|line_result| {

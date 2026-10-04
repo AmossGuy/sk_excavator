@@ -102,7 +102,9 @@ impl Anb {
 		match &mut self.inner.node_arena[node_id.0].data {
 			NodeData::Texture(tex) => {
 				let new = ArcBytes::attach_to_cart(std::sync::Arc::new(wflz), |cart| &cart[..]);
-				let old = mem::replace(&mut tex.data_block.as_mut().unwrap().data, new.clone());
+				let data_block = tex.data_block.get_or_insert_default();
+				// this is actually wrong. does not do the right thing with a None
+				let old = mem::replace(&mut data_block.data, new.clone());
 				self.undo.push(AnbCommand::ReplaceTextureData { node_id, old, new });
 			},
 			_ => { println!("edit_replace_texture_data: not texture node"); },

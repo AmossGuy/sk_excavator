@@ -30,7 +30,7 @@ struct AnbFileView {
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
 		// this shouldn't be on the ui thread!!
-		self.update_textures(ui.ctx());
+		self.update_textures(ui.ctx(), excavator);
 		
 		egui::Panel::right("property editor").show(ui, |ui| {
 			self.property_view(ui, excavator);
@@ -85,7 +85,7 @@ impl AnbFileView {
 		}
 	}
 	
-	fn update_textures(&mut self, ctx: &egui::Context) {
+	fn update_textures(&mut self, ctx: &egui::Context, excavator: &ExcavatorContext) {
 		if self.node_textures.is_none() {
 			let node_textures = self.anb.read().iter_nodes().filter_map(|(id, node)| {
 				let texture_node = match node.data {
@@ -97,13 +97,11 @@ impl AnbFileView {
 				let data = texture_node.data_block.as_ref().unwrap().data.get();
 				let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
 				
-				/*
 				let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
 				if lhs != rhs {
-					println!("wrong texture size? {} != {}", lhs, rhs);
+					excavator.display_error(anyhow::anyhow!("wrong texture size: {} != {}", lhs, rhs));
 					return None;
 				}
-				*/
 				
 				let handle = ctx.load_texture(
 					"anb texture",
@@ -190,13 +188,17 @@ impl AnbFileView {
 	
 	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId, excavator: &ExcavatorContext) {
 		let anb_guard = self.anb.read();
-		match &anb_guard.get_node(node_id).unwrap().data {
+		let Some(node) = anb_guard.get_node(node_id) else { return };
+		
+		match &node.data {
 			NodeData::Vertex(vertex_node) => {
 				if self.vertex_edit.as_ref().is_none_or(|ve| ve.node_id() != node_id) {
-					self.vertex_edit = Some(VertexEdit::new(
-						node_id,
-						vertex_node.parse_data_block().unwrap(),
-					));
+					match vertex_node.parse_data_block() {
+						Ok(parsed) => {
+							self.vertex_edit = Some(VertexEdit::new(node_id, parsed));
+						},
+						Err(e) => excavator.display_error(e),
+					}
 				}
 				
 				if let Some(vertex_edit) = &mut self.vertex_edit {

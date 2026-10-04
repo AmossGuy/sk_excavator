@@ -217,3 +217,12 @@ pub struct DataBlock {
 	pub flags: u32,
 	pub data: ArcBytes,
 }
+
+impl Default for DataBlock {
+	fn default() -> Self {
+		Self {
+			flags: 0x00_FF_FF_FF,
+			data: ArcBytes::attach_to_cart(std::sync::Arc::new(Vec::new()), |_| &[]),
+		}
+	}
+}

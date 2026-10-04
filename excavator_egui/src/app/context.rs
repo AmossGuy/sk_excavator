@@ -11,6 +11,7 @@ pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
 	windows: WindowHolder,
 	file_view: Box<dyn FileView>,
+	error_popups: Vec<anyhow::Error>,
 	receiver: mpsc::Receiver<AppMessage>,
 }
 
@@ -39,10 +40,17 @@ impl ExcavatorApp {
 	fn new(cc: &eframe::CreationContext) -> Self {
 		let storage = cc.storage.expect("CreationContext should have storage");
 		
+		use anyhow::Context;
+		let unhasher_result = Self::unhasher_load().context("failed to load unhasher data");
+		let (unhasher, unhasher_error) = match  {
+			Ok(good) => (good, None),
+			Err(e) => (Unhasher::empty(), Some(e)),
+		};
+		
 		let exc_inner = ExcavatorInner {
 			settings: ExcavatorSettings::load(storage),
 			shortcuts: ShortcutStorage::new(),
-			unhasher: Self::unhasher_load().unwrap(),
+			unhasher,
 		};
 		
 		let (sender, receiver) = mpsc::channel();
@@ -52,10 +60,15 @@ impl ExcavatorApp {
 			needs_parent_repaint: egui::mutex::Mutex::new(false),
 		};
 		
+		if let Some(e) = unhasher_error {
+			excavator.display_error(e);
+		}
+		
 		let windows = WindowHolder::new("global window holder");
 		let file_view = Box::new(PlaceholderFileView);
+		let error_popups = Vec::new();
 		
-		Self { excavator, windows, file_view, receiver }
+		Self { excavator, windows, file_view, error_popups, receiver }
 	}
 	
 	fn unhasher_load() -> std::io::Result<Unhasher> {
@@ -73,6 +86,32 @@ impl ExcavatorApp {
 		
 		ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title));
 	}
+	
+		fn error_popup(&mut self, ui: &mut egui::Ui) {
+		let response = egui::Modal::new(ui.id().with("error modal")).show(ui, |ui| {
+			match self.error_popups.len() {
+				1 => { ui.label("An error occurred:"); },
+				other => { ui.label(format!("{other} errors occurred:")); },
+			}
+			
+			egui::ScrollArea::vertical().show(ui, |ui| {
+				let error_fg_color = ui.visuals().error_fg_color;
+				for error in &mut *self.error_popups {
+					ui.colored_label(error_fg_color, format!("{:#}", error));
+				}
+			});
+			
+			egui::Sides::new().show(ui, |_| {}, |ui| {
+				if ui.button("OK").clicked() {
+					ui.close();
+				}
+			});
+		});
+		
+		if response.should_close() {
+			self.error_popups.clear();
+		}
+	}
 }
 
 impl eframe::App for ExcavatorApp {
@@ -81,9 +120,10 @@ impl eframe::App for ExcavatorApp {
 		
 		for message in self.receiver.try_iter() {
 			match message {
-				AddWindow(window) => self.windows.add(window),
+				AddWindow(window) => { self.windows.add(window); },
 				SetFileView(view) => { self.file_view = view; self.update_title(ctx); },
-				RequestQuit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+				RequestQuit => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); },
+				DisplayError(error) => { self.error_popups.push(error.into()); },
 			}
 		}
 	}
@@ -96,6 +136,10 @@ impl eframe::App for ExcavatorApp {
 		test_menu_bar_shortcuts(ui.ctx(), &mut menu_env);
 		
 		self.file_view.ui(ui, &self.excavator);
+		
+		if !self.error_popups.is_empty() {
+			self.error_popup(ui)
+		}
 	}
 	
 	fn save(&mut self, storage: &mut dyn eframe::Storage) {
@@ -113,6 +157,7 @@ enum AppMessage {
 	AddWindow(Box<dyn Window>),
 	SetFileView(Box<dyn FileView>),
 	RequestQuit,
+	DisplayError(anyhow::Error),
 }
 
 #[derive(Clone)]
@@ -161,6 +206,10 @@ impl ExcavatorContext {
 	
 	pub fn add_window_boxed(&self, window: Box<dyn Window>) {
 		self.app_message(AppMessage::AddWindow(window));
+	}
+	
+	pub fn display_error(&self, error: impl Into<anyhow::Error>) {
+		self.app_message(AppMessage::DisplayError(error.into()));
 	}
 	
 	pub fn open_file_dialog(&self) {
