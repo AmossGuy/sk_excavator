@@ -42,7 +42,7 @@ impl ExcavatorApp {
 		
 		use anyhow::Context;
 		let unhasher_result = Self::unhasher_load().context("failed to load unhasher data");
-		let (unhasher, unhasher_error) = match  {
+		let (unhasher, unhasher_error) = match unhasher_result {
 			Ok(good) => (good, None),
 			Err(e) => (Unhasher::empty(), Some(e)),
 		};
