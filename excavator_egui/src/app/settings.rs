@@ -11,6 +11,8 @@ pub struct ExcavatorSettings {
 	
 	pub recent_files: VecDeque<PathBuf>,
 	pub open_dialog_dir: Option<PathBuf>,
+	pub import_texture_dialog_dir: Option<PathBuf>,
+	pub export_texture_dialog_dir: Option<PathBuf>,
 }
 
 impl Default for ExcavatorSettings {
@@ -20,6 +22,8 @@ impl Default for ExcavatorSettings {
 			
 			recent_files: VecDeque::new(),
 			open_dialog_dir: None,
+			import_texture_dialog_dir: None,
+			export_texture_dialog_dir: None,
 		}
 	}
 }

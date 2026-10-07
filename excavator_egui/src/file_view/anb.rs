@@ -10,7 +10,7 @@ use self::vertex_edit::VertexEdit;
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
-use std::{borrow::Cow, collections::HashMap, path::PathBuf, sync::Arc};
+use std::{borrow::Cow, collections::HashMap, path::{Path, PathBuf}, sync::Arc};
 use yoke::Yoke;
 
 pub fn parse_anb(file_contents: Vec<u8>, file_path: PathBuf) -> anyhow::Result<impl FileView> {
@@ -206,7 +206,7 @@ impl AnbFileView {
 				}
 			},
 			NodeData::Texture(_texture_node) => {
-				self.texture_data_block_editor(ui, node_id);
+				self.texture_data_block_editor(ui, node_id, excavator);
 			},
 			NodeData::Frame(_) => {
 				egui::Frame::canvas(ui.style()).show(ui, |ui| {
@@ -228,14 +228,14 @@ impl AnbFileView {
 		}
 	}
 	
-	fn texture_data_block_editor(&self, ui: &mut Ui, id: NodeId) {
+	fn texture_data_block_editor(&self, ui: &mut Ui, id: NodeId, excavator: &ExcavatorContext) {
 		ui.with_layout(egui::Layout::bottom_up(egui::Align::Min), |ui| {
 			ui.horizontal(|ui| {
 				if ui.button("Export texture").clicked() {
-					self.open_export_texture_dialog(id);
+					self.open_export_texture_dialog(id, excavator);
 				}
 				if ui.button("Import texture").clicked() {
-					self.open_import_texture_dialog(id);
+					self.open_import_texture_dialog(id, excavator);
 				}
 			});
 			
@@ -247,7 +247,7 @@ impl AnbFileView {
 		});
 	}
 	
-	fn open_export_texture_dialog(&self, node_id: NodeId) {
+	fn open_export_texture_dialog(&self, node_id: NodeId, excavator: &ExcavatorContext) {
 		let texture_node = {
 			let anb_lock = self.anb.read();
 			let NodeData::Texture(texture_node) = &anb_lock.get_node(node_id).unwrap().data else {
@@ -255,27 +255,43 @@ impl AnbFileView {
 			};
 			texture_node.clone()
 		};
+		let excavator = excavator.clone();
 		
 		std::thread::spawn(move || {
-			let dialog = rfd::FileDialog::new()
+			let mut dialog = rfd::FileDialog::new()
 				.set_title("Export Texture — Excavator");
 			
+			if let Some(path) = excavator.settings(|s| s.export_texture_dialog_dir.clone()) {
+				dialog = dialog.set_directory(path);
+			}
+			
 			if let Some(path) = dialog.save_file() {
+				let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+				excavator.settings_mut(|s| s.export_texture_dialog_dir = Some(parent));
+				
 				let data = texture_node.data_block.as_ref().unwrap().data.get();
 				let rgba = wflz::decompress(std::io::Cursor::new(data)).unwrap();
-				let _ = ::image::save_buffer(&path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8);
+				::image::save_buffer(&path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8).unwrap();
 			}
 		});
 	}
 	
-	fn open_import_texture_dialog(&self, node_id: NodeId) {
+	fn open_import_texture_dialog(&self, node_id: NodeId, excavator: &ExcavatorContext) {
 		let anb = Arc::clone(&self.anb);
+		let excavator = excavator.clone();
 		
 		std::thread::spawn(move || {
-			let dialog = rfd::FileDialog::new()
+			let mut dialog = rfd::FileDialog::new()
 				.set_title("Import Texture — Excavator");
 			
+			if let Some(path) = excavator.settings(|s| s.import_texture_dialog_dir.clone()) {
+				dialog = dialog.set_directory(path);
+			}
+			
 			if let Some(path) = dialog.pick_file() {
+				let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
+				excavator.settings_mut(|s| s.import_texture_dialog_dir = Some(parent));
+				
 				let raw: Vec<u8> = ::image::open(&path).unwrap().into_rgba8().into_flat_samples().samples;
 				let compressed = wflz::compress(&raw);
 				
