@@ -301,6 +301,9 @@ impl AnbFileView {
 				
 				let _ = sender.send(Box::new(move |anb_view| {
 					anb_view.anb.edit_replace_texture_data(node_id, compressed);
+					// In order to make the replaced texture show up in the UI
+					// we clear the whole texture cache, which isn't great, and a more proper system is clearly needed
+					anb_view.node_textures = None;
 				}));
 			}
 		});
