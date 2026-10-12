@@ -1,7 +1,7 @@
 // wow all this is terrible code. i hate this rn
 
 use super::{WflzBlock, WflzHeader, WFLZ_MAGIC};
-use zerocopy::{FromBytes, FromZeros, IntoBytes, LE, U16, U32};
+use zerocopy::{FromBytes, IntoBytes, LE, U16, U32};
 
 fn wflz_hash(four_bytes: &[u8; 4]) -> u16 {
 	let x = U32::<LE>::from_bytes(*four_bytes).get();
@@ -48,7 +48,8 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 	// hash table, with a starring role in this compression scheme
 	// sequences of 4 bytes are turned into a 32-bit integer and hashed with wflz_hash; that hash is used as an index into this table
 	// the values of this table are indexes into the data, pointing to where those bytes sequences can be found
-	let mut wflz_dict = <[usize; 0x10000]>::new_box_zeroed().unwrap();
+	// usize::MAX used as sentinel
+	let mut wflz_dict = Box::new([usize::MAX; 0x10000]);
 	
 	// mut for shrinking our slice of the data as we read it (not modifying the data itself)
 	// let mut cropped_data = data;
@@ -85,8 +86,7 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 		let window_start = read_index.saturating_sub(WFLZ_MAX_MATCH_DIST);
 		
 		// "a match was found, ensure it really is a match and not a hash collision, and determine its length"
-		// not quite like the original since zero fails as a sentinel with indexes instead of addresses...
-		if match_pos >= window_start {
+		if match_pos != usize::MAX && match_pos >= window_start {
 			match_length = wflz_compare(&data[read_index..], &data[match_pos..]);
 		}
 		
