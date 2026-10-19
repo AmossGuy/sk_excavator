@@ -94,8 +94,8 @@ pub fn compress(data: &[u8]) -> Vec<u8> {
 			let match_dist = read_index - match_pos;
 			
 			block_build.write(data, &mut output);
-			block_build = BlockBuild::from_read_index(read_index);
 			read_index += match_length;
+			block_build = BlockBuild::from_read_index(read_index);
 			
 			block_build.backref_dist = match_dist.try_into().unwrap();
 			block_build.backref_length = (match_length - WFLZ_MIN_MATCH_LEN + 1).try_into().unwrap();
