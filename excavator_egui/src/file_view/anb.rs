@@ -10,7 +10,7 @@ use self::vertex_edit::VertexEdit;
 
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
-use std::{borrow::Cow, collections::HashMap, path::{Path, PathBuf}, sync::{Arc, mpsc}};
+use std::{borrow::Cow, collections::{HashMap, hash_map}, path::{Path, PathBuf}, sync::{Arc, mpsc}};
 use yoke::Yoke;
 
 pub fn parse_anb(file_contents: Vec<u8>, file_path: PathBuf) -> anyhow::Result<impl FileView> {
@@ -24,7 +24,8 @@ struct AnbFileView {
 	file_path: PathBuf,
 	
 	tree_state: TreeViewState<anb::NodeId>,
-	node_textures: Option<HashMap<NodeId, egui::TextureHandle>>,
+	node_textures: HashMap<NodeId, egui::TextureHandle>,
+	texture_update_needed: bool,
 	vertex_edit: Option<VertexEdit>,
 	
 	receiver: mpsc::Receiver<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
@@ -37,8 +38,12 @@ impl FileView for AnbFileView {
 			function(self);
 		}
 		
-		// this shouldn't be on the ui thread!!
-		self.update_textures(ui.ctx(), excavator);
+		
+		if self.texture_update_needed {
+			// this shouldn't be on the ui thread probably
+			self.update_textures(ui.ctx(), excavator);
+			self.texture_update_needed = false;
+		}
 		
 		egui::Panel::right("property editor").show(ui, |ui| {
 			self.property_view(ui, excavator);
@@ -90,49 +95,51 @@ impl AnbFileView {
 		
 		Self {
 			anb, file_path, tree_state: TreeViewState::default(),
-			node_textures: None, vertex_edit: None,
+			node_textures: HashMap::new(),
+			texture_update_needed: true,
+			vertex_edit: None,
 			receiver, sender,
 		}
 	}
 	
 	fn update_textures(&mut self, ctx: &egui::Context, excavator: &ExcavatorContext) {
-		if self.node_textures.is_none() {
-			let node_textures = self.anb.iter_nodes().filter_map(|(id, node)| {
-				let texture_node = match node.data {
-					NodeData::Texture(ref tx) => tx,
-					_ => return None,
-				};
-				
-				let size = [texture_node.width as usize, texture_node.height as usize];
-				let data = texture_node.data_block.as_ref().unwrap().data.get();
-				let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
-				
-				let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
-				if lhs != rhs {
-					excavator.display_error(anyhow::anyhow!("wrong texture size: {} != {}", lhs, rhs));
-					return None;
-				}
-				
-				let handle = ctx.load_texture(
-					"anb texture",
-					egui::ColorImage::from_rgba_unmultiplied(size, &rgba),
-					egui::TextureOptions {
-						minification: egui::TextureFilter::Linear,
-						..egui::TextureOptions::NEAREST
-					},
-				);
-				
-				Some((id, handle))
-			}).collect::<HashMap<_, _>>();
+		for (id, node) in self.anb.iter_nodes() {
+			let texture_node = match node.data {
+				NodeData::Texture(ref tx) => tx,
+				_ => continue,
+			};
 			
-			self.node_textures = Some(node_textures)
+			let hash_map::Entry::Vacant(entry) = self.node_textures.entry(id) else {
+				continue;
+			};
+			
+			let size = [texture_node.width as usize, texture_node.height as usize];
+			let data = texture_node.data_block.as_ref().unwrap().data.get();
+			let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
+			
+			let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
+			if lhs != rhs {
+				excavator.display_error(anyhow::anyhow!("wrong texture size: {} != {}", lhs, rhs));
+				continue;
+			}
+			
+			let handle = ctx.load_texture(
+				"anb texture",
+				egui::ColorImage::from_rgba_unmultiplied(size, &rgba),
+				egui::TextureOptions {
+					minification: egui::TextureFilter::Linear,
+					..egui::TextureOptions::NEAREST
+				},
+			);
+			
+			entry.insert(handle);
 		}
 	}
 	
 	fn tree_view(&mut self, ui: &mut Ui) {
 		ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
 			let tree_view = TreeView::new(Id::new("tree view"));
-			let stuff = TreeBuildStuff { anb: &self.anb, node_textures: self.node_textures.as_ref() };
+			let stuff = TreeBuildStuff { anb: &self.anb, node_textures: &self.node_textures };
 			
 			let (_, actions) = tree_view.show_state(ui, &mut self.tree_state, |builder| {
 				if let Some(root_id) = self.anb.get_header().root_node {
@@ -215,7 +222,7 @@ impl AnbFileView {
 			},
 			NodeData::Frame(_) => {
 				egui::Frame::canvas(ui.style()).show(ui, |ui| {
-					render::render_anb_sprite(ui, &self.anb, node_id, self.node_textures.as_ref());
+					render::render_anb_sprite(ui, &self.anb, node_id, &self.node_textures);
 				});
 			},
 			NodeData::Sequence(animation_node) => {
@@ -245,7 +252,7 @@ impl AnbFileView {
 			});
 			
 			egui::Frame::canvas(ui.style()).show(ui, |ui| {
-				if let Some(texture) = self.node_textures.as_ref().and_then(|t| t.get(&id)) {
+				if let Some(texture) = self.node_textures.get(&id) {
 					ui.add(egui::Image::new(&*texture).fit_to_exact_size(ui.available_size()));
 				}
 			});
@@ -301,9 +308,9 @@ impl AnbFileView {
 				
 				let _ = sender.send(Box::new(move |anb_view| {
 					anb_view.anb.edit_replace_texture_data(node_id, compressed);
-					// In order to make the replaced texture show up in the UI
-					// we clear the whole texture cache, which isn't great, and a more proper system is clearly needed
-					anb_view.node_textures = None;
+					// invalidate cache for this texture
+					anb_view.node_textures.remove(&node_id);
+					anb_view.texture_update_needed = true;
 				}));
 			}
 		});
@@ -312,7 +319,7 @@ impl AnbFileView {
 
 struct TreeBuildStuff<'a> {
 	anb: &'a Anb,
-	node_textures: Option<&'a HashMap<NodeId, egui::TextureHandle>>,
+	node_textures: &'a HashMap<NodeId, egui::TextureHandle>,
 }
 
 impl<'a> TreeBuildStuff<'a> {
@@ -339,7 +346,7 @@ struct AnbNodeConfig<'a> {
 	value: &'a anb::Node,
 	
 	anb: &'a anb::Anb,
-	node_textures: Option<&'a HashMap<NodeId, egui::TextureHandle>>,
+	node_textures: &'a HashMap<NodeId, egui::TextureHandle>,
 }
 
 impl<'a> AnbNodeConfig<'a> {
@@ -388,7 +395,7 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 		// TODO: a lot of this stuff should probably be cached
 		match self.value.data {
 			NodeData::Texture(_) => {
-				if let Some(texture) = self.node_textures.and_then(|t| t.get(&self.id)) {
+				if let Some(texture) = self.node_textures.get(&self.id) {
 					ui.add(egui::Image::new(&*texture).max_size(ui.available_size()));
 				}
 			},

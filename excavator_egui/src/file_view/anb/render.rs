@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use excavator_backend::formats::anb;
 
-pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: Option<&HashMap<anb::NodeId, TextureHandle>>) {
+pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
 	let mut texture_node_id = None;
 	let mut vertex_node_id = None;
 	
@@ -20,7 +20,7 @@ pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node
 	
 	let (Some(texture_node_id), Some(vertex_node_id)) = (texture_node_id, vertex_node_id) else { return; };
 	
-	if let Some(texture) = node_textures.and_then(|t| t.get(&texture_node_id)) {
+	if let Some(texture) = node_textures.get(&texture_node_id) {
 		let vertex_node = anb.get_node(vertex_node_id).unwrap();
 		let parsed = match vertex_node.data {
 			anb::NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
