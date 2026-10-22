@@ -8,7 +8,11 @@ pub enum AnbCommand {
 	EditHeaderProps { old: Header, new: Header },
 	EditNodeProps { id: NodeId, old: NodeData, new: NodeData },
 	Reparent(ReparentCommand),
-	ReplaceTextureData { node_id: NodeId, old: ArcBytes, new: ArcBytes },
+	ReplaceTextureData {
+		node_id: NodeId,
+		old: ArcBytes, new: ArcBytes,
+		old_size: [u32; 2], new_size: [u32; 2],
+	},
 }
 
 impl AnbCommand {
@@ -45,17 +49,21 @@ impl AnbWithoutUndo {
 			(Undo, Reparent(reparent)) => {
 				reparent.undo(self);
 			},
-			(Do, ReplaceTextureData { node_id, old: _, new }) => {
+			(Do, ReplaceTextureData { node_id, old: _, new, old_size: _, new_size }) => {
 				match &mut self.node_arena[node_id.0].data {
 					NodeData::Texture(tex) => {
+						tex.width = new_size[0];
+						tex.height = new_size[1];
 						tex.data_block.as_mut().unwrap().data = new.clone();
 					},
 					_ => { println!("edit_replace_texture_data: not texture node"); },
 				}
 			},
-			(Undo, ReplaceTextureData { node_id, old, new: _ }) => {
+			(Undo, ReplaceTextureData { node_id, old, new: _, old_size, new_size: _ }) => {
 				match &mut self.node_arena[node_id.0].data {
 					NodeData::Texture(tex) => {
+						tex.width = old_size[0];
+						tex.height = old_size[1];
 						tex.data_block.as_mut().unwrap().data = old.clone();
 					},
 					_ => { println!("edit_replace_texture_data: not texture node"); },

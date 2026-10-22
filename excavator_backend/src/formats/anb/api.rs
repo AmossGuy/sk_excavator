@@ -98,14 +98,19 @@ impl Anb {
 		self.undo.push(AnbCommand::Reparent(command));
 	}
 	
-	pub fn edit_replace_texture_data(&mut self, node_id: NodeId, wflz: Vec<u8>) {
+	pub fn edit_replace_texture_data(&mut self, node_id: NodeId, size: [u32; 2], wflz: Vec<u8>) {
 		match &mut self.inner.node_arena[node_id.0].data {
 			NodeData::Texture(tex) => {
 				let new = ArcBytes::attach_to_cart(std::sync::Arc::new(wflz), |cart| &cart[..]);
 				let data_block = tex.data_block.get_or_insert_default();
+				let old_width = mem::replace(&mut tex.width, size[0]);
+				let old_height = mem::replace(&mut tex.height, size[1]);
 				// this is actually wrong. does not do the right thing with a None
 				let old = mem::replace(&mut data_block.data, new.clone());
-				self.undo.push(AnbCommand::ReplaceTextureData { node_id, old, new });
+				self.undo.push(AnbCommand::ReplaceTextureData {
+					node_id, old, new,
+					old_size: [old_width, old_height], new_size: size,
+				});
 			},
 			_ => { println!("edit_replace_texture_data: not texture node"); },
 		}

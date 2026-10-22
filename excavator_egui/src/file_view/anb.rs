@@ -303,11 +303,13 @@ impl AnbFileView {
 				let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
 				excavator.settings_mut(|s| s.import_texture_dialog_dir = Some(parent));
 				
-				let raw: Vec<u8> = ::image::open(&path).unwrap().into_rgba8().into_flat_samples().samples;
+				let image = ::image::open(&path).unwrap();
+				let dimensions = [image.width(), image.height()];
+				let raw: Vec<u8> = image.into_rgba8().into_flat_samples().samples;
 				let compressed = wflz::compress(&raw);
 				
 				let _ = sender.send(Box::new(move |anb_view| {
-					anb_view.anb.edit_replace_texture_data(node_id, compressed);
+					anb_view.anb.edit_replace_texture_data(node_id, dimensions, compressed);
 					// invalidate cache for this texture
 					anb_view.node_textures.remove(&node_id);
 					anb_view.texture_update_needed = true;
