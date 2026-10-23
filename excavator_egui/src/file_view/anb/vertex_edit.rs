@@ -6,12 +6,18 @@ pub struct VertexEdit {
 	node_id: NodeId,
 	scene_rect: egui::Rect,
 	lively_data: Vec<VertexEntry>,
+	drag_start_pos: [f32; 2],
 }
 
 impl VertexEdit {
 	pub fn new(node_id: NodeId, data: Vec<VertexEntry>) -> Self {
-		let scene_rect = Rect::from_min_size(Pos2::ZERO, Vec2::splat(64.0));
-		Self { node_id, scene_rect, lively_data: data }
+		Self {
+			node_id,
+			scene_rect: Rect::from_min_size(Pos2::ZERO, Vec2::splat(64.0)),
+			lively_data: data,
+			// starting value shouldn't matter since it's overwritten on drag start
+			drag_start_pos: [0.0; 2],
+		}
 	}
 	
 	pub fn node_id(&self) -> NodeId {
@@ -36,12 +42,22 @@ impl VertexEdit {
 					);
 					
 					let response = ui.interact(rect, ui.id().with(i), egui::Sense::DRAG);
+					
 					if response.dragged() {
 						ui.set_cursor_icon(egui::CursorIcon::Grabbing);
-						entry.position_x += response.drag_delta().x;
-						entry.position_y += response.drag_delta().y;
 					} else if response.hovered() {
 						ui.set_cursor_icon(egui::CursorIcon::Grab);
+					}
+					
+					if response.dragged() {
+						if response.drag_started() {
+							self.drag_start_pos = [entry.position_x, entry.position_y];
+						}
+						
+						let delta = response.total_drag_delta().unwrap_or_default();
+						let delta = delta.round();
+						entry.position_x = self.drag_start_pos[0] + delta.x;
+						entry.position_y = self.drag_start_pos[1] + delta.y;
 					}
 				}
 			});
