@@ -1,12 +1,13 @@
 use excavator_backend::formats::anb::{NodeId, VertexEntry};
+use egui::{CursorIcon, Pos2, Rect, Vec2};
 
-use egui::{Pos2, Rect, Vec2};
+const DRAG_EDGE_THICKNESS: f32 = 3.0;
 
 pub struct VertexEdit {
 	node_id: NodeId,
-	scene_rect: egui::Rect,
+	scene_rect: Rect,
 	lively_data: Vec<VertexEntry>,
-	drag_start_pos: [f32; 2],
+	drag: Option<DragInfo>,
 }
 
 impl VertexEdit {
@@ -15,8 +16,7 @@ impl VertexEdit {
 			node_id,
 			scene_rect: Rect::from_min_size(Pos2::ZERO, Vec2::splat(64.0)),
 			lively_data: data,
-			// starting value shouldn't matter since it's overwritten on drag start
-			drag_start_pos: [0.0; 2],
+			drag: None,
 		}
 	}
 	
@@ -41,26 +41,125 @@ impl VertexEdit {
 						egui::StrokeKind::Inside,
 					);
 					
-					let response = ui.interact(rect, ui.id().with(i), egui::Sense::DRAG);
+					// drag to move or resize
+					let response = ui.interact(rect.expand(DRAG_EDGE_THICKNESS / 2.0), ui.id().with(i), egui::Sense::DRAG);
+					let Some(cursor_pos) = response.hover_pos() else { continue };
 					
 					if response.dragged() {
-						ui.set_cursor_icon(egui::CursorIcon::Grabbing);
-					} else if response.hovered() {
-						ui.set_cursor_icon(egui::CursorIcon::Grab);
-					}
-					
-					if response.dragged() {
-						if response.drag_started() {
-							self.drag_start_pos = [entry.position_x, entry.position_y];
-						}
+						let drag = self.drag.get_or_insert_with(|| {
+							let kind = DragKind::from_hover_pos(rect.shrink(DRAG_EDGE_THICKNESS / 2.0), cursor_pos);
+							DragInfo { kind, start_state: entry.clone() }
+						});
+						ui.set_cursor_icon(drag.kind.cursor(DragState::Drag));
 						
 						let delta = response.total_drag_delta().unwrap_or_default();
 						let delta = delta.round();
-						entry.position_x = self.drag_start_pos[0] + delta.x;
-						entry.position_y = self.drag_start_pos[1] + delta.y;
+						
+						*entry = drag.start_state.clone();
+						if drag.kind.is_move() {
+							entry.position_x += delta.x;
+							entry.position_y += delta.y;
+						} else {
+							resize_axis(drag.kind.x, &mut entry.position_x, &mut entry.width, delta.x);
+							resize_axis(drag.kind.y, &mut entry.position_y, &mut entry.height, delta.y);
+						}
+					} else {
+						self.drag = None;
+					}
+					
+					if self.drag.is_none() && response.hovered() {
+						let kind = DragKind::from_hover_pos(rect.shrink(DRAG_EDGE_THICKNESS / 2.0), cursor_pos);
+						ui.set_cursor_icon(kind.cursor(DragState::Hover));
 					}
 				}
 			});
 		});
+	}
+}
+
+fn resize_axis(edge: DragKindAxis, pos: &mut f32, size: &mut u16, delta: f32) {
+	let delta = match edge {
+		DragKindAxis::SmallEdge => -delta,
+		DragKindAxis::Center => 0.0,
+		DragKindAxis::LargeEdge => delta,
+	};
+	
+	let old_size = *size;
+	// note that float-to-int as cast is also saturating
+	let new_size = i32::from(old_size).saturating_add(delta as i32);
+	let new_size = new_size.clamp(1, i32::from(u16::MAX)) as u16;
+	
+	*size = new_size;
+	if edge == DragKindAxis::SmallEdge {
+		let size_increase = f32::from(new_size) - f32::from(old_size);
+		*pos -= size_increase;
+	}
+}
+
+struct DragInfo {
+	kind: DragKind,
+	start_state: VertexEntry,
+}
+
+#[derive(Copy, Clone)]
+struct DragKind {
+	x: DragKindAxis,
+	y: DragKindAxis,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum DragKindAxis {
+	SmallEdge,
+	Center,
+	LargeEdge,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+enum DragState {
+	Hover,
+	Drag,
+}
+
+impl DragKind {
+	fn from_hover_pos(inner_rect: Rect, hover_pos: Pos2) -> Self {
+		let x = if hover_pos.x < inner_rect.left() {
+			DragKindAxis::SmallEdge
+		} else if hover_pos.x > inner_rect.right() {
+			DragKindAxis::LargeEdge
+		} else {
+			DragKindAxis::Center
+		};
+		
+		let y = if hover_pos.y < inner_rect.top() {
+			DragKindAxis::SmallEdge
+		} else if hover_pos.y > inner_rect.bottom() {
+			DragKindAxis::LargeEdge
+		} else {
+			DragKindAxis::Center
+		};
+		
+		Self { x, y }
+	}
+	
+	fn is_move(self) -> bool {
+		self.x == DragKindAxis::Center && self.y == DragKindAxis::Center
+	}
+	
+	fn cursor(self, state: DragState) -> CursorIcon {
+		use {DragKindAxis::*, DragState::*};
+		
+		match (self.x, self.y, state) {
+			(Center, Center, Hover) => CursorIcon::Grab,
+			(Center, Center, Drag) => CursorIcon::Grabbing,
+			
+			(LargeEdge, Center, _) => CursorIcon::ResizeEast,
+			(LargeEdge, LargeEdge, _) => CursorIcon::ResizeSouthEast,
+			(Center, LargeEdge, _) => CursorIcon::ResizeSouth,
+			(SmallEdge, LargeEdge, _) => CursorIcon::ResizeSouthWest,
+			(SmallEdge, Center, _) => CursorIcon::ResizeWest,
+			(SmallEdge, SmallEdge, _) => CursorIcon::ResizeNorthWest,
+			(Center, SmallEdge, _) => CursorIcon::ResizeNorth,
+			(LargeEdge, SmallEdge, _) => CursorIcon::ResizeNorthEast,
+		}
 	}
 }
