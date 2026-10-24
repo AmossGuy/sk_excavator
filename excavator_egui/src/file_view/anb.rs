@@ -317,19 +317,28 @@ impl AnbFileView {
 				let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
 				excavator.settings_mut(|s| s.import_texture_dialog_dir = Some(parent));
 				
-				let image = ::image::open(&path).unwrap();
-				let dimensions = [image.width(), image.height()];
-				let raw: Vec<u8> = image.into_rgba8().into_flat_samples().samples;
-				let compressed = wflz::compress(&raw);
-				
-				let _ = sender.send(Box::new(move |anb_view| {
-					anb_view.anb.edit_replace_texture_data(node_id, dimensions, compressed);
-					// invalidate cache for this texture
-					anb_view.node_textures.remove(&node_id);
-					anb_view.texture_update_needed = true;
-				}));
+				let result = Self::do_import_texture(node_id, &path, &sender)
+					.context("failed to import texture");
+				excavator.display_if_error(result);
 			}
 		});
+	}
+	
+	fn do_import_texture(node_id: NodeId, path: &Path, sender: &mpsc::Sender<Box<dyn FnOnce(&mut AnbFileView) + Send>>) -> anyhow::Result<()> {
+		let image = ::image::open(&path)
+			.context("failed to load image")?;
+		let dimensions = [image.width(), image.height()];
+		let raw: Vec<u8> = image.into_rgba8().into_flat_samples().samples;
+		let compressed = wflz::compress(&raw);
+		
+		let _ = sender.send(Box::new(move |anb_view| {
+			anb_view.anb.edit_replace_texture_data(node_id, dimensions, compressed);
+			// invalidate cache for this texture
+			anb_view.node_textures.remove(&node_id);
+			anb_view.texture_update_needed = true;
+		}));
+		
+		Ok(())
 	}
 }
 
