@@ -212,6 +212,13 @@ impl ExcavatorContext {
 		self.app_message(AppMessage::DisplayError(error.into()));
 	}
 	
+	pub fn display_if_error<T>(&self, result: Result<T, impl Into<anyhow::Error>>) -> Option<T> {
+		match result {
+			Ok(value) => Some(value),
+			Err(e) => { self.display_error(e); None },
+		}
+	}
+	
 	pub fn open_file_dialog(&self) {
 		let mut dialog = rfd::FileDialog::new();
 		dialog = dialog.set_title("Open File — Excavator");

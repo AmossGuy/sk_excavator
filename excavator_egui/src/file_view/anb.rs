@@ -4,10 +4,11 @@ mod vertex_edit;
 use crate::app::context::ExcavatorContext;
 use crate::file_view::{FileView, FileViewAction};
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, load_from_bytes, save_to_bytes};
+use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, NodeTexture, load_from_bytes, save_to_bytes};
 use excavator_backend::formats::wflz;
 use self::vertex_edit::VertexEdit;
 
+use anyhow::Context;
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
 use egui_ltreeview::{Action as TreeAction, DirPosition, NodeConfig, TreeView, TreeViewBuilder, TreeViewState};
 use std::{borrow::Cow, collections::{HashMap, hash_map}, path::{Path, PathBuf}, sync::{Arc, mpsc}};
@@ -280,11 +281,24 @@ impl AnbFileView {
 				let parent = path.parent().unwrap_or(Path::new("")).to_path_buf();
 				excavator.settings_mut(|s| s.export_texture_dialog_dir = Some(parent));
 				
-				let data = texture_node.data_block.as_ref().unwrap().data.get();
-				let rgba = wflz::decompress(std::io::Cursor::new(data)).unwrap();
-				::image::save_buffer(&path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8).unwrap();
+				let result = Self::do_export_texture(&texture_node, &path)
+					.context("failed to export texture");
+				excavator.display_if_error(result);
 			}
 		});
+	}
+	
+	fn do_export_texture(texture_node: &NodeTexture, path: &Path) -> anyhow::Result<()> {
+		let data = texture_node.data_block.as_ref()
+			.context("no data block")?
+			.data.get();
+		
+		let rgba = wflz::decompress(std::io::Cursor::new(data))
+			.context("failed to decompress wflz")?;
+		::image::save_buffer(path, &rgba, texture_node.width, texture_node.height, ::image::ColorType::Rgba8)
+			.context("failed to save image")?;
+		
+		Ok(())
 	}
 	
 	fn open_import_texture_dialog(&self, node_id: NodeId, excavator: &ExcavatorContext) {
