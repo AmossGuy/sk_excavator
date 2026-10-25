@@ -1,5 +1,6 @@
-use excavator_backend::formats::anb::{NodeId, VertexEntry};
-use egui::{CursorIcon, Pos2, Rect, Vec2};
+use excavator_backend::formats::anb::{self, NodeId, VertexEntry};
+use egui::{CursorIcon, Pos2, Rect, TextureHandle, Vec2};
+use std::collections::HashMap;
 
 const DRAG_EDGE_THICKNESS: f32 = 3.0;
 
@@ -24,9 +25,14 @@ impl VertexEdit {
 		self.node_id
 	}
 	
-	pub fn ui(&mut self, ui: &mut egui::Ui) {
+	pub fn ui(&mut self, ui: &mut egui::Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
 		egui::Frame::canvas(ui.style()).show(ui, |ui| {
 			egui::Scene::new().zoom_range(0.0..=f32::INFINITY).show(ui, &mut self.scene_rect, |ui| {
+				if let Some(texture) = Self::texture_get_thingy(anb, node_id, node_textures) {
+					let mesh = super::render::build_vertex_mesh(&self.lively_data, &texture);
+					ui.painter().add(mesh);
+				}
+				
 				for (i, entry) in self.lively_data.iter_mut().enumerate() {
 					let rect = Rect::from_min_size(
 						Pos2::new(entry.position_x, entry.position_y),
@@ -36,8 +42,8 @@ impl VertexEdit {
 					ui.painter().rect(
 						rect,
 						egui::CornerRadius::ZERO,
-						egui::Color32::GREEN,
-						egui::Stroke::new(1.0, egui::Color32::DARK_GREEN),
+						egui::Color32::GREEN.gamma_multiply(0.5),
+						egui::Stroke::new(1.0, egui::Color32::DARK_GREEN.gamma_multiply(0.5)),
 						egui::StrokeKind::Inside,
 					);
 					
@@ -60,8 +66,8 @@ impl VertexEdit {
 							entry.position_x += delta.x;
 							entry.position_y += delta.y;
 						} else {
-							resize_axis(drag.kind.x, &mut entry.position_x, &mut entry.width, delta.x);
-							resize_axis(drag.kind.y, &mut entry.position_y, &mut entry.height, delta.y);
+							resize_axis(drag.kind.x, &mut entry.position_x, &mut entry.texture_x, &mut entry.width, delta.x);
+							resize_axis(drag.kind.y, &mut entry.position_y, &mut entry.texture_y, &mut entry.height, delta.y);
 						}
 					} else {
 						self.drag = None;
@@ -75,9 +81,26 @@ impl VertexEdit {
 			});
 		});
 	}
+	
+	// mostly copy-pasted from render.rs. i have very obvious technical debt that's next on my list to pay off
+	fn texture_get_thingy(anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) -> Option<TextureHandle> {
+		let node_id = anb.get_node(node_id)?.parent?;
+		
+		let mut texture_node_id = None;
+		for child_id in anb.get_node(node_id)?.children.iter().copied() {
+			if let Some(child_node) = anb.get_node(child_id) {
+				match child_node.data {
+					anb::NodeData::Texture(_) => { texture_node_id = Some(child_id); },
+					_ => {},
+				}
+			}
+		}
+		
+		texture_node_id.and_then(|id| node_textures.get(&id)).cloned()
+	}
 }
 
-fn resize_axis(edge: DragKindAxis, pos: &mut f32, size: &mut u16, delta: f32) {
+fn resize_axis(edge: DragKindAxis, pos: &mut f32, tex_pos: &mut u16, size: &mut u16, delta: f32) {
 	let delta = match edge {
 		DragKindAxis::SmallEdge => -delta,
 		DragKindAxis::Center => 0.0,
@@ -93,6 +116,8 @@ fn resize_axis(edge: DragKindAxis, pos: &mut f32, size: &mut u16, delta: f32) {
 	if edge == DragKindAxis::SmallEdge {
 		let size_increase = f32::from(new_size) - f32::from(old_size);
 		*pos -= size_increase;
+		// ugly line, maybe refactor to handle this limitation better?
+		*tex_pos = (f32::from(*tex_pos) - size_increase) as u16;
 	}
 }
 

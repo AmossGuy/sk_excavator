@@ -45,7 +45,7 @@ pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node
 	}
 }
 
-fn build_vertex_mesh(parsed: &[anb::VertexEntry], texture: &TextureHandle) -> Mesh {
+pub fn build_vertex_mesh(parsed: &[anb::VertexEntry], texture: &TextureHandle) -> Mesh {
 	let indices = (0..parsed.len() as u32).into_iter()
 		.map(|i| [0, 1, 2, 2, 3, 0].map(|x| x + i * 4))
 		.flatten()

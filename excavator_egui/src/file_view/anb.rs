@@ -215,7 +215,7 @@ impl AnbFileView {
 				}
 				
 				if let Some(vertex_edit) = &mut self.vertex_edit {
-					vertex_edit.ui(ui);
+					vertex_edit.ui(ui, &self.anb, node_id, &self.node_textures);
 				}
 			},
 			NodeData::Texture(_texture_node) => {
