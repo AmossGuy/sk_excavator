@@ -1,3 +1,6 @@
+// pak dummied out because it's not developed enough to be useful, and i'm focusing on anb currently
+
+/*
 use crate::app::context::ExcavatorContext;
 use crate::file_view::FileView;
 use crate::file_view::common::editable::edit_editable_data;
@@ -95,3 +98,4 @@ impl<'a> NodeConfig<pak::FileId> for PakNodeConfig<'a> {
 		ui.add(Label::new(text).selectable(false));
 	}
 }
+*/
