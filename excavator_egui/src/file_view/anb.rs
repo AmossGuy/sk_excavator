@@ -1,3 +1,4 @@
+mod edit_panel;
 mod render;
 mod vertex_edit;
 
@@ -27,7 +28,7 @@ struct AnbFileView {
 	tree_state: TreeViewState<anb::NodeId>,
 	node_textures: HashMap<NodeId, egui::TextureHandle>,
 	texture_update_needed: bool,
-	vertex_edit: Option<VertexEdit>,
+	edit_panel: edit_panel::EditPanelState,
 	
 	receiver: mpsc::Receiver<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
 	sender: mpsc::Sender<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
@@ -46,8 +47,8 @@ impl FileView for AnbFileView {
 			self.texture_update_needed = false;
 		}
 		
-		egui::Panel::right("property editor").show(ui, |ui| {
-			self.property_view(ui, excavator);
+		egui::Panel::right("edit panel").show(ui, |ui| {
+			edit_panel::edit_panel_ui(self, ui, excavator);
 			ui.take_available_space();
 		});
 		
@@ -96,9 +97,11 @@ impl AnbFileView {
 		
 		Self {
 			anb, file_path, tree_state: TreeViewState::default(),
+			
 			node_textures: HashMap::new(),
 			texture_update_needed: true,
-			vertex_edit: None,
+			edit_panel: edit_panel::EditPanelState::new(),
+			
 			receiver, sender,
 		}
 	}
@@ -152,6 +155,7 @@ impl AnbFileView {
 		});
 	}
 	
+	/*
 	fn property_view(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
 		match self.tree_state.selected().as_slice() {
 			// I need to change this in some way, because the tree view does not provide a convenient way to deselect everything. I'm thinking tab buttons.
@@ -177,10 +181,16 @@ impl AnbFileView {
 			},
 		}
 	}
+	*/
 	
 	fn handle_tree_actions(&mut self, actions: Vec<TreeAction<NodeId>>) {
 		for action in actions {
 			match action {
+				TreeAction::SetSelected(selection) => {
+					if !selection.is_empty() {
+						self.edit_panel.show_node_tab();
+					}
+				},
 				TreeAction::Move(drag_and_drop) => {
 					let children = &self.anb.get_node(drag_and_drop.target)
 						.expect("node should exist")
@@ -200,6 +210,7 @@ impl AnbFileView {
 		}
 	}
 	
+	/*
 	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId, excavator: &ExcavatorContext) {
 		let Some(node) = &self.anb.get_node(node_id) else { return };
 		
@@ -340,6 +351,7 @@ impl AnbFileView {
 		
 		Ok(())
 	}
+	*/
 }
 
 struct TreeBuildStuff<'a> {
