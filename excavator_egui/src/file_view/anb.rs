@@ -104,6 +104,22 @@ impl AnbFileView {
 	}
 	
 	fn update_textures(&mut self, ctx: &egui::Context, excavator: &ExcavatorContext) {
+		fn get_the_rgba(texture_node: &NodeTexture) -> anyhow::Result<([usize; 2], Box<[u8]>)> {
+			let size = [texture_node.width as usize, texture_node.height as usize];
+			let data = texture_node.data_block.as_ref()
+				.context("no texture data block")?
+				.data.get();
+			let rgba = wflz::decompress(&mut std::io::Cursor::new(data))
+				.context("failed to decompress wflz")?;
+				
+			let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
+			if lhs != rhs {
+				anyhow::bail!("wrong texture size: {} != {}", lhs, rhs);
+			}
+				
+			Ok((size, rgba))
+		}
+		
 		for (id, node) in self.anb.iter_nodes() {
 			let texture_node = match node.data {
 				NodeData::Texture(ref tx) => tx,
@@ -114,15 +130,13 @@ impl AnbFileView {
 				continue;
 			};
 			
-			let size = [texture_node.width as usize, texture_node.height as usize];
-			let data = texture_node.data_block.as_ref().unwrap().data.get();
-			let rgba = wflz::decompress(&mut std::io::Cursor::new(data)).unwrap();
-			
-			let (lhs, rhs) = (size[0] * size[1] * 4, rgba.len());
-			if lhs != rhs {
-				excavator.display_error(anyhow::anyhow!("wrong texture size: {} != {}", lhs, rhs));
-				continue;
-			}
+			let (size, rgba) = match get_the_rgba(texture_node) {
+				Ok((size, rgba)) => (size, rgba),
+				Err(e) => {
+					excavator.display_error(e.context("failed to load a node's texture"));
+					continue;
+				},
+			};
 			
 			let handle = ctx.load_texture(
 				"anb texture",
