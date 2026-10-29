@@ -1,7 +1,7 @@
 use super::AnbFileView;
 use crate::app::context::ExcavatorContext;
 use crate::file_view::common::editable::edit_editable_data;
-use excavator_backend::formats::anb::NodeId;
+use excavator_backend::formats::anb::{NodeData, NodeId};
 
 use egui::Ui;
 
@@ -59,7 +59,7 @@ fn node_tab_ui(anb_view: &mut AnbFileView, ui: &mut Ui, excavator: &ExcavatorCon
 
 fn node_tab_single(anb_view: &mut AnbFileView, node_id: NodeId, ui: &mut Ui, excavator: &ExcavatorContext) {
 	node_properties_single(anb_view, node_id, ui, excavator);
-	// todo next: data block editor
+	node_datablock_single(anb_view, node_id, ui, excavator);
 }
 
 fn node_properties_single(anb_view: &mut AnbFileView, node_id: NodeId, ui: &mut Ui, excavator: &ExcavatorContext) {
@@ -69,4 +69,42 @@ fn node_properties_single(anb_view: &mut AnbFileView, node_id: NodeId, ui: &mut 
 			anb_view.anb.edit_node_props(node_id, edited);
 		}
 	});
+}
+
+// TODO: I feel the cleanliness of this code could really benefit from a system where edits are queued up, only applied after the UI code is finished
+fn node_datablock_single(anb_view: &mut AnbFileView, node_id: NodeId, ui: &mut Ui, excavator: &ExcavatorContext) {
+	let node = anb_view.anb.get_node(node_id).expect("node should exist");
+	let datablock = match &node.data {
+		NodeData::Texture(d) => d.data_block.as_ref(),
+		NodeData::Vertex(d) => d.data_block.as_ref(),
+		NodeData::MetaString(d) => d.data_block.as_ref(),
+		NodeData::MetaTable(d) => d.data_block.as_ref(),
+		NodeData::Animation(d) => d.data_block.as_ref(),
+		_ => { return; },
+	};
+	
+	ui.separator();
+		
+	egui::Grid::new("datablock property grid").num_columns(2).show(ui, |ui| {
+		ui.label("Has data block");
+		let mut checked = datablock.is_some();
+		ui.checkbox(&mut checked, ());
+		// todo respond to checkbox
+		ui.end_row();
+		
+		if let Some(datablock) = datablock {
+			if let Some(edited) = edit_editable_data(ui, datablock) {
+				// todo respond to edit
+			}
+		}
+	});
+	
+	match &node.data {
+		NodeData::Texture(_d) => { ui.label("texture datablock todo"); },
+		NodeData::Vertex(_d) => { ui.label("vertex datablock todo"); },
+		NodeData::MetaString(_d) => { ui.label("meta string datablock todo"); },
+		NodeData::MetaTable(_d) => { ui.label("meta table datablock todo"); },
+		NodeData::Animation(_d) => { ui.label("animation datablock todo"); },
+		_ => unreachable!(),
+	}
 }

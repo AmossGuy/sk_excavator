@@ -212,9 +212,10 @@ pub struct VertexBodyEntry {
 	pub height: u16,
 }
 
-#[derive(Clone)]
+#[derive(EditableData, Clone)]
 pub struct DataBlock {
 	pub flags: u32,
+	#[edit(skip)]
 	pub data: ArcBytes,
 }
 
