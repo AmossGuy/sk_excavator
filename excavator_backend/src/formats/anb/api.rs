@@ -20,6 +20,10 @@ impl AnbWithoutUndo {
 		self.node_arena.get(id.0)
 	}
 	
+	pub fn get_parent_id(&self, child_id: NodeId) -> Option<NodeId> {
+		self.get_node(child_id).and_then(|child| child.parent)
+	}
+	
 	pub fn iter_nodes(&self) -> impl Iterator<Item = (NodeId, &Node)> + '_ {
 		self.node_arena.iter().map(|(index, node)| (NodeId(index), node))
 	}

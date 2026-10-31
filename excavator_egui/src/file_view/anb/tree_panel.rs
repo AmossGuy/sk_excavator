@@ -25,7 +25,7 @@ impl super::AnbFileView {
 			match action {
 				TreeAction::SetSelected(selection) => {
 					if !selection.is_empty() {
-						self.edit_panel.show_node_tab();
+						self.edit_panel.show_and_reset_node_tab();
 					}
 				},
 				TreeAction::Move(drag_and_drop) => {
