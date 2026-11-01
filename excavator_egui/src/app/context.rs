@@ -11,7 +11,7 @@ pub struct ExcavatorApp {
 	excavator: ExcavatorContext,
 	windows: WindowHolder,
 	file_view: Box<dyn FileView>,
-	error_popups: Vec<anyhow::Error>,
+	errors: Vec<anyhow::Error>,
 	receiver: mpsc::Receiver<AppMessage>,
 }
 
@@ -66,9 +66,9 @@ impl ExcavatorApp {
 		
 		let windows = WindowHolder::new("global window holder");
 		let file_view = Box::new(PlaceholderFileView);
-		let error_popups = Vec::new();
+		let errors = Vec::new();
 		
-		Self { excavator, windows, file_view, error_popups, receiver }
+		Self { excavator, windows, file_view, errors, receiver }
 	}
 	
 	fn unhasher_load() -> std::io::Result<Unhasher> {
@@ -87,16 +87,16 @@ impl ExcavatorApp {
 		ctx.send_viewport_cmd(egui::ViewportCommand::Title(window_title));
 	}
 	
-		fn error_popup(&mut self, ui: &mut egui::Ui) {
+	fn error_popup(&mut self, ui: &mut egui::Ui) {
 		let response = egui::Modal::new(ui.id().with("error modal")).show(ui, |ui| {
-			match self.error_popups.len() {
+			match self.errors.len() {
 				1 => { ui.label("An error occurred:"); },
 				other => { ui.label(format!("{other} errors occurred:")); },
 			}
 			
 			egui::ScrollArea::vertical().show(ui, |ui| {
 				let error_fg_color = ui.visuals().error_fg_color;
-				for error in &mut *self.error_popups {
+				for error in self.errors.iter() {
 					ui.colored_label(error_fg_color, format!("{:#}", error));
 				}
 			});
@@ -109,7 +109,7 @@ impl ExcavatorApp {
 		});
 		
 		if response.should_close() {
-			self.error_popups.clear();
+			self.errors.clear();
 		}
 	}
 }
@@ -123,7 +123,7 @@ impl eframe::App for ExcavatorApp {
 				AddWindow(window) => { self.windows.add(window); },
 				SetFileView(view) => { self.file_view = view; self.update_title(ctx); },
 				RequestQuit => { ctx.send_viewport_cmd(egui::ViewportCommand::Close); },
-				DisplayError(error) => { self.error_popups.push(error.into()); },
+				DisplayError(error) => { self.errors.push(error.into()); },
 			}
 		}
 	}
@@ -137,7 +137,7 @@ impl eframe::App for ExcavatorApp {
 		
 		self.file_view.ui(ui, &self.excavator);
 		
-		if !self.error_popups.is_empty() {
+		if !self.errors.is_empty() {
 			self.error_popup(ui)
 		}
 	}
