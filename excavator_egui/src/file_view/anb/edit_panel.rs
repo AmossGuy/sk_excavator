@@ -132,12 +132,12 @@ fn node_spatial_single(anb_view: &mut AnbFileView, node_id: NodeId, ui: &mut Ui,
 		_ => { return; },
 	};
 	
-	spatial_view_spec.ui(anb_view, ui, excavator);
+	spatial_view_spec.ui(ui, anb_view, excavator);
 }
 
-struct SpatialViewSpec {
-	texture_id: Option<NodeId>,
-	vertex_id: Option<NodeId>,
+pub struct SpatialViewSpec {
+	pub texture_id: Option<NodeId>,
+	pub vertex_id: Option<NodeId>,
 }
 
 impl SpatialViewSpec {
@@ -166,16 +166,19 @@ impl SpatialViewSpec {
 		}
 	}
 	
-	fn ui(self, anb_view: &mut AnbFileView, ui: &mut Ui, _excavator: &ExcavatorContext) {
-		let rect_mut = anb_view.edit_panel.rect.get_or_insert_with(|| {
+	fn ui(self, ui: &mut Ui, anb_view: &mut AnbFileView, _excavator: &ExcavatorContext) {
+		let mut rect = anb_view.edit_panel.rect.get_or_insert_with(|| {
 			self.rendering_bbox(&anb_view.anb)
-		});
+		}).clone();
 		
 		egui::Frame::canvas(ui.style()).show(ui, |ui| {
-			egui::Scene::new().zoom_range(0.0..=f32::INFINITY).show(ui, rect_mut, |ui| {
-				self.render_to_painter(&anb_view.anb, ui.painter());
+			egui::Scene::new().zoom_range(0.0..=f32::INFINITY).show(ui, &mut rect, |ui| {
+				self.render_to_painter(ui.painter(), anb_view);
 			});
 		});
+		
+		// for borrow conflict reasons; i have an idea to try later to clean this up
+		anb_view.edit_panel.rect = Some(rect);
 	}
 	
 	fn rendering_bbox(&self, anb: &Anb) -> egui::Rect {
@@ -186,11 +189,15 @@ impl SpatialViewSpec {
 		if rect.is_positive() {
 			rect
 		} else {
-			egui::Rect::from_x_y_ranges(0.0..=16.0, 0.0..=16.0)
+			egui::Rect::from_x_y_ranges(-16.0..=16.0, -16.0..=16.0)
 		}
 	}
 	
-	fn render_to_painter(&self, anb: &Anb, painter: &egui::Painter) {
+	fn render_to_painter(&self, painter: &egui::Painter, anb_view: &super::AnbFileView) {
 		// todo: draw stuff, of course
+		
+		if self.vertex_id.is_some() {
+			super::render::render_anb_sprite_2(self, painter, anb_view);
+		}
 	}
 }

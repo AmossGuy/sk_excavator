@@ -1,5 +1,6 @@
 use super::{*, undo::{AnbCommand, ReparentCommand}};
 
+use anyhow::Context;
 use std::{borrow::Cow, mem, ops::Deref};
 use thunderdome::Arena;
 
@@ -26,6 +27,13 @@ impl AnbWithoutUndo {
 	
 	pub fn iter_nodes(&self) -> impl Iterator<Item = (NodeId, &Node)> + '_ {
 		self.node_arena.iter().map(|(index, node)| (NodeId(index), node))
+	}
+	
+	pub fn get_vertex_data(&self, id: NodeId) -> anyhow::Result<Vec<VertexEntry>> {
+		match &self.get_node(id).context("failed to get node")?.data {
+			NodeData::Vertex(v) => v.parse_data_block().context("failed to parse data block"),
+			_ => anyhow::bail!("not a vertex node"),
+		}
 	}
 }
 

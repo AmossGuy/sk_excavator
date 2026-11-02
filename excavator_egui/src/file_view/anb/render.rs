@@ -45,6 +45,21 @@ pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node
 	}
 }
 
+pub fn render_anb_sprite_2(spec: &super::edit_panel::SpatialViewSpec, painter: &egui::Painter, anb_view: &super::AnbFileView) {
+	let Some(texture_id) = spec.texture_id else { return };
+	let Some(vertex_id) = spec.vertex_id else { return };
+	
+	let Some(texture) = anb_view.node_textures.get(&texture_id) else { return };
+	let Some(vertex_node) = anb_view.anb.get_node(vertex_id) else { return };
+	let parsed = match vertex_node.data {
+		anb::NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
+		_ => panic!("probably should be a vertex node"),
+	};
+	
+	let mesh = build_vertex_mesh(&parsed, texture);
+	painter.add(mesh);
+}
+
 pub fn build_vertex_mesh(parsed: &[anb::VertexEntry], texture: &TextureHandle) -> Mesh {
 	let indices = (0..parsed.len() as u32).into_iter()
 		.map(|i| [0, 1, 2, 2, 3, 0].map(|x| x + i * 4))
