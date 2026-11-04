@@ -22,32 +22,40 @@ pub fn parse_anb(file_contents: Vec<u8>, file_path: PathBuf) -> anyhow::Result<i
 }
 
 struct AnbFileView {
+	globals: AnbViewGlobals,
+	ui_state: AnbViewUiState,
+}
+
+struct AnbViewGlobals {
 	anb: Anb,
 	file_path: PathBuf,
 	
-	tree_state: TreeViewState<anb::NodeId>,
 	node_textures: HashMap<NodeId, egui::TextureHandle>,
 	texture_update_needed: bool,
-	edit_panel: edit_panel::EditPanelState,
 	
 	receiver: mpsc::Receiver<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
 	sender: mpsc::Sender<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
 }
 
+struct AnbViewUiState {
+	tree: TreeViewState<anb::NodeId>,
+	edit_panel: edit_panel::EditPanelState,
+}
+
 impl FileView for AnbFileView {
 	fn ui(&mut self, ui: &mut Ui, excavator: &ExcavatorContext) {
-		while let Ok(function) = self.receiver.try_recv() {
+		while let Ok(function) = self.globals.receiver.try_recv() {
 			function(self);
 		}
 		
-		if self.texture_update_needed {
+		if self.globals.texture_update_needed {
 			// this shouldn't be on the ui thread probably
 			self.update_textures(ui.ctx(), excavator);
-			self.texture_update_needed = false;
+			self.globals.texture_update_needed = false;
 		}
 		
 		egui::Panel::right("edit panel").show(ui, |ui| {
-			edit_panel::edit_panel_ui(self, ui, excavator);
+			self.ui_state.edit_panel.ui(ui, AnbUiEnv { globals: &mut self.globals, excavator });
 			ui.take_available_space();
 		});
 		
@@ -57,36 +65,36 @@ impl FileView for AnbFileView {
 	}
 	
 	fn tab_title(&self) -> Option<Cow<'_, str>> {
-		self.file_path.file_name().map(|name| name.to_string_lossy())
+		self.globals.file_path.file_name().map(|name| name.to_string_lossy())
 	}
 	
 	fn action_execute(&mut self, action: FileViewAction, _excavator: &ExcavatorContext) {
 		match action {
 			FileViewAction::Save => self.wip_save(),
 			FileViewAction::SaveAs => self.wip_save_as(),
-			FileViewAction::Undo => self.anb.undo(),
-			FileViewAction::Redo => self.anb.redo(),
+			FileViewAction::Undo => self.globals.anb.undo(),
+			FileViewAction::Redo => self.globals.anb.redo(),
 		}
 	}
 	fn action_should_be_enabled(&self, action: FileViewAction) -> bool {
 		match action {
 			FileViewAction::Save => true,
 			FileViewAction::SaveAs => true,
-			FileViewAction::Undo => self.anb.can_undo(),
-			FileViewAction::Redo => self.anb.can_redo(),
+			FileViewAction::Undo => self.globals.anb.can_undo(),
+			FileViewAction::Redo => self.globals.anb.can_redo(),
 		}
 	}
 	
 	fn undo_history(&self) -> Option<Vec<Cow<'static, str>>> {
-		Some(self.anb.undo_history_strings())
+		Some(self.globals.anb.undo_history_strings())
 	}
 	
 	fn undo_history_index(&self) -> Option<usize> {
-		self.anb.undo_history_index()
+		self.globals.anb.undo_history_index()
 	}
 	
 	fn undo_go_to_index(&mut self, index: usize) {
-		self.anb.undo_go_to_index(index);
+		self.globals.anb.undo_go_to_index(index);
 	}
 }
 
@@ -95,13 +103,16 @@ impl AnbFileView {
 		let (sender, receiver) = mpsc::channel();
 		
 		Self {
-			anb, file_path, tree_state: TreeViewState::default(),
-			
-			node_textures: HashMap::new(),
-			texture_update_needed: true,
-			edit_panel: edit_panel::EditPanelState::new(),
-			
-			receiver, sender,
+			globals: AnbViewGlobals {
+				anb, file_path,
+				node_textures: HashMap::new(),
+				texture_update_needed: true,
+				receiver, sender,
+			},
+			ui_state: AnbViewUiState {
+				tree: TreeViewState::default(),
+				edit_panel: edit_panel::EditPanelState::new(),
+			},
 		}
 	}
 	
@@ -122,13 +133,13 @@ impl AnbFileView {
 			Ok((size, rgba))
 		}
 		
-		for (id, node) in self.anb.iter_nodes() {
+		for (id, node) in self.globals.anb.iter_nodes() {
 			let texture_node = match node.data {
 				NodeData::Texture(ref tx) => tx,
 				_ => continue,
 			};
 			
-			let hash_map::Entry::Vacant(entry) = self.node_textures.entry(id) else {
+			let hash_map::Entry::Vacant(entry) = self.globals.node_textures.entry(id) else {
 				continue;
 			};
 			
@@ -152,7 +163,24 @@ impl AnbFileView {
 			entry.insert(handle);
 		}
 	}
-	
+}
+
+struct AnbUiEnv<'a> {
+	globals: &'a mut AnbViewGlobals,
+	excavator: &'a ExcavatorContext,
+}
+
+impl<'a> AnbUiEnv<'a> {
+	fn reborrow<'b>(&'b mut self) -> AnbUiEnv<'b> {
+		AnbUiEnv {
+			globals: &mut *self.globals,
+			excavator: &*self.excavator,
+		}
+	}
+}
+
+// kept for reference, delete as its replacement code is implemented
+impl AnbFileView {
 	/*
 	fn data_block_editor(&mut self, ui: &mut Ui, node_id: NodeId, excavator: &ExcavatorContext) {
 		let Some(node) = &self.anb.get_node(node_id) else { return };
@@ -301,7 +329,7 @@ impl AnbFileView {
 // this stuff should be made shared between file formats soon
 impl AnbFileView {
 	fn wip_save(&self) {
-		let path = self.file_path.clone();
+		let path = self.globals.file_path.clone();
 		let mut bak_path = path.clone();
 		bak_path.add_extension("original");
 		
@@ -311,7 +339,7 @@ impl AnbFileView {
 			std::fs::rename(&path, &bak_path).unwrap();
 		}
 		
-		if let Ok(bytes) = save_to_bytes(&self.anb) {
+		if let Ok(bytes) = save_to_bytes(&self.globals.anb) {
 			std::thread::spawn(move || {
 				let _ = std::fs::write(path, bytes);
 			});
@@ -319,14 +347,14 @@ impl AnbFileView {
 	}
 	
 	fn wip_save_as(&self) {
-		let sender = self.sender.clone();
+		let sender = self.globals.sender.clone();
 		
 		std::thread::spawn(move || {
 			let dialog = rfd::FileDialog::new();
 			
 			if let Some(path) = dialog.save_file() {
 				let _ = sender.send(Box::new(|anb_view| {
-					if let Ok(bytes) = save_to_bytes(&anb_view.anb) {
+					if let Ok(bytes) = save_to_bytes(&anb_view.globals.anb) {
 						std::thread::spawn(move || {
 							let _ = std::fs::write(path, bytes);
 						});

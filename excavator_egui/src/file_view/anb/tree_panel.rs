@@ -8,10 +8,10 @@ impl super::AnbFileView {
 	pub(super) fn tree_view(&mut self, ui: &mut Ui) {
 		ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
 			let tree_view = TreeView::new(Id::new("tree view"));
-			let stuff = TreeBuildStuff { anb: &self.anb, node_textures: &self.node_textures };
+			let stuff = TreeBuildStuff { anb: &self.globals.anb, node_textures: &self.globals.node_textures };
 			
-			let (_, actions) = tree_view.show_state(ui, &mut self.tree_state, |builder| {
-				if let Some(root_id) = self.anb.get_header().root_node {
+			let (_, actions) = tree_view.show_state(ui, &mut self.ui_state.tree, |builder| {
+				if let Some(root_id) = self.globals.anb.get_header().root_node {
 					stuff.build_tree_recursively(builder, root_id);
 				}
 			});
@@ -24,12 +24,10 @@ impl super::AnbFileView {
 		for action in actions {
 			match action {
 				TreeAction::SetSelected(selection) => {
-					if !selection.is_empty() {
-						self.edit_panel.show_and_reset_node_tab();
-					}
+					self.ui_state.edit_panel.select_nodes(selection);
 				},
 				TreeAction::Move(drag_and_drop) => {
-					let children = &self.anb.get_node(drag_and_drop.target)
+					let children = &self.globals.anb.get_node(drag_and_drop.target)
 						.expect("node should exist")
 						.children;
 					
@@ -40,7 +38,7 @@ impl super::AnbFileView {
 						DirPosition::Before(id) => children.iter().position(|&x| x == id).unwrap(),
 					};
 					
-					self.anb.edit_reparent(drag_and_drop.target, &drag_and_drop.source, index);
+					self.globals.anb.edit_reparent(drag_and_drop.target, &drag_and_drop.source, index);
 				},
 				_ => {},
 			}

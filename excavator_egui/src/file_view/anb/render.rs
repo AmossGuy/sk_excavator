@@ -1,8 +1,9 @@
+use super::AnbUiEnv;
+use excavator_backend::formats::anb;
+
 use egui::{Color32, Mesh, Pos2, TextureHandle, Ui, Vec2};
 use egui::epaint::Vertex;
 use std::collections::HashMap;
-
-use excavator_backend::formats::anb;
 
 pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
 	let mut texture_node_id = None;
@@ -45,12 +46,12 @@ pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node
 	}
 }
 
-pub fn render_anb_sprite_2(spec: &super::edit_panel::SpatialViewSpec, painter: &egui::Painter, anb_view: &super::AnbFileView) {
+pub fn render_anb_sprite_2(spec: &super::edit_panel::SpatialViewSpec, painter: &egui::Painter, env: AnbUiEnv<'_>) {
 	let Some(texture_id) = spec.texture_id else { return };
 	let Some(vertex_id) = spec.vertex_id else { return };
 	
-	let Some(texture) = anb_view.node_textures.get(&texture_id) else { return };
-	let Some(vertex_node) = anb_view.anb.get_node(vertex_id) else { return };
+	let Some(texture) = env.globals.node_textures.get(&texture_id) else { return };
+	let Some(vertex_node) = env.globals.anb.get_node(vertex_id) else { return };
 	let parsed = match vertex_node.data {
 		anb::NodeData::Vertex(ref vertex_node_fr) => vertex_node_fr.parse_data_block().unwrap(),
 		_ => panic!("probably should be a vertex node"),
