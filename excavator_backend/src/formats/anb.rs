@@ -202,16 +202,6 @@ pub struct NodeAnimation {
 	pub data_block: Option<DataBlock>,
 }
 
-#[derive(EditableData, Clone, Default)]
-pub struct VertexBodyEntry {
-	pub position_x: f32,
-	pub position_y: f32,
-	pub texture_x: u16,
-	pub texture_y: u16,
-	pub width: u16,
-	pub height: u16,
-}
-
 #[derive(Clone)]
 pub struct DataBlock {
 	pub flags: u32,
