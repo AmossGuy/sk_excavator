@@ -218,27 +218,17 @@ impl AnbFileView {
 		let Some(node) = &self.anb.get_node(node_id) else { return };
 		
 		match &node.data {
-			NodeData::Vertex(vertex_node) => {
-				if self.spatial_edit.as_ref().is_none_or(|ve| ve.node_id() != node_id) {
-					match vertex_node.parse_data_block() {
-						Ok(parsed) => {
-							self.spatial_edit = Some(SpatialEdit::new(node_id, parsed));
-						},
-						Err(e) => excavator.display_error(e),
-					}
+			NodeData::Vertex(_) | NodeData::Frame(_) => {
+				if self.spatial_edit.as_ref().is_none_or(|ve| ve.primary_node() != node_id) {
+					self.spatial_edit = Some(SpatialEdit::new(&self.anb, node_id, &self.node_textures));
 				}
 				
 				if let Some(spatial_edit) = &mut self.spatial_edit {
-					spatial_edit.ui(ui, &self.anb, node_id, &self.node_textures);
+					spatial_edit.ui(ui);
 				}
 			},
-			NodeData::Texture(_texture_node) => {
+			NodeData::Texture(_) => {
 				self.texture_data_block_editor(ui, node_id, excavator);
-			},
-			NodeData::Frame(_) => {
-				egui::Frame::canvas(ui.style()).show(ui, |ui| {
-					render::render_anb_sprite_widget(ui, &self.anb, node_id, &self.node_textures);
-				});
 			},
 			NodeData::Sequence(animation_node) => {
 				match excavator.unhash(animation_node.hashname) {

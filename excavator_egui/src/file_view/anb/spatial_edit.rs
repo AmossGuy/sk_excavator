@@ -1,39 +1,97 @@
-use excavator_backend::formats::anb::{self, NodeId, VertexEntry};
+use excavator_backend::formats::anb::{Anb, NodeData, NodeId, VertexEntry};
 use egui::{CursorIcon, Pos2, Rect, TextureHandle, Vec2};
+// HashMap only needed for some weirdness that may or may not be refactored out
 use std::collections::HashMap;
 
 const DRAG_EDGE_THICKNESS: f32 = 3.0;
 
 pub struct SpatialEdit {
-	node_id: NodeId,
+	primary_node: NodeId,
 	scene_rect: Rect,
-	lively_data: Vec<VertexEntry>,
 	drag: Option<DragInfo>,
+	
+	is_vertex_edit: bool,
+	
+	data: SpatialEditData,
+}
+
+#[derive(Default)]
+struct SpatialEditData {
+	texture: Option<(NodeId, TextureHandle)>,
+	vertex: Option<(NodeId, Vec<VertexEntry>)>,
 }
 
 impl SpatialEdit {
-	pub fn new(node_id: NodeId, data: Vec<VertexEntry>) -> Self {
+	pub fn new(anb: &Anb, primary_node: NodeId, node_textures: &HashMap<NodeId, TextureHandle>) -> Self {
+		let mut data = SpatialEditData::default();
+		if let Some(frame_node) = get_frame_node(anb, primary_node) {
+			data.load_from_frame(anb, frame_node, node_textures);
+		}
+		
+		let is_vertex_edit = anb.get_node(primary_node)
+			.is_some_and(|n| matches!(&n.data, NodeData::Vertex(_)));
+		
 		Self {
-			node_id,
+			primary_node,
 			scene_rect: Rect::from_min_size(Pos2::ZERO, Vec2::splat(64.0)),
-			lively_data: data,
 			drag: None,
+			is_vertex_edit,
+			data,
 		}
 	}
 	
-	pub fn node_id(&self) -> NodeId {
-		self.node_id
+	pub fn primary_node(&self) -> NodeId {
+		self.primary_node
 	}
-	
-	pub fn ui(&mut self, ui: &mut egui::Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
+}
+
+fn is_frame_node(anb: &Anb, some_node: NodeId) -> bool {
+	anb.get_node(some_node).is_some_and(|n| matches!(&n.data, NodeData::Frame(_)))
+}
+
+/// find a frame node that is either the passed node or its immediate parent
+fn get_frame_node(anb: &Anb, some_node: NodeId) -> Option<NodeId> {
+	if is_frame_node(anb, some_node) {
+		Some(some_node)
+	} else {
+		let parent = anb.get_node(some_node)?.parent?;
+		is_frame_node(anb, parent).then_some(parent)
+	}
+}
+
+impl SpatialEditData {
+	fn load_from_frame(&mut self, anb: &Anb, frame_node: NodeId, node_textures: &HashMap<NodeId, TextureHandle>) {
+		let Some(parent_ref) = anb.get_node(frame_node) else { return };
+		for child_node in parent_ref.children.iter().copied() {
+			let Some(child_ref) = anb.get_node(child_node) else { continue };
+			
+			match child_ref.data {
+				NodeData::Texture(ref _t) => {
+					let Some(cool) = node_textures.get(&child_node) else { continue };
+					self.texture.get_or_insert_with(|| (child_node, cool.clone()));
+				},
+				NodeData::Vertex(ref v) => {
+					// really great error handling amirite
+					self.vertex.get_or_insert_with(|| (child_node, v.parse_data_block().unwrap_or_default()));
+				},
+				_ => {},
+			}
+		}
+	}
+}
+
+impl SpatialEdit {
+	pub fn ui(&mut self, ui: &mut egui::Ui) {
 		egui::Frame::canvas(ui.style()).show(ui, |ui| {
 			egui::Scene::new().zoom_range(0.0..=f32::INFINITY).show(ui, &mut self.scene_rect, |ui| {
-				if let Some(texture) = Self::texture_get_thingy(anb, node_id, node_textures) {
-					let mesh = super::render::build_vertex_mesh(&self.lively_data, &texture);
+				if let Some((_, texture)) = &self.data.texture && let Some((_, vertex)) = &mut self.data.vertex {
+					let mesh = super::render::build_vertex_mesh(vertex, texture);
 					ui.painter().add(mesh);
 				}
 				
-				for (i, entry) in self.lively_data.iter_mut().enumerate() {
+				// indentation weird because i'm trying too hard to avoid diff noise
+				if self.is_vertex_edit && let Some((_, vertex)) = &mut self.data.vertex {
+				for (i, entry) in vertex.iter_mut().enumerate() {
 					let rect = Rect::from_min_size(
 						Pos2::new(entry.position_x, entry.position_y),
 						Vec2::new(entry.width.into(), entry.height.into()),
@@ -78,25 +136,9 @@ impl SpatialEdit {
 						ui.set_cursor_icon(kind.cursor(DragState::Hover));
 					}
 				}
+				}
 			});
 		});
-	}
-	
-	// mostly copy-pasted from render.rs. i have very obvious technical debt that's next on my list to pay off
-	fn texture_get_thingy(anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) -> Option<TextureHandle> {
-		let node_id = anb.get_node(node_id)?.parent?;
-		
-		let mut texture_node_id = None;
-		for child_id in anb.get_node(node_id)?.children.iter().copied() {
-			if let Some(child_node) = anb.get_node(child_id) {
-				match child_node.data {
-					anb::NodeData::Texture(_) => { texture_node_id = Some(child_id); },
-					_ => {},
-				}
-			}
-		}
-		
-		texture_node_id.and_then(|id| node_textures.get(&id)).cloned()
 	}
 }
 
