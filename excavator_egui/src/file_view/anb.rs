@@ -237,7 +237,7 @@ impl AnbFileView {
 			},
 			NodeData::Frame(_) => {
 				egui::Frame::canvas(ui.style()).show(ui, |ui| {
-					render::render_anb_sprite(ui, &self.anb, node_id, &self.node_textures);
+					render::render_anb_sprite_widget(ui, &self.anb, node_id, &self.node_textures);
 				});
 			},
 			NodeData::Sequence(animation_node) => {
@@ -439,7 +439,7 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 				}
 			},
 			NodeData::Frame(_) => {
-				render::render_anb_sprite(ui, &self.anb, self.id, self.node_textures);
+				render::render_anb_sprite_widget(ui, &self.anb, self.id, self.node_textures);
 			},
 			_ => {},
 		}

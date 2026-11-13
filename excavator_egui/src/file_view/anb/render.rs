@@ -4,7 +4,8 @@ use std::collections::HashMap;
 
 use excavator_backend::formats::anb;
 
-pub fn render_anb_sprite(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
+/// use build_vertex_mesh instead if this isn't what you need
+pub fn render_anb_sprite_widget(ui: &mut Ui, anb: &anb::Anb, node_id: anb::NodeId, node_textures: &HashMap<anb::NodeId, TextureHandle>) {
 	let mut texture_node_id = None;
 	let mut vertex_node_id = None;
 	
