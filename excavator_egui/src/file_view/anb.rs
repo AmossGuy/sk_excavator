@@ -1,12 +1,12 @@
 mod render;
-mod vertex_edit;
+mod spatial_edit;
 
 use crate::app::context::ExcavatorContext;
 use crate::file_view::{FileView, FileViewAction};
 use crate::file_view::common::editable::edit_editable_data;
 use excavator_backend::formats::anb::{self, Anb, NodeData, NodeId, NodeTexture, load_from_bytes, save_to_bytes};
 use excavator_backend::formats::wflz;
-use self::vertex_edit::VertexEdit;
+use self::spatial_edit::SpatialEdit;
 
 use anyhow::Context;
 use egui::{Id, Label, ScrollArea, Ui, WidgetText};
@@ -27,7 +27,7 @@ struct AnbFileView {
 	tree_state: TreeViewState<anb::NodeId>,
 	node_textures: HashMap<NodeId, egui::TextureHandle>,
 	texture_update_needed: bool,
-	vertex_edit: Option<VertexEdit>,
+	spatial_edit: Option<SpatialEdit>,
 	
 	receiver: mpsc::Receiver<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
 	sender: mpsc::Sender<Box<dyn FnOnce(&mut AnbFileView) + Send>>,
@@ -98,7 +98,7 @@ impl AnbFileView {
 			anb, file_path, tree_state: TreeViewState::default(),
 			node_textures: HashMap::new(),
 			texture_update_needed: true,
-			vertex_edit: None,
+			spatial_edit: None,
 			receiver, sender,
 		}
 	}
@@ -219,17 +219,17 @@ impl AnbFileView {
 		
 		match &node.data {
 			NodeData::Vertex(vertex_node) => {
-				if self.vertex_edit.as_ref().is_none_or(|ve| ve.node_id() != node_id) {
+				if self.spatial_edit.as_ref().is_none_or(|ve| ve.node_id() != node_id) {
 					match vertex_node.parse_data_block() {
 						Ok(parsed) => {
-							self.vertex_edit = Some(VertexEdit::new(node_id, parsed));
+							self.spatial_edit = Some(SpatialEdit::new(node_id, parsed));
 						},
 						Err(e) => excavator.display_error(e),
 					}
 				}
 				
-				if let Some(vertex_edit) = &mut self.vertex_edit {
-					vertex_edit.ui(ui, &self.anb, node_id, &self.node_textures);
+				if let Some(spatial_edit) = &mut self.spatial_edit {
+					spatial_edit.ui(ui, &self.anb, node_id, &self.node_textures);
 				}
 			},
 			NodeData::Texture(_texture_node) => {

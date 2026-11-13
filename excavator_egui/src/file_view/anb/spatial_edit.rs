@@ -4,14 +4,14 @@ use std::collections::HashMap;
 
 const DRAG_EDGE_THICKNESS: f32 = 3.0;
 
-pub struct VertexEdit {
+pub struct SpatialEdit {
 	node_id: NodeId,
 	scene_rect: Rect,
 	lively_data: Vec<VertexEntry>,
 	drag: Option<DragInfo>,
 }
 
-impl VertexEdit {
+impl SpatialEdit {
 	pub fn new(node_id: NodeId, data: Vec<VertexEntry>) -> Self {
 		Self {
 			node_id,
