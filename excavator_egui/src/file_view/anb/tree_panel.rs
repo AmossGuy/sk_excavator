@@ -129,7 +129,7 @@ impl<'a> NodeConfig<anb::NodeId> for AnbNodeConfig<'a> {
 				}
 			},
 			NodeData::Frame(_) => {
-				super::render::render_anb_sprite(ui, &self.anb, self.id, self.node_textures);
+				// todo (there was an implementation earlier, but i nuked it to try again with some other stuff)
 			},
 			_ => {},
 		}
