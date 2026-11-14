@@ -3,7 +3,12 @@ pub use shortcuts::ShortcutStorage;
 
 use egui::{Button, Context, IntoAtoms, MenuBar, TextWrapMode, Ui};
 use crate::file_view::{FileView, FileViewAction};
-use crate::app::{about::AboutWindow, context::ExcavatorContext, settings::SettingsWindow};
+use crate::app::{
+	about::AboutWindow,
+	context::ExcavatorContext,
+	settings::SettingsWindow,
+	tool::HashToolWindow,
+};
 
 pub struct MenuEnv<'a> {
 	excavator: &'a ExcavatorContext,
@@ -24,6 +29,7 @@ pub fn show_menu_bar_panel(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 		MenuBar::new().ui(ui, |ui| {
 			file_menu_button(ui, env);
 			edit_menu_button(ui, env);
+			tool_menu_button(ui, env);
 			settings_menu_button(ui, env);
 			help_menu_button(ui, env);
 		});
@@ -57,6 +63,12 @@ fn edit_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
 		ui.menu_button("Undo history", |ui| {
 			undo_history_list(ui, env);
 		});
+	});
+}
+
+fn tool_menu_button(ui: &mut Ui, env: &mut MenuEnv<'_>) {
+	ui.menu_button("Tools", |ui| {
+		menu_action(ui, env, "Hash tool", MenuAction::OpenHashTool);
 	});
 }
 
@@ -153,6 +165,9 @@ enum MenuAction {
 	Undo,
 	Redo,
 	
+	// tools
+	OpenHashTool,
+	
 	// settings
 	SettingsExcavator,
 	SettingsEgui,
@@ -172,6 +187,8 @@ impl MenuAction {
 			
 			Self::Undo => env.file_view.action_execute(FileViewAction::Undo, env.excavator),
 			Self::Redo => env.file_view.action_execute(FileViewAction::Redo, env.excavator),
+			
+			Self::OpenHashTool => env.excavator.add_window(HashToolWindow::new()),
 			
 			Self::SettingsExcavator => env.excavator.add_window(SettingsWindow::excavator_tab()),
 			Self::SettingsEgui => env.excavator.add_window(SettingsWindow::egui_tab()),
