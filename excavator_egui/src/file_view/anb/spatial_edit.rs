@@ -1,4 +1,4 @@
-use excavator_backend::formats::anb::{Anb, NodeData, NodeId, VertexEntry};
+use excavator_backend::formats::anb::{Anb, NodeData, NodeId, NodeMetaRect, VertexEntry};
 use egui::{CursorIcon, Pos2, Rect, TextureHandle, Vec2};
 // HashMap only needed for some weirdness that may or may not be refactored out
 use std::collections::HashMap;
@@ -19,6 +19,7 @@ pub struct SpatialEdit {
 struct SpatialEditData {
 	texture: Option<(NodeId, TextureHandle)>,
 	vertex: Option<(NodeId, Vec<VertexEntry>)>,
+	metas: Vec<(NodeId, NodeMetaRect)>,
 }
 
 impl SpatialEdit {
@@ -46,7 +47,9 @@ impl SpatialEdit {
 }
 
 fn is_frame_node(anb: &Anb, some_node: NodeId) -> bool {
-	anb.get_node(some_node).is_some_and(|n| matches!(&n.data, NodeData::Frame(_)))
+	anb.get_node(some_node).is_some_and(|n| {
+		matches!(&n.data, NodeData::Frame(_) | NodeData::SequenceFrame(_))
+	})
 }
 
 /// find a frame node that is either the passed node or its immediate parent
@@ -73,6 +76,18 @@ impl SpatialEditData {
 				NodeData::Vertex(ref v) => {
 					// really great error handling amirite
 					self.vertex.get_or_insert_with(|| (child_node, v.parse_data_block().unwrap_or_default()));
+				},
+				NodeData::MetaTable(ref _m) => {
+					for meta_node in child_ref.children.iter().copied() {
+						let Some(meta_ref) = anb.get_node(meta_node) else { continue };
+						
+						match meta_ref.data {
+							NodeData::MetaRect(ref r) => {
+								self.metas.push((meta_node, r.clone()));
+							},
+							_ => {},
+						}
+					}
 				},
 				_ => {},
 			}
@@ -136,6 +151,21 @@ impl SpatialEdit {
 						ui.set_cursor_icon(kind.cursor(DragState::Hover));
 					}
 				}
+				}
+				
+				for (_, meta_rect) in self.data.metas.iter() {
+					let rect = egui::Rect::from_center_size(
+						egui::Pos2::new(meta_rect.center_x, meta_rect.center_y),
+						egui::Vec2::new(meta_rect.extents_x, meta_rect.extents_y),
+					);
+					
+					ui.painter().rect(
+						rect,
+						egui::CornerRadius::ZERO,
+						egui::Color32::RED.gamma_multiply(0.5),
+						egui::Stroke::new(1.0, egui::Color32::DARK_RED.gamma_multiply(0.5)),
+						egui::StrokeKind::Inside,
+					);
 				}
 			});
 		});

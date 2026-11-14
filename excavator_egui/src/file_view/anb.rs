@@ -218,7 +218,7 @@ impl AnbFileView {
 		let Some(node) = &self.anb.get_node(node_id) else { return };
 		
 		match &node.data {
-			NodeData::Vertex(_) | NodeData::Frame(_) => {
+			NodeData::Vertex(_) | NodeData::Frame(_) | NodeData::SequenceFrame(_) | NodeData::MetaTable(_) => {
 				if self.spatial_edit.as_ref().is_none_or(|ve| ve.primary_node() != node_id) {
 					self.spatial_edit = Some(SpatialEdit::new(&self.anb, node_id, &self.node_textures));
 				}
