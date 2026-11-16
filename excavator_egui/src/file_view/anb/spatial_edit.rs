@@ -193,8 +193,8 @@ impl EditableRect for VertexEntry {
 			self.position_x += delta.x;
 			self.position_y += delta.y;
 		} else {
-			resize_axis(kind.x, &mut self.position_x, &mut self.texture_x, &mut self.width, delta.x);
-			resize_axis(kind.y, &mut self.position_y, &mut self.texture_y, &mut self.height, delta.y);
+			resize_axis_vertex(delta.x, kind.x, &mut self.position_x, &mut self.texture_x, &mut self.width);
+			resize_axis_vertex(delta.y, kind.y, &mut self.position_y, &mut self.texture_y, &mut self.height);
 		}
 	}
 }
@@ -212,20 +212,26 @@ impl EditableRect for NodeMetaRect {
 	}
 	
 	fn apply_drag(&mut self, delta: egui::Vec2, kind: DragKind) {
-		// todo
+		if kind.is_move() {
+			self.center_x += delta.x;
+			self.center_y += delta.y;
+		} else {
+			resize_axis_meta(delta.x, kind.x, &mut self.center_x, &mut self.extents_x);
+			resize_axis_meta(delta.y, kind.y, &mut self.center_y, &mut self.extents_y);
+		}
 	}
 }
 
-fn resize_axis(edge: DragKindAxis, pos: &mut f32, tex_pos: &mut u16, size: &mut u16, delta: f32) {
-	let delta = match edge {
+fn resize_axis_vertex(delta: f32, edge: DragKindAxis, pos: &mut f32, tex_pos: &mut u16, size: &mut u16) {
+	let oriented_delta = match edge {
 		DragKindAxis::SmallEdge => -delta,
-		DragKindAxis::Center => 0.0,
+		DragKindAxis::Center => { return; },
 		DragKindAxis::LargeEdge => delta,
 	};
 	
 	let old_size = *size;
 	// note that float-to-int as cast is also saturating
-	let new_size = i32::from(old_size).saturating_add(delta as i32);
+	let new_size = i32::from(old_size).saturating_add(oriented_delta as i32);
 	let new_size = new_size.clamp(1, i32::from(u16::MAX)) as u16;
 	
 	*size = new_size;
@@ -235,6 +241,17 @@ fn resize_axis(edge: DragKindAxis, pos: &mut f32, tex_pos: &mut u16, size: &mut 
 		// ugly line, maybe refactor to handle this limitation better?
 		*tex_pos = (f32::from(*tex_pos) - size_increase) as u16;
 	}
+}
+
+fn resize_axis_meta(delta: f32, edge: DragKindAxis, center: &mut f32, size: &mut f32) {
+	let oriented_delta = match edge {
+		DragKindAxis::SmallEdge => -delta,
+		DragKindAxis::Center => { return; },
+		DragKindAxis::LargeEdge => delta,
+	};
+	
+	*size += oriented_delta;
+	*center += delta / 2.0;
 }
 
 struct DragInfo {
